@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="App.Title" xml:space="preserve"><value>GSYNC</value></data>
+  <data name="App.WindowTitle" xml:space="preserve"><value>GSYNC</value></data>
+  <data name="MainWindow.Title" xml:space="preserve"><value>GSYNC</value></data>
+  <data name="MainWindow.Nav.Library" xml:space="preserve"><value>游戏库</value></data>
+  <data name="MainWindow.Nav.Targets" xml:space="preserve"><value>同步目标</value></data>
+  <data name="MainWindow.Nav.Variables" xml:space="preserve"><value>变量</value></data>
+  <data name="MainWindow.Nav.History" xml:space="preserve"><value>历史</value></data>
+  <data name="MainWindow.Nav.Settings" xml:space="preserve"><value>设置</value></data>
+  <data name="MainWindow.Subtitle.Library" xml:space="preserve"><value>游戏库总览与快速同步操作</value></data>
+  <data name="MainWindow.Subtitle.Wizard" xml:space="preserve"><value>引导式六步添加游戏流程</value></data>
+  <data name="MainWindow.Subtitle.Conflict" xml:space="preserve"><value>在选择安全解决方案前检查本地与远端变更</value></data>
+  <data name="MainWindow.Subtitle.Targets" xml:space="preserve"><value>管理本地与远端同步目标绑定</value></data>
+  <data name="MainWindow.Subtitle.Variables" xml:space="preserve"><value>检查变量与模板解析结果</value></data>
+  <data name="MainWindow.Subtitle.History" xml:space="preserve"><value>查看同步历史与恢复点</value></data>
+  <data name="MainWindow.Subtitle.Settings" xml:space="preserve"><value>外观、行为与保留策略设置</value></data>
+  <data name="MainWindow.Subtitle.Default" xml:space="preserve"><value>游戏同步桌面工具</value></data>
+  <data name="MainWindow.Status.Ready" xml:space="preserve"><value>就绪 · 当前没有运行中的同步任务</value></data>
+  <data name="MainWindow.Status.Wizard" xml:space="preserve"><value>向导已就绪 · 尚未创建配置</value></data>
+  <data name="MainWindow.Status.Conflict" xml:space="preserve"><value>冲突待处理 · 请选择安全的解决路径</value></data>
+  <data name="MainWindow.Status.History" xml:space="preserve"><value>历史已就绪 · 当前没有恢复操作</value></data>
+  <data name="MainWindow.Status.Targets" xml:space="preserve"><value>目标已就绪 · 最近一次连通性检查通过</value></data>
+  <data name="MainWindow.Status.Variables" xml:space="preserve"><value>变量已就绪 · 模板解析正常</value></data>
+  <data name="StatusBar.Log" xml:space="preserve"><value>日志</value></data>
+  <data name="StatusBar.Net" xml:space="preserve"><value>网络</value></data>
+  <data name="StatusBar.Idle" xml:space="preserve"><value>空闲</value></data>
+  <data name="StatusBar.Connection" xml:space="preserve"><value>WebDAV 桌面主目标</value></data>
+  <data name="StatusBar.Storage" xml:space="preserve"><value>已同步 12.4 GB 占用</value></data>
+  <data name="Search.Placeholder.Default" xml:space="preserve"><value>搜索</value></data>
+  <data name="Filter.Placeholder.Default" xml:space="preserve"><value>筛选</value></data>
+  <data name="Filter.Select" xml:space="preserve"><value>选择</value></data>
+  <data name="Section.DefaultTitle" xml:space="preserve"><value>分区</value></data>
+  <data name="Section.DefaultSubtitle" xml:space="preserve"><value>分区说明</value></data>
+  <data name="PropertySheet.DefaultTitle" xml:space="preserve"><value>属性</value></data>
+  <data name="Inspector.DefaultTitle" xml:space="preserve"><value>检查器</value></data>
+  <data name="InfoCallout.DefaultTitle" xml:space="preserve"><value>信息</value></data>
+  <data name="InfoCallout.DefaultMessage" xml:space="preserve"><value>提示信息</value></data>
+  <data name="Badge.Ready" xml:space="preserve"><value>就绪</value></data>
+  <data name="Settings.Title" xml:space="preserve"><value>设置</value></data>
+  <data name="Settings.Subtitle" xml:space="preserve"><value>外观与系统分组始终保持在紧凑桌面布局中可见。</value></data>
+  <data name="Settings.AppearanceTitle" xml:space="preserve"><value>外观</value></data>
+  <data name="Settings.AppearanceSubtitle" xml:space="preserve"><value>主题模式、强调色、密度、图标风格与系统行为保持为紧凑工具卡片分组。</value></data>
+  <data name="Settings.ThemeBehaviorTitle" xml:space="preserve"><value>主题与系统行为</value></data>
+  <data name="Settings.PreviewHeader" xml:space="preserve"><value>实时预览</value></data>
+  <data name="Settings.LanguageLabel" xml:space="preserve"><value>界面语言</value></data>
+  <data name="Settings.LanguageValue.Chinese" xml:space="preserve"><value>简体中文</value></data>
+  <data name="Settings.LanguageValue.English" xml:space="preserve"><value>English</value></data>
+  <data name="Settings.Button.RestoreDefaults" xml:space="preserve"><value>恢复默认</value></data>
+  <data name="Settings.Button.ApplyTheme" xml:space="preserve"><value>应用主题</value></data>
+  <data name="Settings.Button.SaveSettings" xml:space="preserve"><value>保存设置</value></data>
+  <data name="Settings.Button.AddTarget" xml:space="preserve"><value>添加新目标</value></data>
+  <data name="Settings.Button.Open" xml:space="preserve"><value>打开</value></data>
+  <data name="Settings.Button.Folder" xml:space="preserve"><value>文件夹</value></data>
+</root>

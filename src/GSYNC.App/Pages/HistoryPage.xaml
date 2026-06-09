@@ -11,12 +11,60 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <primitives:SectionHeader Title="History" Subtitle="历史记录、快照与恢复入口。" />
-        <primitives:ToolbarFilterRow Grid.Row="1" />
+        <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
 
-        <StackPanel Grid.Row="2" Spacing="12">
-            <InfoBar IsOpen="{Binding IsEmptyState}" Severity="Informational" Message="历史为空状态将按 Stitch refined empty state 继续细化。" />
-            <primitives:DenseDataGrid />
-        </StackPanel>
+        <Grid Grid.Row="1" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <primitives:ToolbarFilterRow
+                SearchPlaceholder="{Binding SearchPlaceholder}"
+                FilterItems="{Binding Filters}"
+                FilterPlaceholder="{Binding FilterPlaceholder}"
+                SelectedFilter="{Binding SelectedHistoryFilter, Mode=TwoWay}" />
+
+            <Button Grid.Column="1" Content="{Binding RefreshButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+            <Button Grid.Column="2" Content="{Binding RestoreSnapshotButtonText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+            <Button Grid.Column="3" Content="{Binding HelpButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+        </Grid>
+
+        <Grid Grid.Row="2" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" MinWidth="720" />
+                <ColumnDefinition Width="360" MinWidth="300" />
+            </Grid.ColumnDefinitions>
+
+            <primitives:ResizableTableView
+                x:Name="HistoryTable"
+                Title="{Binding TableTitle}"
+                Subtitle="{Binding TableSubtitle}"
+                FooterText="{Binding SystemStatus}"
+                PersistedStateKey="history-main-table"
+                ItemsSource="{Binding Entries}" />
+
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                <StackPanel Spacing="12">
+                    <primitives:PropertySheet Title="{Binding DetailTitle}">
+                        <primitives:PropertySheet.PanelContent>
+                            <StackPanel Spacing="10">
+                                <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding DetailRecordId}" />
+                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" FontSize="13" Text="{Binding DetailStatus}" />
+                                <primitives:KeyValueList ItemsSource="{Binding RecordDetails}" ContentMaxHeight="220" />
+                            </StackPanel>
+                        </primitives:PropertySheet.PanelContent>
+                    </primitives:PropertySheet>
+
+                    <primitives:InspectorPanel Title="{Binding SnapshotsTitle}">
+                        <primitives:InspectorPanel.PanelContent>
+                            <primitives:SnapshotFeed ItemsSource="{Binding Snapshots}" ContentMaxHeight="240" />
+                        </primitives:InspectorPanel.PanelContent>
+                    </primitives:InspectorPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
     </Grid>
 </Page>

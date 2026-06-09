@@ -140,6 +140,13 @@ Use dedicated state variants during implementation rather than improvising ad ho
 - Only the focal panel or affected section should change for most failure/empty cases.
 - Preserve primary recovery actions close to the relevant error message or empty panel.
 
+## Table interaction standard
+- Table headers and table body content should default to **left alignment** unless the Stitch design explicitly shows a different alignment.
+- Text that exceeds the visible cell width should truncate with an ellipsis rather than wrap unpredictably.
+- Truncated table text should expose the full value on hover via a tooltip.
+- Table regions and adjacent split panes should support drag-based width adjustment where practical in the desktop implementation.
+- Any UI-related deviation from the approved Stitch mockups requires explicit user approval before implementation.
+
 ## Suggested future prototype work
 - Drag-adjustable split panes
 - Snapshot restore confirmation flow

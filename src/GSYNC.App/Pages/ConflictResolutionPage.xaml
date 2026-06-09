@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="GSYNC.App.Pages.ConflictResolutionPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:primitives="using:GSYNC.App.Primitives">
+    <Grid Padding="{StaticResource AppPagePadding}" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <primitives:SectionHeader Title="{Binding Title}" Subtitle="{Binding WarningMessage}" />
+
+        <Grid Grid.Row="1" RowSpacing="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <primitives:PropertySheet Title="{Binding LocalTitle}">
+                    <primitives:PropertySheet.PanelContent>
+                        <StackPanel Spacing="12">
+                            <primitives:KeyValueList ContentMaxHeight="220" ItemsSource="{Binding LocalVersion}" />
+                            <Button Content="{Binding UseLocalText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                        </StackPanel>
+                    </primitives:PropertySheet.PanelContent>
+                </primitives:PropertySheet>
+
+                <primitives:PropertySheet Grid.Column="1" Title="{Binding RemoteTitle}">
+                    <primitives:PropertySheet.PanelContent>
+                        <StackPanel Spacing="12">
+                            <primitives:KeyValueList ContentMaxHeight="220" ItemsSource="{Binding RemoteVersion}" />
+                            <Button Content="{Binding UseRemoteText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                        </StackPanel>
+                    </primitives:PropertySheet.PanelContent>
+                </primitives:PropertySheet>
+            </Grid>
+
+            <primitives:PropertySheet Grid.Row="1" Title="{Binding BaselineTitle}">
+                <primitives:PropertySheet.PanelContent>
+                    <primitives:KeyValueList ContentMaxHeight="120" ItemsSource="{Binding SyncBaseline}" />
+                </primitives:PropertySheet.PanelContent>
+            </primitives:PropertySheet>
+
+            <primitives:ResizableTableView
+                x:Name="ConflictFilesTable"
+                Grid.Row="2"
+                Title="{Binding TableTitle}"
+                Subtitle="{Binding TableSubtitle}"
+                FooterText="{Binding TableFooterText}"
+                PersistedStateKey="conflict-files-table"
+                ItemsSource="{Binding ConflictFiles}" />
+        </Grid>
+
+        <Grid Grid.Row="2" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="1" Content="{Binding KeepBothText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+            <Button Grid.Column="2" Content="{Binding BackupRestoreText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+            <Button Grid.Column="3" Content="{Binding CancelText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+        </Grid>
+    </Grid>
+</Page>

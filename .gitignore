@@ -3,6 +3,8 @@
 .gemini
 .github
 
-**/bin/
-**/obj/
+**/bin/**
+**/obj/**
 *.log
+
+.vs

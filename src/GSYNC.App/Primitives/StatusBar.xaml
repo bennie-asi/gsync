@@ -1,9 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <UserControl
     x:Class="GSYNC.App.Primitives.StatusBar"
+    x:Name="Root"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Border Padding="12,8" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="1">
-        <TextBlock Text="Ready · 当前没有进行中的同步任务" />
+    <Border Padding="10,8" Background="Transparent" BorderThickness="0">
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding StatusText, ElementName=Root}" />
+            <TextBlock Grid.Column="1" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ConnectionText, ElementName=Root}" />
+            <TextBlock Grid.Column="2" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding StorageText, ElementName=Root}" />
+            <Rectangle Grid.Column="3" />
+            <TextBlock Grid.Column="4" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding LogText, ElementName=Root}" />
+            <TextBlock Grid.Column="5" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding NetText, ElementName=Root}" />
+            <TextBlock Grid.Column="6" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding IdleText, ElementName=Root}" />
+        </Grid>
     </Border>
 </UserControl>

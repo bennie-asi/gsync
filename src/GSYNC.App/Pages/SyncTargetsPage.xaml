@@ -11,23 +11,86 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <primitives:SectionHeader Title="Sync Targets" Subtitle="共享目标列表与右侧属性编辑面板。" />
-        <primitives:ToolbarFilterRow Grid.Row="1" />
+        <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
+
+        <Grid Grid.Row="1" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <primitives:ToolbarFilterRow
+                SearchPlaceholder="{Binding SearchPlaceholder}"
+                FilterItems="{Binding Filters}"
+                FilterPlaceholder="{Binding FilterPlaceholder}"
+                SelectedFilter="{Binding SelectedTargetFilter, Mode=TwoWay}" />
+
+            <Button Grid.Column="1" Content="{Binding TestSelectedText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+            <Button Grid.Column="2" Content="{Binding AddTargetText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+            <Button Grid.Column="3" Content="{Binding ToolsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+        </Grid>
 
         <Grid Grid.Row="2" ColumnSpacing="16">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.3*" />
-                <ColumnDefinition Width="1*" />
+                <ColumnDefinition Width="1.8*" MinWidth="680" />
+                <ColumnDefinition Width="360" MinWidth="300" />
             </Grid.ColumnDefinitions>
 
-            <primitives:DenseDataGrid />
+            <primitives:ResizableTableView
+                x:Name="TargetsTable"
+                Title="{Binding TableTitle}"
+                Subtitle="{Binding TableSubtitle}"
+                FooterText="{Binding TargetsSummary}"
+                PersistedStateKey="sync-targets-table"
+                ItemsSource="{Binding Targets}" />
 
-            <StackPanel Grid.Column="1" Spacing="12">
-                <primitives:Badge Text="Connected" />
-                <primitives:PropertySheet />
-                <primitives:InfoCallout />
-                <InfoBar IsOpen="{Binding ShowFailureState}" Severity="Error" Message="连接失败状态将按 Stitch failure variant 继续细化。" />
-            </StackPanel>
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                <StackPanel Spacing="12">
+                    <primitives:PropertySheet Title="{Binding TargetPropertiesTitle}">
+                        <primitives:PropertySheet.PanelContent>
+                            <StackPanel Spacing="12">
+                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" FontSize="13" Text="{Binding SelectedTargetStatus}" />
+                                <TextBlock FontWeight="SemiBold" Text="{Binding ConnectionDetailsText}" />
+                                <primitives:KeyValueList ItemsSource="{Binding TargetProperties}" ContentMaxHeight="220" />
+
+                                <TextBlock FontWeight="SemiBold" Text="{Binding ActiveBindingsText}" />
+                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding ActiveBindingsSummaryText}" />
+                                <ItemsControl ItemsSource="{Binding ActiveBindings}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Padding="0,0,0,8" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1">
+                                                <StackPanel>
+                                                    <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                                                    <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding Detail}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </primitives:PropertySheet.PanelContent>
+                    </primitives:PropertySheet>
+
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Content="{Binding RemoveTargetText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                        <Button Grid.Column="1" Content="{Binding OpenRootText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    </Grid>
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Content="{Binding TestConnectionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                        <Button Grid.Column="1" Content="{Binding SaveChangesText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </Page>

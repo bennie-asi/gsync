@@ -26,6 +26,15 @@ public partial class App : Application
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
     }
 
+    public static new App Current => (App)Application.Current;
+
+    public IServiceProvider Services => _services ?? throw new InvalidOperationException("Services have not been initialized.");
+
+    public static T GetService<T>() where T : notnull
+    {
+        return Current.Services.GetRequiredService<T>();
+    }
+
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
         var appPaths = new GSYNC.Data.Services.AppPathService();

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="GSYNC.App.Primitives.TooltipTextBlock"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <TextBlock
+        Text="{Binding Text, ElementName=Root}"
+        TextAlignment="{Binding TextAlignment, ElementName=Root}"
+        TextTrimming="CharacterEllipsis"
+        ToolTipService.ToolTip="{Binding Text, ElementName=Root}"
+        VerticalAlignment="Center" />
+</UserControl>

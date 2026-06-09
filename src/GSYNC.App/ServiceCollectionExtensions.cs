@@ -1,3 +1,5 @@
+using GSYNC.App.Infrastructure.Localization;
+using GSYNC.App.ViewModels;
 using GSYNC.Core.Abstractions;
 using GSYNC.Core.Abstractions.Data;
 using GSYNC.Core.Abstractions.Manifest;
@@ -34,6 +36,8 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<WebDavStorageProvider>();
 
         services.AddSingleton<IAppPathService, AppPathService>();
+        services.AddSingleton<UiSettingsStore>();
+        services.AddSingleton<ILocalizationService, LocalizationService>();
         services.AddSingleton(sp =>
         {
             var appPaths = sp.GetRequiredService<IAppPathService>();
@@ -79,7 +83,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SyncEngine>();
         services.AddSingleton<ISyncEngine>(sp => sp.GetRequiredService<SyncEngine>());
 
-        services.AddSingleton<MainWindow>();
+        services.AddTransient<MainWindowViewModel>();
+        services.AddTransient<LibraryPageViewModel>();
+        services.AddTransient<HistoryPageViewModel>();
+        services.AddTransient<SyncTargetsPageViewModel>();
+        services.AddTransient<VariablesPageViewModel>();
+        services.AddTransient<GameDetailsViewModel>();
+        services.AddTransient<ConflictResolutionViewModel>();
+        services.AddTransient<AddGameWizardViewModel>();
+        services.AddTransient<SettingsPageViewModel>();
+
+        services.AddTransient<MainWindow>();
         return services;
     }
 }

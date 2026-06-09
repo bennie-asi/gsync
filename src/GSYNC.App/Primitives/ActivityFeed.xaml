@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="GSYNC.App.Primitives.ActivityFeed"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer
+        Height="{Binding ContentHeight, ElementName=Root}"
+        VerticalScrollBarVisibility="Auto"
+        VerticalScrollMode="Enabled">
+        <ItemsControl ItemsSource="{Binding ItemsSource, ElementName=Root}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid ColumnSpacing="8" Padding="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="54" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            Foreground="{StaticResource AppTextDimBrush}"
+                            FontSize="12"
+                            Text="{Binding Timestamp}"
+                            TextAlignment="Right"
+                            VerticalAlignment="Top" />
+
+                        <Grid Grid.Column="1" Width="16">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource AppPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,5,0,0" />
+                            <Border Width="1" Background="{StaticResource AppDividerBrush}" Opacity="0.5" HorizontalAlignment="Center" Margin="0,15,0,0" Visibility="{Binding IsTerminal, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}" />
+                        </Grid>
+
+                        <Border Grid.Column="2" Padding="0,0,0,10" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1">
+                            <StackPanel Spacing="4">
+                                <TextBlock FontWeight="SemiBold" Text="{Binding PrimaryText}" />
+                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding SecondaryText}" TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </ScrollViewer>
+</UserControl>

@@ -13,4 +13,6 @@ public interface IAppPathService
     string GetManifestCachePath();
 
     string GetSnapshotsDirectory();
+
+    string GetUiSettingsPath();
 }

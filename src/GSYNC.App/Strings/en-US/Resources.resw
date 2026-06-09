@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="App.Title" xml:space="preserve"><value>GSYNC</value></data>
+  <data name="App.WindowTitle" xml:space="preserve"><value>GSYNC</value></data>
+  <data name="MainWindow.Title" xml:space="preserve"><value>GSYNC</value></data>
+  <data name="MainWindow.Nav.Library" xml:space="preserve"><value>Library</value></data>
+  <data name="MainWindow.Nav.Targets" xml:space="preserve"><value>Targets</value></data>
+  <data name="MainWindow.Nav.Variables" xml:space="preserve"><value>Variables</value></data>
+  <data name="MainWindow.Nav.History" xml:space="preserve"><value>History</value></data>
+  <data name="MainWindow.Nav.Settings" xml:space="preserve"><value>Settings</value></data>
+  <data name="MainWindow.Subtitle.Library" xml:space="preserve"><value>Library overview and quick sync actions</value></data>
+  <data name="MainWindow.Subtitle.Wizard" xml:space="preserve"><value>Guided six-step game onboarding flow</value></data>
+  <data name="MainWindow.Subtitle.Conflict" xml:space="preserve"><value>Review local and remote changes before choosing a safe resolution</value></data>
+  <data name="MainWindow.Subtitle.Targets" xml:space="preserve"><value>Manage local and remote sync target bindings</value></data>
+  <data name="MainWindow.Subtitle.Variables" xml:space="preserve"><value>Review variables and template resolution</value></data>
+  <data name="MainWindow.Subtitle.History" xml:space="preserve"><value>Inspect sync history and restore points</value></data>
+  <data name="MainWindow.Subtitle.Settings" xml:space="preserve"><value>Appearance, behavior, and retention settings</value></data>
+  <data name="MainWindow.Subtitle.Default" xml:space="preserve"><value>Game synchronization desktop utility</value></data>
+  <data name="MainWindow.Status.Ready" xml:space="preserve"><value>Ready · no sync jobs running</value></data>
+  <data name="MainWindow.Status.Wizard" xml:space="preserve"><value>Wizard ready · no profile created yet</value></data>
+  <data name="MainWindow.Status.Conflict" xml:space="preserve"><value>Conflict review · choose a safe resolution path</value></data>
+  <data name="MainWindow.Status.History" xml:space="preserve"><value>History ready · no restore operations running</value></data>
+  <data name="MainWindow.Status.Targets" xml:space="preserve"><value>Targets ready · last connectivity check passed</value></data>
+  <data name="MainWindow.Status.Variables" xml:space="preserve"><value>Variables ready · template resolution healthy</value></data>
+  <data name="StatusBar.Log" xml:space="preserve"><value>Log</value></data>
+  <data name="StatusBar.Net" xml:space="preserve"><value>Net</value></data>
+  <data name="StatusBar.Idle" xml:space="preserve"><value>Idle</value></data>
+  <data name="StatusBar.Connection" xml:space="preserve"><value>WebDAV Desktop-Main</value></data>
+  <data name="StatusBar.Storage" xml:space="preserve"><value>12.4 GB synced footprint</value></data>
+  <data name="Search.Placeholder.Default" xml:space="preserve"><value>Search</value></data>
+  <data name="Filter.Placeholder.Default" xml:space="preserve"><value>Filter</value></data>
+  <data name="Filter.Select" xml:space="preserve"><value>Select</value></data>
+  <data name="Section.DefaultTitle" xml:space="preserve"><value>Section</value></data>
+  <data name="Section.DefaultSubtitle" xml:space="preserve"><value>Section subtitle</value></data>
+  <data name="PropertySheet.DefaultTitle" xml:space="preserve"><value>Properties</value></data>
+  <data name="Inspector.DefaultTitle" xml:space="preserve"><value>Inspector</value></data>
+  <data name="InfoCallout.DefaultTitle" xml:space="preserve"><value>Info</value></data>
+  <data name="InfoCallout.DefaultMessage" xml:space="preserve"><value>Informational message</value></data>
+  <data name="Badge.Ready" xml:space="preserve"><value>Ready</value></data>
+  <data name="Settings.Title" xml:space="preserve"><value>Settings</value></data>
+  <data name="Settings.Subtitle" xml:space="preserve"><value>Appearance and system groups remain visible from a compact left navigation rail.</value></data>
+  <data name="Settings.AppearanceTitle" xml:space="preserve"><value>Appearance</value></data>
+  <data name="Settings.AppearanceSubtitle" xml:space="preserve"><value>Theme mode, accent color, density, icon style, and system behavior stay grouped as compact utility cards.</value></data>
+  <data name="Settings.ThemeBehaviorTitle" xml:space="preserve"><value>Theme and system behavior</value></data>
+  <data name="Settings.PreviewHeader" xml:space="preserve"><value>Realtime Preview</value></data>
+  <data name="Settings.LanguageLabel" xml:space="preserve"><value>Interface language</value></data>
+  <data name="Settings.LanguageValue.Chinese" xml:space="preserve"><value>Simplified Chinese</value></data>
+  <data name="Settings.LanguageValue.English" xml:space="preserve"><value>English</value></data>
+  <data name="Settings.Button.RestoreDefaults" xml:space="preserve"><value>Restore Defaults</value></data>
+  <data name="Settings.Button.ApplyTheme" xml:space="preserve"><value>Apply Theme</value></data>
+  <data name="Settings.Button.SaveSettings" xml:space="preserve"><value>Save Settings</value></data>
+  <data name="Settings.Button.AddTarget" xml:space="preserve"><value>Add New Target</value></data>
+  <data name="Settings.Button.Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Settings.Button.Folder" xml:space="preserve"><value>Folder</value></data>
+</root>

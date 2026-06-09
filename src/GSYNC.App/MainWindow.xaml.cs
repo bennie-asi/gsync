@@ -6,13 +6,14 @@ namespace GSYNC.App;
 
 public partial class MainWindow : Window
 {
-    private readonly MainWindowViewModel _viewModel = new();
+    private readonly MainWindowViewModel _viewModel;
 
     public MainWindow()
     {
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBarControl);
+        _viewModel = App.GetService<MainWindowViewModel>();
         _viewModel.SelectedPageKey = "library";
         NavigateToCurrentPage();
     }

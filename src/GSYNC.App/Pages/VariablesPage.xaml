@@ -11,23 +11,73 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <primitives:SectionHeader Title="Variables" Subtitle="路径变量、模板测试与解析说明。" />
-        <primitives:ToolbarFilterRow Grid.Row="1" />
+        <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
+
+        <Grid Grid.Row="1" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <primitives:ToolbarFilterRow
+                SearchPlaceholder="{Binding SearchPlaceholder}"
+                FilterItems="{Binding Filters}"
+                FilterPlaceholder="{Binding FilterPlaceholder}"
+                SelectedFilter="{Binding SelectedScopeFilter, Mode=TwoWay}" />
+
+            <Button Grid.Column="1" Content="{Binding AddVariableText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+            <Button Grid.Column="2" Content="{Binding TestTemplateText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+            <Button Grid.Column="3" Content="{Binding RefreshText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+        </Grid>
 
         <Grid Grid.Row="2" ColumnSpacing="16">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.2*" />
-                <ColumnDefinition Width="1*" />
+                <ColumnDefinition Width="1.7*" MinWidth="680" />
+                <ColumnDefinition Width="360" MinWidth="300" />
             </Grid.ColumnDefinitions>
 
-            <primitives:DenseDataGrid />
+            <primitives:ResizableTableView
+                x:Name="VariablesTable"
+                Title="{Binding TableTitle}"
+                Subtitle="{Binding TableSubtitle}"
+                FooterText="{Binding TableFooterText}"
+                PersistedStateKey="variables-main-table"
+                ItemsSource="{Binding Variables}" />
 
-            <StackPanel Grid.Column="1" Spacing="12">
-                <primitives:Badge Text="Template" />
-                <primitives:PropertySheet />
-                <primitives:InfoCallout />
-                <InfoBar IsOpen="{Binding ShowParseError}" Severity="Warning" Message="模板解析错误状态将按 Stitch parse-error variant 继续细化。" />
-            </StackPanel>
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                <StackPanel Spacing="12">
+                    <primitives:PropertySheet Title="{Binding SelectedVariableName}">
+                        <primitives:PropertySheet.PanelContent>
+                            <StackPanel Spacing="12">
+                                <primitives:KeyValueList ItemsSource="{Binding VariableProperties}" ContentMaxHeight="180" />
+
+                                <TextBlock FontWeight="SemiBold" Text="{Binding PathTemplateTesterText}" />
+                                <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding InputTemplateText}" />
+                                <Border Padding="10" Background="{StaticResource AppBackgroundBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
+                                    <primitives:TooltipTextBlock Text="{Binding TemplateInput}" />
+                                </Border>
+                                <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ResolvedOutputText}" />
+                                <Border Padding="10" Background="{StaticResource AppBackgroundBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
+                                    <primitives:TooltipTextBlock Text="{Binding TemplateOutput}" />
+                                </Border>
+
+                                <primitives:InfoCallout Title="{Binding OverridePrecedenceTitle}" Message="{Binding OverridePrecedence}" Severity="Info" />
+                            </StackPanel>
+                        </primitives:PropertySheet.PanelContent>
+                    </primitives:PropertySheet>
+
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Content="{Binding SaveChangesText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                        <Button Grid.Column="1" Content="{Binding ResetText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </Page>

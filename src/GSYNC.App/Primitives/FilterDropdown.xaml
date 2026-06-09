@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="GSYNC.App.Primitives.FilterDropdown"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Button
+        x:Name="DropdownButton"
+        Background="{StaticResource AppInputBrush}"
+        BorderBrush="{StaticResource AppDividerBrush}"
+        BorderThickness="1"
+        Click="DropdownButton_OnClick"
+        CornerRadius="8"
+        MinHeight="34"
+        Padding="10,0">
+        <Grid MinWidth="140">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                x:Name="DisplayTextBlock"
+                VerticalAlignment="Center"
+                Foreground="{StaticResource AppTextSecondaryBrush}"
+                TextTrimming="CharacterEllipsis" />
+            <TextBlock
+                Grid.Column="1"
+                Margin="10,0,0,0"
+                VerticalAlignment="Center"
+                Foreground="{StaticResource AppTextDimBrush}"
+                Text="⌄" />
+        </Grid>
+    </Button>
+</UserControl>

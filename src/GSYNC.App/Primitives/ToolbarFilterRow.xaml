@@ -1,16 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <UserControl
     x:Class="GSYNC.App.Primitives.ToolbarFilterRow"
+    x:Name="Root"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid ColumnSpacing="12">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:primitives="using:GSYNC.App.Primitives">
+    <Grid ColumnSpacing="10">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="2*" />
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <AutoSuggestBox PlaceholderText="搜索" />
-        <ComboBox Grid.Column="1" PlaceholderText="状态" Width="140" />
-        <Button Grid.Column="2" Content="筛选" />
+
+        <primitives:SearchField
+            PlaceholderText="{Binding SearchPlaceholder, ElementName=Root}"
+            Text="{Binding SearchText, ElementName=Root, Mode=TwoWay}" />
+
+        <primitives:FilterDropdown
+            Grid.Column="1"
+            ItemsSource="{Binding FilterItems, ElementName=Root}"
+            Placeholder="{Binding FilterPlaceholder, ElementName=Root}"
+            SelectedItem="{Binding SelectedFilter, ElementName=Root, Mode=TwoWay}" />
+
+        <ContentPresenter Grid.Column="2" Content="{Binding ActionContent, ElementName=Root}" />
     </Grid>
 </UserControl>

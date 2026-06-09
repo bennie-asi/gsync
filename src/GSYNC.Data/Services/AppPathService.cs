@@ -23,4 +23,6 @@ public sealed class AppPathService : IAppPathService
     public string GetManifestCachePath() => Path.Combine(_appDataRoot, "community-manifest.yaml");
 
     public string GetSnapshotsDirectory() => Path.Combine(_appDataRoot, "snapshots");
+
+    public string GetUiSettingsPath() => Path.Combine(_appDataRoot, "ui-settings.json");
 }
