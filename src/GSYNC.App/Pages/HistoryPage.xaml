@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="GSYNC.App.Pages.HistoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:primitives="using:GSYNC.App.Primitives">
+    <Grid Padding="{StaticResource AppPagePadding}" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <primitives:SectionHeader Title="History" Subtitle="历史记录、快照与恢复入口。" />
+        <primitives:ToolbarFilterRow Grid.Row="1" />
+
+        <StackPanel Grid.Row="2" Spacing="12">
+            <InfoBar IsOpen="{Binding IsEmptyState}" Severity="Informational" Message="历史为空状态将按 Stitch refined empty state 继续细化。" />
+            <primitives:DenseDataGrid />
+        </StackPanel>
+    </Grid>
+</Page>

@@ -1,0 +1,14 @@
+gameA:
+  files:
+    '<winAppData>/ExampleStudio/GameA/Saves': {}
+    '<home>/Documents/GameA/profile.json': {}
+  installDir:
+    '<base>/GameA'
+  steam:
+    id: 1000
+gameB:
+  files:
+    '<winDocuments>/My Games/GameB': {}
+    '<xdgData>/gameb': {}
+  steam:
+    id: 2000

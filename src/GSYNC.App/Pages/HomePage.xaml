@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="GSYNC.App.Pages.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:primitives="using:GSYNC.App.Primitives"
+    mc:Ignorable="d">
+    <Grid Padding="{StaticResource AppPagePadding}" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <primitives:SectionHeader
+            Title="Library"
+            Subtitle="多游戏总览、状态可视化与快捷同步操作区域正按 Stitch refined 设计稿收敛。" />
+
+        <primitives:ToolbarFilterRow Grid.Row="1" />
+
+        <Grid Grid.Row="2" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2.2*" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Padding="16" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+                <StackPanel Spacing="12">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Games" />
+                        <primitives:Badge Grid.Column="1" Text="Ready" />
+                        <Button Grid.Column="2" Content="Quick Sync" />
+                    </Grid>
+
+                    <InfoBar IsOpen="{Binding IsSyncInProgress}" Severity="Informational" Message="同步正在进行中，状态行与列表将按 Stitch 状态变体进一步细化。" />
+
+                    <StackPanel Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}}" Spacing="12">
+                        <primitives:InfoCallout />
+                        <Button Content="Add First Game" HorizontalAlignment="Left" />
+                    </StackPanel>
+
+                    <ListView ItemsSource="{Binding Games}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="0,10" BorderBrush="{ThemeResource ControlStrokeColorSecondaryBrush}" BorderThickness="0,0,0,1">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Source}" Opacity="0.72" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Status}" />
+                                        <Button Grid.Column="3" Content="Open" Click="OpenGameDetails_Click" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Grid.Column="1" Spacing="12">
+                <primitives:Badge Text="Local newer" />
+                <primitives:InspectorPanel />
+                <primitives:PropertySheet />
+                <primitives:InfoCallout />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

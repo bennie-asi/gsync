@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="GSYNC.App.Primitives.PropertySheet"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Padding="16" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+        <StackPanel Spacing="12">
+            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Properties" />
+            <ContentPresenter />
+        </StackPanel>
+    </Border>
+</UserControl>

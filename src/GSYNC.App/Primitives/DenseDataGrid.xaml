@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="GSYNC.App.Primitives.DenseDataGrid"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Padding="0" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+        <ListView>
+            <ListView.Header>
+                <Grid Padding="12,8" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock FontWeight="SemiBold" Text="Name" />
+                    <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="Status" />
+                    <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="Action" />
+                </Grid>
+            </ListView.Header>
+        </ListView>
+    </Border>
+</UserControl>

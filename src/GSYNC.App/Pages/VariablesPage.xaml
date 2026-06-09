@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="GSYNC.App.Pages.VariablesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:primitives="using:GSYNC.App.Primitives">
+    <Grid Padding="{StaticResource AppPagePadding}" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <primitives:SectionHeader Title="Variables" Subtitle="路径变量、模板测试与解析说明。" />
+        <primitives:ToolbarFilterRow Grid.Row="1" />
+
+        <Grid Grid.Row="2" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.2*" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
+
+            <primitives:DenseDataGrid />
+
+            <StackPanel Grid.Column="1" Spacing="12">
+                <primitives:Badge Text="Template" />
+                <primitives:PropertySheet />
+                <primitives:InfoCallout />
+                <InfoBar IsOpen="{Binding ShowParseError}" Severity="Warning" Message="模板解析错误状态将按 Stitch parse-error variant 继续细化。" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="GSYNC.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:primitives="using:GSYNC.App.Primitives"
+    mc:Ignorable="d"
+    Title="GSYNC">
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <primitives:AppTitleBar x:Name="AppTitleBarControl" Height="{StaticResource AppTitleBarHeight}" />
+
+        <NavigationView
+            Grid.Row="1"
+            x:Name="ShellNavigation"
+            CompactPaneLength="{StaticResource AppCompactPaneLength}"
+            OpenPaneLength="{StaticResource AppOpenPaneLength}"
+            PaneDisplayMode="LeftCompact"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="True"
+            SelectionChanged="NavigationView_OnSelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="Library" Tag="library" IsSelected="True" SelectsOnInvoked="True">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Library" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Sync Targets" Tag="targets">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Globe" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Variables" Tag="variables">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Map" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="History" Tag="history">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Document" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+            <Frame x:Name="ContentFrame" />
+        </NavigationView>
+
+        <primitives:StatusBar Grid.Row="2" />
+    </Grid>
+</Window>

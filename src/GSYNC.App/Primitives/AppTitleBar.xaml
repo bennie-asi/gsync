@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="GSYNC.App.Primitives.AppTitleBar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Height="48" Padding="16,0" ColumnSpacing="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Text="GSYNC" />
+        <TextBlock Grid.Column="1" VerticalAlignment="Center" Opacity="0.72" Text="Desktop Utility" />
+        <TextBlock Grid.Column="2" VerticalAlignment="Center" Opacity="0.64" Text="Ready" />
+    </Grid>
+</UserControl>
