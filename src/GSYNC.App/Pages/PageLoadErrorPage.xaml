@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="GSYNC.App.Pages.PageLoadErrorPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:primitives="using:GSYNC.App.Primitives">
+    <Grid Padding="{StaticResource AppPagePadding}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <primitives:SectionHeader
+            Title="页面暂时不可用"
+            Subtitle="应用壳层仍保持可用，你可以返回 Library 或重试当前页面。" />
+
+        <Border
+            Grid.Row="1"
+            MaxWidth="720"
+            Padding="20"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Background="{StaticResource AppSurfaceAltBrush}"
+            BorderBrush="{StaticResource AppDividerBrush}"
+            BorderThickness="1"
+            CornerRadius="12">
+            <StackPanel Spacing="16">
+                <primitives:InfoCallout
+                    Title="页面加载失败"
+                    Message="当前页面初始化出现异常，应用已保留主窗口与导航能力。"
+                    Severity="Error" />
+
+                <StackPanel Spacing="6">
+                    <TextBlock
+                        x:Name="ErrorTitleText"
+                        FontSize="20"
+                        FontWeight="SemiBold"
+                        Text="页面初始化失败" />
+                    <TextBlock
+                        x:Name="ErrorMessageText"
+                        Foreground="{StaticResource AppTextSecondaryBrush}"
+                        TextWrapping="WrapWholeWords" />
+                    <TextBlock
+                        x:Name="ErrorDetailText"
+                        Foreground="{StaticResource AppTextDimBrush}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button
+                        x:Name="ReturnButton"
+                        Content="返回 Library"
+                        Click="ReturnButton_Click"
+                        Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    <Button
+                        x:Name="RetryButton"
+                        Grid.Column="1"
+                        Content="重试"
+                        Click="RetryButton_Click"
+                        Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>

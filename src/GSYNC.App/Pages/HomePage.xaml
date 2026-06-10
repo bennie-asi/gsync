@@ -40,89 +40,127 @@
         </DataTemplate>
     </Page.Resources>
 
-    <Grid Padding="16" ColumnSpacing="14">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" MinWidth="820" />
-            <ColumnDefinition Width="292" MinWidth="272" />
-        </Grid.ColumnDefinitions>
+    <Grid>
+        <Grid x:Name="MainContentRoot" Padding="16" ColumnSpacing="14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="820" />
+                <ColumnDefinition Width="292" MinWidth="272" />
+            </Grid.ColumnDefinitions>
 
-        <Grid RowSpacing="12">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+            <Grid RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-            <Grid ColumnSpacing="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                <primitives:SearchField
-                    x:Name="SearchBoxControl"
-                    HorizontalAlignment="Left"
-                    MaxWidth="460"
-                    MinWidth="340"
-                    PlaceholderText="Search games"
-                    Text="{Binding SearchText, Mode=TwoWay}" />
+                    <primitives:SearchField
+                        x:Name="SearchBoxControl"
+                        HorizontalAlignment="Left"
+                        MaxWidth="460"
+                        MinWidth="340"
+                        PlaceholderText="Search games"
+                        Text="{Binding SearchText, Mode=TwoWay}" />
 
-                <Button
-                    x:Name="SortButton"
-                    Grid.Column="1"
-                    Content="Sort"
-                    Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    <Button
+                        x:Name="SortButton"
+                        Grid.Column="1"
+                        Content="Sort"
+                        Style="{StaticResource SecondaryToolbarButtonStyle}" />
 
-                <Button
-                    x:Name="RefreshButton"
-                    Grid.Column="2"
-                    Content="Refresh"
-                    Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    <Button
+                        x:Name="RefreshButton"
+                        Grid.Column="2"
+                        Content="Refresh"
+                        Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                </Grid>
+
+                <primitives:ResizableTableView
+                    x:Name="LibraryTable"
+                    Grid.Row="1"
+                    ItemsSource="{Binding Games}"
+                    PersistedStateKey="library-main-table" />
             </Grid>
 
-            <primitives:ResizableTableView
-                x:Name="LibraryTable"
-                Grid.Row="1"
-                ItemsSource="{Binding Games}"
-                PersistedStateKey="library-main-table" />
+            <Grid Grid.Column="1" RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button
+                        x:Name="AddGameButton"
+                        Content="Add Game"
+                        Click="OpenAddGameWizard_Click"
+                        Style="{StaticResource SecondaryToolbarButtonStyle}" />
+
+                    <Button
+                        x:Name="SyncNowButton"
+                        Grid.Column="1"
+                        Content="Sync Now"
+                        Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                </Grid>
+
+                <primitives:PropertySheet x:Name="OverviewSheet" Grid.Row="1" Title="Overview">
+                    <primitives:PropertySheet.PanelContent>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                            <StackPanel Spacing="10">
+                                <ItemsControl ItemTemplate="{StaticResource LibraryPropertyRowTemplate}" ItemsSource="{Binding OverviewMetrics}" />
+                                <Border BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,1,0,0" Opacity="0.55" Margin="0,4,0,0" />
+                                <ItemsControl ItemTemplate="{StaticResource LibraryPropertyRowTemplate}" ItemsSource="{Binding Stats}" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </primitives:PropertySheet.PanelContent>
+                </primitives:PropertySheet>
+            </Grid>
         </Grid>
 
-        <Grid Grid.Column="1" RowSpacing="12">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+        <Border
+            x:Name="InitializationErrorPanel"
+            MaxWidth="720"
+            Padding="20"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Background="{StaticResource AppSurfaceAltBrush}"
+            BorderBrush="{StaticResource AppDividerBrush}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Visibility="Collapsed">
+            <StackPanel Spacing="16">
+                <primitives:InfoCallout
+                    Title="首页加载失败"
+                    Message="Library 页面初始化出现异常，应用已保留主壳层和导航能力。"
+                    Severity="Error" />
 
-            <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="6">
+                    <TextBlock
+                        x:Name="InitializationErrorTitle"
+                        FontSize="20"
+                        FontWeight="SemiBold"
+                        Text="Library 初始化失败" />
+                    <TextBlock
+                        x:Name="InitializationErrorMessage"
+                        Foreground="{StaticResource AppTextSecondaryBrush}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
 
                 <Button
-                    x:Name="AddGameButton"
-                    Content="Add Game"
-                    Click="OpenAddGameWizard_Click"
-                    Style="{StaticResource SecondaryToolbarButtonStyle}" />
-
-                <Button
-                    x:Name="SyncNowButton"
-                    Grid.Column="1"
-                    Content="Sync Now"
+                    Content="重试加载"
+                    Click="RetryInitialization_Click"
                     Style="{StaticResource PrimaryToolbarButtonStyle}" />
-            </Grid>
-
-            <primitives:PropertySheet x:Name="OverviewSheet" Grid.Row="1" Title="Overview">
-                <primitives:PropertySheet.PanelContent>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
-                        <StackPanel Spacing="10">
-                            <ItemsControl ItemTemplate="{StaticResource LibraryPropertyRowTemplate}" ItemsSource="{Binding OverviewMetrics}" />
-                            <Border BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,1,0,0" Opacity="0.55" Margin="0,4,0,0" />
-                            <ItemsControl ItemTemplate="{StaticResource LibraryPropertyRowTemplate}" ItemsSource="{Binding Stats}" />
-                        </StackPanel>
-                    </ScrollViewer>
-                </primitives:PropertySheet.PanelContent>
-            </primitives:PropertySheet>
-        </Grid>
+            </StackPanel>
+        </Border>
     </Grid>
 </Page>

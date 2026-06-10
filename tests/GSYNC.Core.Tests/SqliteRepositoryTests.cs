@@ -166,5 +166,7 @@ public sealed class SqliteRepositoryTests : IDisposable
         public string GetManifestCachePath() => Path.Combine(_rootPath, "community-manifest.yaml");
 
         public string GetSnapshotsDirectory() => Path.Combine(_rootPath, "snapshots");
+
+        public string GetUiSettingsPath() => Path.Combine(_rootPath, "ui-settings.json");
     }
 }

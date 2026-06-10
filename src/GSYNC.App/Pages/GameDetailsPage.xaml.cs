@@ -18,12 +18,12 @@ public sealed partial class GameDetailsPage : Page
 
         ContentItemsTable.Columns =
         [
-            new ResizableTableColumn { Key = "name", Header = _viewModel.IsChinese ? "条目" : "Item", BindingPath = nameof(ContentItemRow.Name), Width = 180, MinWidth = 140, IsBold = true },
-            new ResizableTableColumn { Key = "category", Header = _viewModel.IsChinese ? "分类" : "Category", BindingPath = nameof(ContentItemRow.Category), Width = 120, MinWidth = 96 },
-            new ResizableTableColumn { Key = "resolvedPath", Header = _viewModel.IsChinese ? "解析路径" : "Resolved Path", BindingPath = nameof(ContentItemRow.ResolvedPath), Width = 320, MinWidth = 220, IsFillColumn = true },
-            new ResizableTableColumn { Key = "policy", Header = _viewModel.IsChinese ? "策略" : "Policy", BindingPath = nameof(ContentItemRow.Policy), Width = 120, MinWidth = 96 },
-            new ResizableTableColumn { Key = "status", Header = _viewModel.IsChinese ? "状态" : "Status", BindingPath = nameof(ContentItemRow.Status), Width = 110, MinWidth = 90, CellTemplate = (DataTemplate)Resources["ContentItemStatusTemplate"] },
-            new ResizableTableColumn { Key = "enabled", Header = _viewModel.IsChinese ? "开关" : "Toggle", BindingPath = nameof(ContentItemRow.Enabled), Width = 72, MinWidth = 60, CellTemplate = (DataTemplate)Resources["ContentItemToggleTemplate"] },
+            new ResizableTableColumn { Key = "name", Header = _viewModel.IsChinese ? "条目" : "Item", BindingPath = nameof(ContentItemRow.Name), Width = 200, MinWidth = 156, IsBold = true },
+            new ResizableTableColumn { Key = "category", Header = _viewModel.IsChinese ? "分类" : "Category", BindingPath = nameof(ContentItemRow.Category), Width = 110, MinWidth = 92 },
+            new ResizableTableColumn { Key = "resolvedPath", Header = _viewModel.IsChinese ? "解析路径" : "Resolved Path", BindingPath = nameof(ContentItemRow.ResolvedPath), Width = 340, MinWidth = 240, IsFillColumn = true },
+            new ResizableTableColumn { Key = "policy", Header = _viewModel.IsChinese ? "策略" : "Policy", BindingPath = nameof(ContentItemRow.Policy), Width = 122, MinWidth = 102 },
+            new ResizableTableColumn { Key = "status", Header = _viewModel.IsChinese ? "状态" : "Status", BindingPath = nameof(ContentItemRow.Status), Width = 118, MinWidth = 92, CellTemplate = (DataTemplate)Resources["ContentItemStatusTemplate"] },
+            new ResizableTableColumn { Key = "enabled", Header = _viewModel.IsChinese ? "开关" : "Toggle", BindingPath = nameof(ContentItemRow.Enabled), Width = 84, MinWidth = 70, CellTemplate = (DataTemplate)Resources["ContentItemToggleTemplate"] },
         ];
     }
 

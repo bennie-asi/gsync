@@ -6,6 +6,7 @@ namespace GSYNC.App.ViewModels;
 public partial class MainWindowViewModel : ObservableObject
 {
     private readonly ILocalizationService _localizationService;
+    private string? _startupStatusOverride;
 
     [ObservableProperty]
     private string _selectedPageKey = "library";
@@ -30,7 +31,7 @@ public partial class MainWindowViewModel : ObservableObject
         _ => _localizationService.GetString("MainWindow.Subtitle.Default"),
     };
 
-    public string GlobalStatusText => SelectedPageKey switch
+    public string GlobalStatusText => _startupStatusOverride ?? (SelectedPageKey switch
     {
         "wizard" => _localizationService.GetString("MainWindow.Status.Wizard"),
         "conflict" => _localizationService.GetString("MainWindow.Status.Conflict"),
@@ -38,7 +39,7 @@ public partial class MainWindowViewModel : ObservableObject
         "targets" => _localizationService.GetString("MainWindow.Status.Targets"),
         "variables" => _localizationService.GetString("MainWindow.Status.Variables"),
         _ => _localizationService.GetString("MainWindow.Status.Ready"),
-    };
+    });
 
     public string WebDavStatusText => _localizationService.GetString("StatusBar.WebDavStatus");
 
@@ -65,6 +66,23 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(SyncStatusText));
     }
 
+    public void ReportStartupDegraded(string message)
+    {
+        _startupStatusOverride = message;
+        OnPropertyChanged(nameof(GlobalStatusText));
+    }
+
+    public void ClearStartupOverride()
+    {
+        if (_startupStatusOverride is null)
+        {
+            return;
+        }
+
+        _startupStatusOverride = null;
+        OnPropertyChanged(nameof(GlobalStatusText));
+    }
+
     public Type ResolvePageType()
     {
         return SelectedPageKey switch
@@ -82,6 +100,11 @@ public partial class MainWindowViewModel : ObservableObject
 
     public string ResolvePageKey(Type? pageType)
     {
+        if (pageType == typeof(Pages.PageLoadErrorPage))
+        {
+            return SelectedPageKey;
+        }
+
         if (pageType == typeof(Pages.AddGameWizardPage))
         {
             return "wizard";

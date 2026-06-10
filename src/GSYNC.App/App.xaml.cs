@@ -35,35 +35,72 @@ public partial class App : Application
         return Current.Services.GetRequiredService<T>();
     }
 
-    protected override async void OnLaunched(LaunchActivatedEventArgs args)
+    protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         var appPaths = new GSYNC.Data.Services.AppPathService();
         EnsureAppDirectories(appPaths);
         Log.Logger = SerilogBootstrap.CreateLogger(appPaths.GetLogsDirectory());
+        Log.Information("GSYNC launch requested.");
 
         try
         {
+            Log.Information("Building application service provider.");
             var serviceCollection = new ServiceCollection();
             serviceCollection.AddGsyncServices(Log.Logger);
             _services = serviceCollection.BuildServiceProvider();
 
-            var initializer = _services.GetRequiredService<GSYNC.Data.Services.DatabaseInitializer>();
-            await initializer.InitializeAsync(_lifetimeCts.Token);
-
-            await SeedEmbeddedManifestIfNeededAsync(_services, _lifetimeCts.Token);
-            StartBackgroundServices(_services);
-
+            Log.Information("Creating main window shell.");
             _window = _services.GetRequiredService<MainWindow>();
             _window.Closed += OnWindowClosed;
             _window.Activate();
-
-            _ = RefreshCommunityManifestIfConfiguredAsync(_services, _lifetimeCts.Token);
-            Log.Information("GSYNC started successfully.");
         }
         catch (Exception exception)
         {
-            Log.Fatal(exception, "GSYNC failed during startup.");
+            Log.Fatal(exception, "GSYNC failed before the main window shell could be shown.");
             throw;
+        }
+    }
+
+    public async Task RunDeferredStartupAsync()
+    {
+        if (_services is null)
+        {
+            Log.Error("Deferred startup was requested before services were initialized.");
+            return;
+        }
+
+        try
+        {
+            Log.Information("Deferred startup phase started.");
+            var initializer = _services.GetRequiredService<GSYNC.Data.Services.DatabaseInitializer>();
+            Log.Information("Initializing database.");
+            await initializer.InitializeAsync(_lifetimeCts.Token);
+
+            Log.Information("Seeding embedded manifest if needed.");
+            await SeedEmbeddedManifestIfNeededAsync(_services, _lifetimeCts.Token);
+
+            Log.Information("Starting background services.");
+            StartBackgroundServices(_services);
+
+            Log.Information("Refreshing community manifest if configured.");
+            _ = RefreshCommunityManifestIfConfiguredAsync(_services, _lifetimeCts.Token);
+            Log.Information("GSYNC deferred startup completed successfully.");
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Deferred startup failed after the main window shell was shown.");
+
+            try
+            {
+                if (_services.GetService<GSYNC.App.ViewModels.MainWindowViewModel>() is { } shellViewModel)
+                {
+                    shellViewModel.ReportStartupDegraded("启动后初始化失败 · 壳层已保留");
+                }
+            }
+            catch (Exception reportException)
+            {
+                Log.Error(reportException, "Failed to report deferred startup degradation to the shell view model.");
+            }
         }
     }
 
@@ -81,6 +118,7 @@ public partial class App : Application
         var existingDefinitions = await store.GetDefinitionsAsync(cancellationToken);
         if (existingDefinitions.Count > 0)
         {
+            Log.Information("Community manifest definitions already exist; skipping embedded seed.");
             return;
         }
 
@@ -103,11 +141,13 @@ public partial class App : Application
         var options = services.GetRequiredService<IOptions<GSYNC.Manifest.Options.ManifestOptions>>();
         if (string.IsNullOrWhiteSpace(options.Value.RemoteManifestUrl))
         {
+            Log.Information("Remote manifest refresh is not configured; skipping refresh.");
             return;
         }
 
         var manifestService = services.GetRequiredService<IManifestService>();
         await manifestService.RefreshCommunityDefinitionsAsync(cancellationToken);
+        Log.Information("Community manifest refresh completed.");
     }
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
