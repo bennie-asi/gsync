@@ -5,80 +5,56 @@ namespace GSYNC.App.Primitives;
 
 public sealed partial class StatusBar : UserControl
 {
-    public static readonly DependencyProperty StatusTextProperty = DependencyProperty.Register(
-        nameof(StatusText),
+    public static readonly DependencyProperty WebDavStatusTextProperty = DependencyProperty.Register(
+        nameof(WebDavStatusText),
         typeof(string),
         typeof(StatusBar),
-        new PropertyMetadata("GSYNC 1.0.2"));
+        new PropertyMetadata("WebDAV: Online"));
 
-    public static readonly DependencyProperty ConnectionTextProperty = DependencyProperty.Register(
-        nameof(ConnectionText),
+    public static readonly DependencyProperty LocalStatusTextProperty = DependencyProperty.Register(
+        nameof(LocalStatusText),
         typeof(string),
         typeof(StatusBar),
-        new PropertyMetadata("WebDAV Desktop-Main"));
+        new PropertyMetadata("Local: Ready"));
 
-    public static readonly DependencyProperty StorageTextProperty = DependencyProperty.Register(
-        nameof(StorageText),
+    public static readonly DependencyProperty TargetNameTextProperty = DependencyProperty.Register(
+        nameof(TargetNameText),
         typeof(string),
         typeof(StatusBar),
-        new PropertyMetadata("12.4GB"));
+        new PropertyMetadata("WebDAV-Main"));
 
-    public static readonly DependencyProperty LogTextProperty = DependencyProperty.Register(
-        nameof(LogText),
+    public static readonly DependencyProperty SyncStatusTextProperty = DependencyProperty.Register(
+        nameof(SyncStatusText),
         typeof(string),
         typeof(StatusBar),
-        new PropertyMetadata("Log"));
-
-    public static readonly DependencyProperty NetTextProperty = DependencyProperty.Register(
-        nameof(NetText),
-        typeof(string),
-        typeof(StatusBar),
-        new PropertyMetadata("Net"));
-
-    public static readonly DependencyProperty IdleTextProperty = DependencyProperty.Register(
-        nameof(IdleText),
-        typeof(string),
-        typeof(StatusBar),
-        new PropertyMetadata("Idle"));
+        new PropertyMetadata("Sync: Ready"));
 
     public StatusBar()
     {
         InitializeComponent();
     }
 
-    public string StatusText
+    public string WebDavStatusText
     {
-        get => (string)GetValue(StatusTextProperty);
-        set => SetValue(StatusTextProperty, value);
+        get => (string)GetValue(WebDavStatusTextProperty);
+        set => SetValue(WebDavStatusTextProperty, value);
     }
 
-    public string ConnectionText
+    public string LocalStatusText
     {
-        get => (string)GetValue(ConnectionTextProperty);
-        set => SetValue(ConnectionTextProperty, value);
+        get => (string)GetValue(LocalStatusTextProperty);
+        set => SetValue(LocalStatusTextProperty, value);
     }
 
-    public string StorageText
+    public string TargetNameText
     {
-        get => (string)GetValue(StorageTextProperty);
-        set => SetValue(StorageTextProperty, value);
+        get => (string)GetValue(TargetNameTextProperty);
+        set => SetValue(TargetNameTextProperty, value);
     }
 
-    public string LogText
+    public string SyncStatusText
     {
-        get => (string)GetValue(LogTextProperty);
-        set => SetValue(LogTextProperty, value);
-    }
-
-    public string NetText
-    {
-        get => (string)GetValue(NetTextProperty);
-        set => SetValue(NetTextProperty, value);
-    }
-
-    public string IdleText
-    {
-        get => (string)GetValue(IdleTextProperty);
-        set => SetValue(IdleTextProperty, value);
+        get => (string)GetValue(SyncStatusTextProperty);
+        set => SetValue(SyncStatusTextProperty, value);
     }
 }

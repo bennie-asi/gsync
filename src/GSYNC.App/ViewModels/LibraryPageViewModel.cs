@@ -27,12 +27,14 @@ public partial class LibraryPageViewModel : ObservableObject
         PageSubtitle = Pick("密集型多游戏总览，集中展示同步状态、近期活动与快捷恢复操作。", "Dense multi-game overview with explicit sync state, recent activity, and quick recovery actions.");
         SearchPlaceholder = Pick("搜索游戏", "Search games");
         StatusFilterPlaceholder = Pick("状态", "Status");
+        SortText = Pick("排序", "Sort");
+        RefreshText = Pick("刷新", "Refresh");
         AddGameText = Pick("添加游戏", "Add Game");
         SyncNowText = Pick("立即同步", "Sync Now");
-        TableTitle = Pick("已跟踪游戏", "Tracked games");
-        TableSubtitle = Pick("在一张紧凑表格中同时保留游戏、来源、条目数、本地状态、远端状态、上次同步与目标。", "Game, source, item count, local state, remote state, last sync, and target remain visible in one dense table.");
-        TableFooterText = Pick("GSYNC 游戏库 · 冲突时内联保留解决操作。", "GSYNC Library · Resolve actions remain inline for conflicts.");
-        OverviewTitle = Pick("概览", "Overview");
+        TableTitle = string.Empty;
+        TableSubtitle = string.Empty;
+        TableFooterText = string.Empty;
+        OverviewTitle = Pick("总览", "Overview");
         ActivityTitle = Pick("活动", "Activity");
         OpenButtonText = Pick("打开", "Open");
         MoreButtonText = Pick("更多", "More");
@@ -49,10 +51,10 @@ public partial class LibraryPageViewModel : ObservableObject
 
         Games =
         [
-            new("Elden Ring", "Steam", "4", Pick("已同步", "Synced"), Pick("已同步", "Synced"), Pick("2 分钟前", "2 mins ago"), "WebDAV-Main", true),
-            new("Stardew Valley", Pick("自定义", "Custom"), "12", Pick("本地较新", "Local newer"), Pick("远端较新", "Remote newer"), Pick("1 小时前", "1 hour ago"), "WebDAV-Main", false),
-            new("Skyrim", "Epic", "1", Pick("冲突", "Conflict"), Pick("冲突", "Conflict"), Pick("昨天", "Yesterday"), "OneDrive", false),
-            new("Hades", "Steam", "6", Pick("已同步", "Synced"), Pick("已同步", "Synced"), Pick("5 小时前", "5 hours ago"), "WebDAV-Main", false),
+            new("Elden Ring", "Steam", "4", Pick("已同步", "Synced"), Pick("已同步", "Synced"), Pick("2 分钟前", "2 mins ago"), "WebDAV-Main", true, "synced", "synced"),
+            new("Stardew Valley", Pick("自定义", "Custom"), "12", Pick("本地较新", "Local newer"), Pick("远端较新", "Remote newer"), Pick("1 小时前", "1 hour ago"), "WebDAV-Main", false, "local newer", "remote newer"),
+            new("Skyrim", "Epic", "1", Pick("冲突", "Conflict"), Pick("冲突", "Conflict"), Pick("昨天", "Yesterday"), "OneDrive", false, "conflict", "conflict"),
+            new("Hades", "Steam", "6", Pick("已同步", "Synced"), Pick("已同步", "Synced"), Pick("5 小时前", "5 hours ago"), "WebDAV-Main", false, "synced", "synced"),
         ];
 
         OverviewMetrics =
@@ -89,6 +91,8 @@ public partial class LibraryPageViewModel : ObservableObject
     public string PageSubtitle { get; }
     public string SearchPlaceholder { get; }
     public string StatusFilterPlaceholder { get; }
+    public string SortText { get; }
+    public string RefreshText { get; }
     public string AddGameText { get; }
     public string SyncNowText { get; }
     public string TableTitle { get; }
@@ -119,6 +123,8 @@ public sealed record LibraryGameRow(
     string RemoteStatus,
     string LastSync,
     string Target,
-    bool IsSelected);
+    bool IsSelected,
+    string LocalStatusVariant = "ready",
+    string RemoteStatusVariant = "ready");
 
 public sealed record LibraryStat(string Label, string Value);

@@ -46,7 +46,8 @@ public sealed partial class Badge : UserControl
 
     private void ApplyVariantStyling()
     {
-        var brushKey = Variant?.Trim().ToLowerInvariant() switch
+        var normalizedVariant = Variant?.Trim().ToLowerInvariant();
+        var brushKey = normalizedVariant switch
         {
             "synced" or "success" => "BadgeSyncedBrush",
             "local newer" => "BadgeLocalNewerBrush",

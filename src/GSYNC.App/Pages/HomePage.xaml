@@ -11,10 +11,10 @@
     mc:Ignorable="d">
     <Page.Resources>
         <DataTemplate x:Key="LibraryStatusCellTemplate" x:DataType="vm:LibraryGameRow">
-            <primitives:Badge Text="{x:Bind LocalStatus}" Variant="{x:Bind LocalStatus}" />
+            <primitives:Badge Text="{x:Bind LocalStatus}" Variant="{x:Bind LocalStatusVariant}" />
         </DataTemplate>
         <DataTemplate x:Key="LibraryRemoteStatusCellTemplate" x:DataType="vm:LibraryGameRow">
-            <primitives:Badge Text="{x:Bind RemoteStatus}" Variant="{x:Bind RemoteStatus}" />
+            <primitives:Badge Text="{x:Bind RemoteStatus}" Variant="{x:Bind RemoteStatusVariant}" />
         </DataTemplate>
         <DataTemplate x:Key="LibraryActionCellTemplate" x:DataType="vm:LibraryGameRow">
             <Grid ColumnSpacing="6">
@@ -22,98 +22,107 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Button Content="打开" Click="OpenGameDetails_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="1" Content="更多" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Content="{Binding ElementName=RootPage, Path=ViewModel.OpenButtonText}" Click="OpenGameDetails_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="1" Content="{Binding ElementName=RootPage, Path=ViewModel.MoreButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
             </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="LibraryPropertyRowTemplate">
+            <Border BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1" Opacity="0.85" Padding="0,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" FontWeight="SemiBold" HorizontalAlignment="Right" Text="{Binding Value}" />
+                </Grid>
+            </Border>
         </DataTemplate>
     </Page.Resources>
 
-    <Grid Padding="{StaticResource AppPagePadding}" RowSpacing="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <Grid Padding="16" ColumnSpacing="14">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MinWidth="820" />
+            <ColumnDefinition Width="292" MinWidth="272" />
+        </Grid.ColumnDefinitions>
 
-        <primitives:SectionHeader
-            x:Name="PageHeader"
-            Title="Game Library"
-            Subtitle="Dense multi-game overview with explicit sync state, recent activity, and quick recovery actions." />
+        <Grid RowSpacing="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <Grid Grid.Row="1" ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-            <primitives:ToolbarFilterRow
-                x:Name="ToolbarFilters"
-                SearchText="{Binding SearchText, Mode=TwoWay}"
-                SearchPlaceholder="Search games"
-                FilterItems="{Binding StatusFilters}"
-                FilterPlaceholder="Status"
-                SelectedFilter="{Binding SelectedStatus, Mode=TwoWay}" />
+                <primitives:SearchField
+                    x:Name="SearchBoxControl"
+                    HorizontalAlignment="Left"
+                    MaxWidth="460"
+                    MinWidth="340"
+                    PlaceholderText="Search games"
+                    Text="{Binding SearchText, Mode=TwoWay}" />
 
-            <Button x:Name="AddGameButton" Grid.Column="1" Content="Add Game" Click="OpenAddGameWizard_Click" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-            <Button x:Name="SyncNowButton" Grid.Column="2" Content="Sync Now" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-        </Grid>
+                <Button
+                    x:Name="SortButton"
+                    Grid.Column="1"
+                    Content="Sort"
+                    Style="{StaticResource SecondaryToolbarButtonStyle}" />
 
-        <Grid Grid.Row="2" ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2.25*" MinWidth="720" />
-                <ColumnDefinition Width="352" MinWidth="300" />
-            </Grid.ColumnDefinitions>
+                <Button
+                    x:Name="RefreshButton"
+                    Grid.Column="2"
+                    Content="Refresh"
+                    Style="{StaticResource SecondaryToolbarButtonStyle}" />
+            </Grid>
 
             <primitives:ResizableTableView
                 x:Name="LibraryTable"
-                Title="Tracked games"
-                Subtitle="Game, source, item count, local state, remote state, last sync, and target remain visible in one dense table."
-                FooterText="GSYNC Library · Resolve actions remain inline for conflicts."
-                PersistedStateKey="library-main-table"
-                ItemsSource="{Binding Games}" />
+                Grid.Row="1"
+                ItemsSource="{Binding Games}"
+                PersistedStateKey="library-main-table" />
+        </Grid>
 
-            <Grid Grid.Column="1" Width="352">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="14" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+        <Grid Grid.Column="1" RowSpacing="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-                <primitives:PropertySheet x:Name="OverviewSheet" Title="Overview">
-                    <primitives:PropertySheet.PanelContent>
-                        <ScrollViewer Height="196" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
-                            <StackPanel Spacing="12">
-                                <ItemsControl ItemsSource="{Binding OverviewMetrics}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <ItemsWrapGrid MaximumRowsOrColumns="2" Orientation="Horizontal" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:LibraryOverviewMetric">
-                                            <Border Width="150" Margin="0,0,10,10" Padding="12" Background="{StaticResource AppSurfaceAltBrush}" CornerRadius="8">
-                                                <StackPanel Spacing="4">
-                                                    <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
-                                                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="{x:Bind Value}" />
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-                                <primitives:KeyValueList ContentMaxHeight="96" ItemsSource="{Binding Stats}" />
-                            </StackPanel>
-                        </ScrollViewer>
-                    </primitives:PropertySheet.PanelContent>
-                </primitives:PropertySheet>
+                <Button
+                    x:Name="AddGameButton"
+                    Content="Add Game"
+                    Click="OpenAddGameWizard_Click"
+                    Style="{StaticResource SecondaryToolbarButtonStyle}" />
 
-                <primitives:InspectorPanel x:Name="ActivityPanel" Grid.Row="2" Title="Activity">
-                    <primitives:InspectorPanel.PanelContent>
-                        <primitives:ActivityFeed ContentHeight="276" ItemsSource="{Binding Activity}" />
-                    </primitives:InspectorPanel.PanelContent>
-                </primitives:InspectorPanel>
+                <Button
+                    x:Name="SyncNowButton"
+                    Grid.Column="1"
+                    Content="Sync Now"
+                    Style="{StaticResource PrimaryToolbarButtonStyle}" />
             </Grid>
+
+            <primitives:PropertySheet x:Name="OverviewSheet" Grid.Row="1" Title="Overview">
+                <primitives:PropertySheet.PanelContent>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                        <StackPanel Spacing="10">
+                            <ItemsControl ItemTemplate="{StaticResource LibraryPropertyRowTemplate}" ItemsSource="{Binding OverviewMetrics}" />
+                            <Border BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,1,0,0" Opacity="0.55" Margin="0,4,0,0" />
+                            <ItemsControl ItemTemplate="{StaticResource LibraryPropertyRowTemplate}" ItemsSource="{Binding Stats}" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </primitives:PropertySheet.PanelContent>
+            </primitives:PropertySheet>
         </Grid>
     </Grid>
 </Page>

@@ -40,6 +40,14 @@ public partial class MainWindowViewModel : ObservableObject
         _ => _localizationService.GetString("MainWindow.Status.Ready"),
     };
 
+    public string WebDavStatusText => _localizationService.GetString("StatusBar.WebDavStatus");
+
+    public string LocalStatusText => _localizationService.GetString("StatusBar.LocalStatus");
+
+    public string TargetNameText => _localizationService.GetString("StatusBar.TargetName");
+
+    public string SyncStatusText => _localizationService.GetString("StatusBar.SyncStatus");
+
     partial void OnSelectedPageKeyChanged(string value)
     {
         OnPropertyChanged(nameof(CurrentSectionSubtitle));
@@ -51,6 +59,10 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(WindowTitle));
         OnPropertyChanged(nameof(CurrentSectionSubtitle));
         OnPropertyChanged(nameof(GlobalStatusText));
+        OnPropertyChanged(nameof(WebDavStatusText));
+        OnPropertyChanged(nameof(LocalStatusText));
+        OnPropertyChanged(nameof(TargetNameText));
+        OnPropertyChanged(nameof(SyncStatusText));
     }
 
     public Type ResolvePageType()
@@ -66,5 +78,40 @@ public partial class MainWindowViewModel : ObservableObject
             "settings" => typeof(Pages.SettingsPage),
             _ => typeof(Pages.HomePage),
         };
+    }
+
+    public string ResolvePageKey(Type? pageType)
+    {
+        if (pageType == typeof(Pages.AddGameWizardPage))
+        {
+            return "wizard";
+        }
+
+        if (pageType == typeof(Pages.ConflictResolutionPage))
+        {
+            return "conflict";
+        }
+
+        if (pageType == typeof(Pages.SyncTargetsPage))
+        {
+            return "targets";
+        }
+
+        if (pageType == typeof(Pages.VariablesPage))
+        {
+            return "variables";
+        }
+
+        if (pageType == typeof(Pages.HistoryPage))
+        {
+            return "history";
+        }
+
+        if (pageType == typeof(Pages.SettingsPage))
+        {
+            return "settings";
+        }
+
+        return "library";
     }
 }

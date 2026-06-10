@@ -1,8 +1,4 @@
-## Purpose
-
-定义 GSYNC 第二阶段 UI 中 Library 与 Game Details 两个主页面的落地要求。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Library 界面落地
 应用程序 SHALL 按 Stitch 的 refined / normalized Library 设计稿实现多游戏总览界面。Library 页面 SHALL 在主内容区顶部提供占据主要横向权重的搜索输入框，并在同一行右侧提供排序与刷新按钮；主内容中段 SHALL 显示游戏表格区域；右侧上方 SHALL 提供“添加游戏”和“立即同步”主操作区，右侧下方 SHALL 提供总览视图。页面各分区的信息层级、相对位置与桌面工具式密度 SHALL 与 Stitch refined Library 设计稿保持一致。
@@ -19,19 +15,7 @@
 - **WHEN** 用户查看 Library 页面右侧区域
 - **THEN** 应用程序 SHALL 在右上方显示“添加游戏”和“立即同步”操作，在其下方显示总览视图，而不是将这些内容并入表格工具栏或改为其他信息架构
 
-### Requirement: Game Details 界面落地
-应用程序 SHALL 按 Stitch 的 refined Game Details 设计稿实现单游戏详情页面，支持内容项检查、路径查看、同步历史预览与上下文操作。
-
-#### Scenario: Game Details 页面显示
-- **WHEN** 用户从 Library 进入某个游戏的详情界面
-- **THEN** 应用程序 SHALL 显示符合 Stitch 设计稿的内容项列表、属性区与相关操作区
-
-### Requirement: Library 状态变体落地
-应用程序 SHALL 按 Stitch 提供的状态变体实现 Library 的 first-run / empty 状态以及 sync in-progress 状态，并保持与正常页面相同的应用壳与布局结构。
-
-#### Scenario: Library 空状态显示
-- **WHEN** 当前没有任何游戏实例
-- **THEN** 应用程序 SHALL 显示符合 Stitch 设计稿的 first-run / empty 状态，而不改变应用壳结构
+## ADDED Requirements
 
 ### Requirement: Library 底部运行状态展示
 应用程序 SHALL 在 Library 页面底部固定展示运行状态信息。状态栏左侧 SHALL 显示 WebDAV 在线状态与 Local 就绪状态，右侧 SHALL 显示当前 WebDAV 名称与同步状态，并与主界面其余区域同时可见。

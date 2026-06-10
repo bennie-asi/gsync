@@ -13,15 +13,15 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding Title, ElementName=Root}" />
-            <TextBlock Grid.Row="1" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding Subtitle, ElementName=Root}" TextWrapping="WrapWholeWords" />
+            <TextBlock x:Name="TitleTextBlock" FontSize="18" FontWeight="SemiBold" Text="{Binding Title, ElementName=Root}" Visibility="Collapsed" />
+            <TextBlock x:Name="SubtitleTextBlock" Grid.Row="1" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding Subtitle, ElementName=Root}" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
             <ScrollViewer x:Name="TableScrollViewer" Grid.Row="2" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled" ViewChanged="TableScrollViewer_ViewChanged">
                 <StackPanel>
                     <Grid x:Name="HeaderGrid" Padding="0,0,0,8" ColumnSpacing="12" />
                     <StackPanel x:Name="RowsPanel" Spacing="0" />
                 </StackPanel>
             </ScrollViewer>
-            <TextBlock Grid.Row="3" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding FooterText, ElementName=Root}" />
+            <TextBlock x:Name="FooterTextBlock" Grid.Row="3" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding FooterText, ElementName=Root}" Visibility="Collapsed" />
         </Grid>
     </Border>
 </UserControl>

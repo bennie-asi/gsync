@@ -13,18 +13,34 @@ public sealed partial class AppNavRail : UserControl
         typeof(AppNavRail),
         new PropertyMetadata("library", OnSelectedKeyChanged));
 
+    public static readonly DependencyProperty AppVersionProperty = DependencyProperty.Register(
+        nameof(AppVersion),
+        typeof(string),
+        typeof(AppNavRail),
+        new PropertyMetadata("v1.0.2", OnAppVersionChanged));
+
     public event EventHandler<NavigationRequestedEventArgs>? NavigationRequested;
 
     public AppNavRail()
     {
         InitializeComponent();
-        Loaded += (_, _) => ApplySelectionState();
+        Loaded += (_, _) =>
+        {
+            ApplyAppVersion();
+            ApplySelectionState();
+        };
     }
 
     public string SelectedKey
     {
         get => (string)GetValue(SelectedKeyProperty);
         set => SetValue(SelectedKeyProperty, value);
+    }
+
+    public string AppVersion
+    {
+        get => (string)GetValue(AppVersionProperty);
+        set => SetValue(AppVersionProperty, value);
     }
 
     public void ApplyLocalization(ILocalizationService localizationService)
@@ -44,11 +60,27 @@ public sealed partial class AppNavRail : UserControl
         }
     }
 
+    private static void OnAppVersionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is AppNavRail rail)
+        {
+            rail.ApplyAppVersion();
+        }
+    }
+
     private void NavButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button button && button.Tag is string key)
         {
             NavigationRequested?.Invoke(this, new NavigationRequestedEventArgs(key));
+        }
+    }
+
+    private void ApplyAppVersion()
+    {
+        if (AppVersionTextBlock is not null)
+        {
+            AppVersionTextBlock.Text = AppVersion;
         }
     }
 

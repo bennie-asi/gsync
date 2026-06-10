@@ -25,13 +25,14 @@ public static class LocalizedTableTemplates
         return (DataTemplate)XamlReader.Load(xaml);
     }
 
-    public static DataTemplate CreateBadgeTemplate(string bindingPath)
+    public static DataTemplate CreateBadgeTemplate(string textBindingPath, string? variantBindingPath = null)
     {
+        var resolvedVariantBindingPath = string.IsNullOrWhiteSpace(variantBindingPath) ? textBindingPath : variantBindingPath;
         var xaml = $$"""
 <DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"
               xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"
               xmlns:primitives=\"using:GSYNC.App.Primitives\">
-    <primitives:Badge Text=\"{Binding {{bindingPath}}}\" Variant=\"{Binding {{bindingPath}}}\" />
+    <primitives:Badge Text=\"{Binding {{textBindingPath}}}\" Variant=\"{Binding {{resolvedVariantBindingPath}}}\" />
 </DataTemplate>
 """;
         return (DataTemplate)XamlReader.Load(xaml);

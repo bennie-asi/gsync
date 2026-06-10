@@ -44,7 +44,11 @@ public sealed partial class ResizableTableView : UserControl
     public ResizableTableView()
     {
         InitializeComponent();
-        Loaded += (_, _) => Rebuild();
+        Loaded += (_, _) =>
+        {
+            UpdateTextVisibility();
+            Rebuild();
+        };
         SizeChanged += (_, _) => ApplyColumnWidths();
     }
 
@@ -86,10 +90,29 @@ public sealed partial class ResizableTableView : UserControl
 
     private string StateFilePath => Path.Combine(_appPaths.GetAppDataRoot(), "ui-table-state.json");
 
+    private void UpdateTextVisibility()
+    {
+        if (TitleTextBlock is not null)
+        {
+            TitleTextBlock.Visibility = string.IsNullOrWhiteSpace(Title) ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        if (SubtitleTextBlock is not null)
+        {
+            SubtitleTextBlock.Visibility = string.IsNullOrWhiteSpace(Subtitle) ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        if (FooterTextBlock is not null)
+        {
+            FooterTextBlock.Visibility = string.IsNullOrWhiteSpace(FooterText) ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
+
     private static void OnDataChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is ResizableTableView table)
         {
+            table.UpdateTextVisibility();
             table.Rebuild();
         }
     }
