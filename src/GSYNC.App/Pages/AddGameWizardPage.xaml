@@ -11,6 +11,14 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{StaticResource AppTextDimBrush}" />
         </Style>
+        <DataTemplate x:Key="WizardOptionTemplate" x:DataType="vm:WizardOption">
+            <Border Padding="14" Margin="0,0,0,10" Background="{StaticResource AppSurfaceAltBrush}" CornerRadius="8">
+                <StackPanel Spacing="4">
+                    <TextBlock FontSize="15" FontWeight="SemiBold" Text="{x:Bind Title}" />
+                    <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
     </Page.Resources>
 
     <Grid Padding="{StaticResource AppPagePadding}" RowSpacing="16">
@@ -20,7 +28,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <primitives:SectionHeader Title="Add Game" Subtitle="Static six-step wizard shell aligned with the refined desktop utility flow." />
+        <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
 
         <Grid Grid.Row="1" ColumnSpacing="16">
             <Grid.ColumnDefinitions>
@@ -30,27 +38,34 @@
 
             <primitives:WizardStepRail>
                 <primitives:WizardStepRail.RailContent>
-                    <ItemsControl ItemsSource="{Binding Steps}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:WizardStepItem">
-                                <Border Padding="10" Margin="0,0,0,8" Background="{StaticResource AppSurfaceBrush}" CornerRadius="8">
-                                    <Grid ColumnSpacing="10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Width="24" Height="24" Background="{StaticResource AppPrimaryBrush}" CornerRadius="12">
-                                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource AppBackgroundBrush}" FontWeight="SemiBold" Text="{x:Bind Index}" />
-                                        </Border>
-                                        <StackPanel Grid.Column="1" Spacing="2">
-                                            <TextBlock FontWeight="SemiBold" Text="{x:Bind Title}" />
-                                            <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding WizardRailTitle}" />
+                            <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding WizardRailSubtitle}" TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding Steps}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:WizardStepItem">
+                                    <Border Padding="10" Margin="0,0,0,8" Background="{StaticResource AppSurfaceBrush}" CornerRadius="8">
+                                        <Grid ColumnSpacing="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="24" Height="24" Background="{StaticResource AppPrimaryBrush}" CornerRadius="12">
+                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource AppBackgroundBrush}" FontWeight="SemiBold" Text="{x:Bind Index}" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="{x:Bind Title}" />
+                                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </primitives:WizardStepRail.RailContent>
             </primitives:WizardStepRail>
 
@@ -62,99 +77,71 @@
                         </primitives:PropertySheet.PanelContent>
                     </primitives:PropertySheet>
 
-                    <primitives:DenseDataGrid Title="Available sources" Subtitle="Automated sources will try to detect installed games and cloud-aware defaults." FooterText="{Binding CurrentStepFooter}" Visibility="{Binding IsStep1, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <primitives:DenseDataGrid Title="{Binding SourcesTitle}" Subtitle="{Binding SourcesSubtitle}" FooterText="{Binding CurrentStepFooter}" Visibility="{Binding IsStep1, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <primitives:DenseDataGrid.GridContent>
-                            <ItemsControl ItemsSource="{Binding Sources}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:WizardOption">
-                                        <Border Padding="14" Margin="0,0,0,10" Background="{StaticResource AppSurfaceAltBrush}" CornerRadius="8">
-                                            <StackPanel Spacing="4">
-                                                <TextBlock FontSize="15" FontWeight="SemiBold" Text="{x:Bind Title}" />
-                                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <ItemsControl ItemTemplate="{StaticResource WizardOptionTemplate}" ItemsSource="{Binding Sources}" />
                         </primitives:DenseDataGrid.GridContent>
                     </primitives:DenseDataGrid>
 
-                    <Grid ColumnSpacing="16" Visibility="{Binding IsStep2, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.2*" />
-                            <ColumnDefinition Width="0.9*" />
-                        </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="16" Visibility="{Binding IsStep2, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Visibility="{Binding ShowNoResultsState, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel Spacing="14">
+                                <primitives:InfoCallout Severity="Warning" Title="{Binding NoResultsTitle}" Message="{Binding NoResultsMessage}" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Content="{Binding NoResultsPrimaryActionText}" Click="SwitchToManualSetupButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                                    <Button Grid.Column="1" Content="{Binding NoResultsSecondaryActionText}" Click="BackToSourceSelectionButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
 
-                        <primitives:DenseDataGrid Title="Detected games" Subtitle="Choose a discovered game from the selected source or search manually." FooterText="{Binding CurrentStepFooter}">
-                            <primitives:DenseDataGrid.GridContent>
-                                <ItemsControl ItemsSource="{Binding Games}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:WizardOption">
-                                            <Border Padding="14" Margin="0,0,0,10" Background="{StaticResource AppSurfaceAltBrush}" CornerRadius="8">
-                                                <StackPanel Spacing="4">
-                                                    <TextBlock FontSize="15" FontWeight="SemiBold" Text="{x:Bind Title}" />
-                                                    <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </primitives:DenseDataGrid.GridContent>
-                        </primitives:DenseDataGrid>
+                        <Grid ColumnSpacing="16" Visibility="{Binding ShowNoResultsState, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.2*" />
+                                <ColumnDefinition Width="0.9*" />
+                            </Grid.ColumnDefinitions>
 
-                        <primitives:PropertySheet Grid.Column="1" Title="Detected game details">
-                            <primitives:PropertySheet.PanelContent>
-                                <primitives:KeyValueList ItemsSource="{Binding GameDetails}" ContentMaxHeight="220" />
-                            </primitives:PropertySheet.PanelContent>
-                        </primitives:PropertySheet>
-                    </Grid>
+                            <primitives:DenseDataGrid Title="{Binding GamesTitle}" Subtitle="{Binding GamesSubtitle}" FooterText="{Binding CurrentStepFooter}">
+                                <primitives:DenseDataGrid.GridContent>
+                                    <ItemsControl ItemTemplate="{StaticResource WizardOptionTemplate}" ItemsSource="{Binding Games}" />
+                                </primitives:DenseDataGrid.GridContent>
+                            </primitives:DenseDataGrid>
 
-                    <primitives:DenseDataGrid Title="Selected content" Subtitle="The refined content-items step uses dense cards with explicit item labels and summaries." FooterText="{Binding CurrentStepFooter}" Visibility="{Binding IsStep3, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <primitives:PropertySheet Grid.Column="1" Title="{Binding Step2DetailsTitle}">
+                                <primitives:PropertySheet.PanelContent>
+                                    <primitives:KeyValueList ItemsSource="{Binding GameDetails}" ContentMaxHeight="220" />
+                                </primitives:PropertySheet.PanelContent>
+                            </primitives:PropertySheet>
+                        </Grid>
+                    </StackPanel>
+
+                    <primitives:DenseDataGrid Title="{Binding ContentTitle}" Subtitle="{Binding ContentSubtitle}" FooterText="{Binding CurrentStepFooter}" Visibility="{Binding IsStep3, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <primitives:DenseDataGrid.GridContent>
-                            <ItemsControl ItemsSource="{Binding ContentItems}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:WizardOption">
-                                        <Border Padding="14" Margin="0,0,0,10" Background="{StaticResource AppSurfaceAltBrush}" CornerRadius="8">
-                                            <StackPanel Spacing="4">
-                                                <TextBlock FontSize="15" FontWeight="SemiBold" Text="{x:Bind Title}" />
-                                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <ItemsControl ItemTemplate="{StaticResource WizardOptionTemplate}" ItemsSource="{Binding ContentItems}" />
                         </primitives:DenseDataGrid.GridContent>
                     </primitives:DenseDataGrid>
 
-                    <primitives:PropertySheet Title="Resolved path review" Visibility="{Binding IsStep4, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <primitives:PropertySheet Title="{Binding Step4ReviewTitle}" Visibility="{Binding IsStep4, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <primitives:PropertySheet.PanelContent>
                             <primitives:KeyValueList ItemsSource="{Binding PathReview}" ContentMaxHeight="200" />
                         </primitives:PropertySheet.PanelContent>
                     </primitives:PropertySheet>
 
-                    <primitives:DenseDataGrid Title="Available targets" Subtitle="Static target choices mirror the refined bind-target step cards." FooterText="{Binding CurrentStepFooter}" Visibility="{Binding IsStep5, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <primitives:DenseDataGrid Title="{Binding TargetsTitle}" Subtitle="{Binding TargetsSubtitle}" FooterText="{Binding CurrentStepFooter}" Visibility="{Binding IsStep5, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <primitives:DenseDataGrid.GridContent>
-                            <ItemsControl ItemsSource="{Binding Targets}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:WizardOption">
-                                        <Border Padding="14" Margin="0,0,0,10" Background="{StaticResource AppSurfaceAltBrush}" CornerRadius="8">
-                                            <StackPanel Spacing="4">
-                                                <TextBlock FontSize="15" FontWeight="SemiBold" Text="{x:Bind Title}" />
-                                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <ItemsControl ItemTemplate="{StaticResource WizardOptionTemplate}" ItemsSource="{Binding Targets}" />
                         </primitives:DenseDataGrid.GridContent>
                     </primitives:DenseDataGrid>
 
-                    <primitives:PropertySheet Title="Ready to Add Game" Visibility="{Binding IsStep6, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <primitives:PropertySheet Title="{Binding Step6ReadyTitle}" Visibility="{Binding IsStep6, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <primitives:PropertySheet.PanelContent>
                             <StackPanel Spacing="12">
                                 <primitives:KeyValueList ItemsSource="{Binding FinishSummary}" ContentMaxHeight="220" />
-                                <primitives:InfoCallout Title="All core checks passed" Message="Connectivity verified, paths are accessible, permissions granted." Severity="Info" />
-                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="Graphics Config not selected · You excluded 'graphics.ini'." TextWrapping="WrapWholeWords" />
+                                <primitives:InfoCallout Title="{Binding FinishCalloutTitle}" Message="{Binding FinishCalloutMessage}" Severity="Info" />
+                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding FinishExcludedText}" TextWrapping="WrapWholeWords" />
                                 <ItemsControl ItemsSource="{Binding FinishOptions}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -176,8 +163,8 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="1" Content="Cancel" Click="CancelButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-            <Button Grid.Column="2" Content="Back" Click="BackButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" IsEnabled="{Binding CanGoBack}" />
+            <Button Grid.Column="1" Content="{Binding CancelText}" Click="CancelButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+            <Button Grid.Column="2" Content="{Binding BackText}" Click="BackButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" IsEnabled="{Binding CanGoBack}" />
             <Button Grid.Column="3" Content="{Binding NextButtonText}" Click="NextButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}" />
         </Grid>
     </Grid>

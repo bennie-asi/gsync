@@ -8,6 +8,10 @@
     <CornerRadius x:Key="AppCornerRadius">8</CornerRadius>
     <x:Double x:Key="AppCompactPaneLength">54</x:Double>
     <x:Double x:Key="AppOpenPaneLength">208</x:Double>
+    <x:Double x:Key="AppNavRailWidth">104</x:Double>
+    <GridLength x:Key="AppNavRailColumnWidth">104</GridLength>
+    <x:Double x:Key="AppNavRailButtonWidth">84</x:Double>
+    <x:Double x:Key="AppNavRailIconSlotSize">20</x:Double>
     <x:Double x:Key="AppTitleBarHeight">46</x:Double>
     <x:Double x:Key="AppDenseRowHeight">36</x:Double>
     <x:Double x:Key="AppSectionSpacing">14</x:Double>
@@ -58,11 +62,14 @@
     </Style>
 
     <Style x:Key="RailNavButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
-        <Setter Property="Padding" Value="8,8" />
-        <Setter Property="MinHeight" Value="56" />
+        <Setter Property="Width" Value="{StaticResource AppNavRailButtonWidth}" />
+        <Setter Property="MinHeight" Value="64" />
+        <Setter Property="Padding" Value="6,8" />
         <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
         <Setter Property="Foreground" Value="{StaticResource AppTextSecondaryBrush}" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 
     <Style x:Key="PrimaryToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">

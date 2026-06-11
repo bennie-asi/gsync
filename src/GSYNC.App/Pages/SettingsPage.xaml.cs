@@ -20,6 +20,7 @@ public sealed partial class SettingsPage : Page
     {
         try
         {
+            ThrowIfInitializationForcedToFail("settings");
             Log.Information("Initializing SettingsPage.");
             _viewModel = App.GetService<SettingsPageViewModel>();
             DataContext = _viewModel;
@@ -40,16 +41,22 @@ public sealed partial class SettingsPage : Page
     private void ApplyLocalizedStaticText(SettingsPageViewModel viewModel)
     {
         var localization = App.GetService<ILocalizationService>();
-        TitleTable.Title = localization.GetString("Settings.Title");
-        TitleTable.Subtitle = localization.GetString("Settings.Subtitle");
-        TitleTable.FooterText = viewModel.ThemeName;
         AppearanceHeader.Title = localization.GetString("Settings.AppearanceTitle");
-        AppearanceHeader.Subtitle = localization.GetString("Settings.AppearanceSubtitle");
-        ThemeBehaviorSheet.Title = localization.GetString("Settings.ThemeBehaviorTitle");
+        AppearanceHeader.Subtitle = viewModel.AppearanceSubtitle;
+        ThemeBehaviorSheet.Title = viewModel.ThemeBehaviorTitle;
         RestoreDefaultsButton.Content = localization.GetString("Settings.Button.RestoreDefaults");
         ApplyThemeButton.Content = localization.GetString("Settings.Button.ApplyTheme");
         SaveSettingsButton.Content = localization.GetString("Settings.Button.SaveSettings");
         AddNewTargetButton.Content = localization.GetString("Settings.Button.AddTarget");
+    }
+
+    private static void ThrowIfInitializationForcedToFail(string pageKey)
+    {
+        var configured = Environment.GetEnvironmentVariable("GSYNC_FAIL_PAGE_INIT")?.Trim().ToLowerInvariant();
+        if (string.Equals(configured, pageKey, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Forced {pageKey} page initialization failure for diagnostics.");
+        }
     }
 
     private void RetryInitialization_Click(object sender, RoutedEventArgs e)

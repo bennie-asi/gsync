@@ -35,7 +35,9 @@ public partial class LibraryPageViewModel : ObservableObject
         TableSubtitle = string.Empty;
         TableFooterText = string.Empty;
         OverviewTitle = Pick("总览", "Overview");
-        ActivityTitle = Pick("活动", "Activity");
+        OverviewSubtitle = Pick("保留关键指标摘要，活动轨迹在下方独立显示。", "Keep key metrics here, with the activity timeline displayed below.");
+        ActivityTitle = Pick("活动时间线", "Activity Timeline");
+        ActivitySubtitle = Pick("按时间顺序查看最近同步、冲突与恢复事件。", "Review recent sync, conflict, and recovery events in chronological order.");
         OpenButtonText = Pick("打开", "Open");
         MoreButtonText = Pick("更多", "More");
 
@@ -99,7 +101,9 @@ public partial class LibraryPageViewModel : ObservableObject
     public string TableSubtitle { get; }
     public string TableFooterText { get; }
     public string OverviewTitle { get; }
+    public string OverviewSubtitle { get; }
     public string ActivityTitle { get; }
+    public string ActivitySubtitle { get; }
     public string OpenButtonText { get; }
     public string MoreButtonText { get; }
     public bool IsChinese => _isChinese;

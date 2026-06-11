@@ -7,13 +7,24 @@
     <Grid Padding="{StaticResource AppPagePadding}" RowSpacing="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <primitives:SectionHeader Title="{Binding Title}" Subtitle="{Binding WarningMessage}" />
+        <primitives:SectionHeader Title="{Binding Title}" Subtitle="{Binding ComparisonContext}" />
 
-        <Grid Grid.Row="1" RowSpacing="16">
+        <Grid Grid.Row="1" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.3*" />
+                <ColumnDefinition Width="0.9*" />
+            </Grid.ColumnDefinitions>
+
+            <primitives:InfoCallout Severity="Warning" Title="{Binding WarningTitle}" Message="{Binding WarningMessage}" />
+            <primitives:InfoCallout Grid.Column="1" Severity="Info" Title="{Binding RiskHintTitle}" Message="{Binding RiskHintMessage}" />
+        </Grid>
+
+        <Grid Grid.Row="2" RowSpacing="16">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -30,7 +41,7 @@
                     <primitives:PropertySheet.PanelContent>
                         <StackPanel Spacing="12">
                             <primitives:KeyValueList ContentMaxHeight="220" ItemsSource="{Binding LocalVersion}" />
-                            <Button Content="{Binding UseLocalText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                            <Button Content="{Binding UseLocalText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                         </StackPanel>
                     </primitives:PropertySheet.PanelContent>
                 </primitives:PropertySheet>
@@ -39,7 +50,7 @@
                     <primitives:PropertySheet.PanelContent>
                         <StackPanel Spacing="12">
                             <primitives:KeyValueList ContentMaxHeight="220" ItemsSource="{Binding RemoteVersion}" />
-                            <Button Content="{Binding UseRemoteText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                            <Button Content="{Binding UseRemoteText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                         </StackPanel>
                     </primitives:PropertySheet.PanelContent>
                 </primitives:PropertySheet>
@@ -61,7 +72,7 @@
                 ItemsSource="{Binding ConflictFiles}" />
         </Grid>
 
-        <Grid Grid.Row="2" ColumnSpacing="8">
+        <Grid Grid.Row="3" ColumnSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -69,7 +80,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <Button Grid.Column="1" Content="{Binding KeepBothText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-            <Button Grid.Column="2" Content="{Binding BackupRestoreText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+            <Button Grid.Column="2" Content="{Binding BackupRestoreText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
             <Button Grid.Column="3" Content="{Binding CancelText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
         </Grid>
     </Grid>

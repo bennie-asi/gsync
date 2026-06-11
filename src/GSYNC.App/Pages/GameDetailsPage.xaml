@@ -15,49 +15,45 @@
         <DataTemplate x:Key="ContentItemToggleTemplate" x:DataType="vm:ContentItemRow">
             <ToggleSwitch HorizontalAlignment="Right" IsEnabled="False" IsOn="{Binding Enabled, Mode=OneWay}" OffContent="" OnContent="" MinWidth="44" />
         </DataTemplate>
-        <DataTemplate x:Key="SidebarFieldTemplate" x:DataType="vm:UiPropertyRow">
-            <StackPanel Spacing="6">
-                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" TextTrimming="CharacterEllipsis" />
-                <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8">
-                    <TextBlock FontSize="12" Text="{x:Bind Value}" TextWrapping="WrapWholeWords" />
-                </Border>
-            </StackPanel>
-        </DataTemplate>
-        <DataTemplate x:Key="HistoryRowTemplate" x:DataType="vm:GameHistoryRow">
-            <Grid Padding="0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="112" />
-                    <ColumnDefinition Width="86" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="72" />
-                </Grid.ColumnDefinitions>
-                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Timestamp}" />
-                <primitives:Badge Grid.Column="1" Text="{x:Bind ActionText}" Variant="{x:Bind ActionVariant}" />
-                <TextBlock Grid.Column="2" Margin="8,0,0,0" Text="{x:Bind SummaryText}" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Column="3" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" HorizontalAlignment="Right" Text="{x:Bind SizeText}" />
-            </Grid>
+        <DataTemplate x:Key="ContextMetricTemplate" x:DataType="vm:UiPropertyRow">
+            <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8">
+                <StackPanel Spacing="4">
+                    <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
+                    <TextBlock FontSize="13" FontWeight="SemiBold" Text="{x:Bind Value}" TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Border>
         </DataTemplate>
     </Page.Resources>
 
-    <Grid Padding="16" RowSpacing="12">
+    <Grid Padding="{StaticResource AppPagePadding}" RowSpacing="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="8" HorizontalAlignment="Right">
+        <Grid ColumnSpacing="16">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <Button Content="{Binding UploadText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-            <Button Grid.Column="1" Content="{Binding DownloadText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-            <Button Grid.Column="2" Click="OpenConflictResolution_Click" Content="{Binding CompareText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-            <Button Grid.Column="4" Content="{Binding RestoreText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+            <primitives:SectionHeader Title="{Binding Title}" Subtitle="{Binding PageSubtitle}" />
+
+            <StackPanel Grid.Column="1" Spacing="6" HorizontalAlignment="Right">
+                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding PrimaryActionLabel}" HorizontalAlignment="Right" />
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button Content="{Binding UploadText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    <Button Grid.Column="1" Content="{Binding DownloadText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    <Button Grid.Column="2" Click="OpenConflictResolution_Click" Content="{Binding CompareText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    <Button Grid.Column="3" Content="{Binding RestoreText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                </Grid>
+            </StackPanel>
         </Grid>
 
         <Grid Grid.Row="1" ColumnSpacing="14">
@@ -66,25 +62,25 @@
                 <ColumnDefinition Width="320" MinWidth="300" />
             </Grid.ColumnDefinitions>
 
-            <Grid RowSpacing="12">
+            <Grid RowSpacing="14">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
-                    <RowDefinition Height="220" />
+                    <RowDefinition Height="260" />
                 </Grid.RowDefinitions>
 
                 <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="84" />
+                            <ColumnDefinition Width="92" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <Border Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Height="116" Width="84">
-                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="26" FontWeight="SemiBold" Text="ER" />
+                        <Border Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Height="118" Width="92">
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28" FontWeight="SemiBold" Text="ER" />
                         </Border>
 
-                        <StackPanel Grid.Column="1" Spacing="10">
+                        <StackPanel Grid.Column="1" Spacing="12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -101,6 +97,16 @@
                                 <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="•" />
                                 <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding LastPlayedText}" />
                             </StackPanel>
+
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ItemsControl ItemTemplate="{StaticResource ContextMetricTemplate}" ItemsSource="{Binding OverviewMetrics}" Grid.ColumnSpan="4" />
+                            </Grid>
 
                             <Border Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10">
                                 <Grid ColumnSpacing="18">
@@ -136,13 +142,16 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <Border Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1,1,1,0" CornerRadius="8,8,0,0" Padding="12,8">
+                    <Border Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1,1,1,0" CornerRadius="8,8,0,0" Padding="12,10">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TableSectionTitle}" />
+                            <StackPanel Spacing="2">
+                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding TableSectionTitle}" />
+                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TableSectionSubtitle}" TextWrapping="WrapWholeWords" />
+                            </StackPanel>
                             <Button Grid.Column="1" Content="{Binding AddItemText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                         </Grid>
                     </Border>
@@ -157,25 +166,45 @@
                         Title="{Binding TableTitle}" />
                 </Grid>
 
-                <Border Grid.Row="2" Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
-                    <Grid>
+                <Border Grid.Row="2" Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
+                    <Grid RowSpacing="12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <Grid Background="{StaticResource AppSurfaceAltBrush}" ColumnSpacing="18" Padding="12,0">
+                        <Grid>
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Button Content="{Binding HistoryTabText}" HorizontalAlignment="Left" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                            <Button Grid.Column="1" Content="{Binding SnapshotsTabText}" HorizontalAlignment="Left" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                            <StackPanel Spacing="2">
+                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding HistorySectionTitle}" />
+                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding HistorySectionSubtitle}" TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="{Binding HistoryTabText}" HorizontalAlignment="Left" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                            <Button Grid.Column="2" Margin="8,0,0,0" Content="{Binding SnapshotsTabText}" HorizontalAlignment="Left" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                         </Grid>
 
-                        <ScrollViewer Grid.Row="1" Padding="12,8" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
-                            <ItemsControl ItemTemplate="{StaticResource HistoryRowTemplate}" ItemsSource="{Binding RecentHistory}" />
-                        </ScrollViewer>
+                        <Grid Grid.Row="1" ColumnSpacing="14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.1*" />
+                                <ColumnDefinition Width="0.9*" />
+                            </Grid.ColumnDefinitions>
+
+                            <primitives:PropertySheet Title="{Binding HistoryFeedTitle}">
+                                <primitives:PropertySheet.PanelContent>
+                                    <primitives:ActivityFeed ContentHeight="170" ItemsSource="{Binding RecentActivityItems}" />
+                                </primitives:PropertySheet.PanelContent>
+                            </primitives:PropertySheet>
+
+                            <primitives:PropertySheet Grid.Column="1" Title="{Binding SnapshotFeedTitle}">
+                                <primitives:PropertySheet.PanelContent>
+                                    <primitives:SnapshotFeed ContentMaxHeight="170" ItemsSource="{Binding Snapshots}" />
+                                </primitives:PropertySheet.PanelContent>
+                            </primitives:PropertySheet>
+                        </Grid>
                     </Grid>
                 </Border>
             </Grid>
@@ -192,12 +221,17 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding PropertiesTitle}" />
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding PropertiesTitle}" />
+                            <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding PropertiesSubtitle}" TextWrapping="WrapWholeWords" />
+                        </StackPanel>
                         <Button Grid.Column="1" Content="×" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                     </Grid>
 
                     <ScrollViewer Grid.Row="1" Padding="12" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
                         <StackPanel Spacing="12">
+                            <primitives:InfoCallout Severity="Info" Title="{Binding InspectorStatusTitle}" Message="{Binding InspectorStatusMessage}" />
+
                             <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -207,8 +241,11 @@
                                 <Button Grid.Column="1" Content="{Binding TestPathText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                             </Grid>
 
-                            <Border BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,1,0,0" Opacity="0.55" Margin="0,2,0,0" />
-                            <ItemsControl ItemTemplate="{StaticResource SidebarFieldTemplate}" ItemsSource="{Binding SelectedItemProperties}" />
+                            <primitives:PropertySheet Title="{Binding PropertiesTitle}">
+                                <primitives:PropertySheet.PanelContent>
+                                    <primitives:KeyValueList ContentMaxHeight="260" ItemsSource="{Binding SelectedItemProperties}" />
+                                </primitives:PropertySheet.PanelContent>
+                            </primitives:PropertySheet>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

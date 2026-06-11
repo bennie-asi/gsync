@@ -30,7 +30,6 @@ public partial class MainWindow : Window
         _localizationService.LanguageChanged += LocalizationService_OnLanguageChanged;
 
         ApplyLocalizedShellText();
-        _viewModel.SelectedPageKey = "library";
 
         Activated += MainWindow_Activated;
     }
@@ -80,7 +79,8 @@ public partial class MainWindow : Window
             _viewModel.SelectedPageKey,
             $"{failedPageType} 无法打开",
             "页面导航已被安全降级，应用主壳层和导航功能仍然可用。",
-            e.Exception?.Message ?? "未提供异常详细信息。");
+            e.Exception?.Message ?? "未提供异常详细信息。",
+            "navigation");
     }
 
     private void LocalizationService_OnLanguageChanged(object? sender, EventArgs e)
@@ -123,12 +123,14 @@ public partial class MainWindow : Window
                 _viewModel.SelectedPageKey,
                 $"{pageType.Name} 初始化失败",
                 "页面初始化在构造或同步加载阶段发生异常，应用已保留主窗口壳层。",
-                exception.Message);
+                exception.Message,
+                "initialization");
         }
     }
 
-    private void ShowPageLoadError(string requestedPageKey, string title, string message, string detail)
+    private void ShowPageLoadError(string requestedPageKey, string title, string message, string detail, string failureStage)
     {
+        Log.Warning("Showing page load error for {PageKey} at stage {FailureStage}: {Title}", requestedPageKey, failureStage, title);
         _viewModel.ReportStartupDegraded($"{title} · 已切换到安全降级视图");
 
         ContentFrame.Navigate(
@@ -137,7 +139,7 @@ public partial class MainWindow : Window
                 requestedPageKey,
                 title,
                 message,
-                detail,
+                $"阶段: {failureStage}\n详情: {detail}",
                 "返回 Library",
                 "重试页面"));
     }

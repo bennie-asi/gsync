@@ -27,6 +27,22 @@ public sealed partial class AddGameWizardPage : Page
 
     private void NextButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_viewModel.CurrentStep == 2 && !_viewModel.ShowNoResultsState)
+        {
+            _viewModel.ToggleNoResultsState();
+            return;
+        }
+
         _viewModel.GoNext();
+    }
+
+    private void SwitchToManualSetupButton_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.SwitchToManualSetup();
+    }
+
+    private void BackToSourceSelectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.BackToSourceSelection();
     }
 }

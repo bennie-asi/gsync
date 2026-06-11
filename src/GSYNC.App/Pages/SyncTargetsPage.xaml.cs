@@ -1,4 +1,3 @@
-using GSYNC.App.Primitives;
 using GSYNC.App.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -20,17 +19,10 @@ public sealed partial class SyncTargetsPage : Page
     {
         try
         {
+            ThrowIfInitializationForcedToFail("targets");
             Log.Information("Initializing SyncTargetsPage.");
             _viewModel = App.GetService<SyncTargetsPageViewModel>();
             DataContext = _viewModel;
-
-            TargetsTable.Columns =
-            [
-                new ResizableTableColumn { Key = "definitionIcon", Header = _viewModel.IsChinese ? "定义" : "Def", BindingPath = nameof(SyncTargetRow.DefinitionIcon), Width = 56, MinWidth = 40 },
-                new ResizableTableColumn { Key = "name", Header = _viewModel.IsChinese ? "名称" : "Name", BindingPath = nameof(SyncTargetRow.Name), Width = 180, MinWidth = 120, IsBold = true },
-                new ResizableTableColumn { Key = "detail", Header = _viewModel.IsChinese ? "详情" : "Detail", BindingPath = nameof(SyncTargetRow.Detail), Width = 260, MinWidth = 180, IsFillColumn = true },
-                new ResizableTableColumn { Key = "status", Header = _viewModel.IsChinese ? "状态" : "Status", BindingPath = nameof(SyncTargetRow.Status), Width = 120, MinWidth = 96 },
-            ];
 
             MainContentRoot.Visibility = Visibility.Visible;
             InitializationErrorPanel.Visibility = Visibility.Collapsed;
@@ -42,6 +34,15 @@ public sealed partial class SyncTargetsPage : Page
             MainContentRoot.Visibility = Visibility.Collapsed;
             InitializationErrorPanel.Visibility = Visibility.Visible;
             InitializationErrorMessage.Text = exception.Message;
+        }
+    }
+
+    private static void ThrowIfInitializationForcedToFail(string pageKey)
+    {
+        var configured = Environment.GetEnvironmentVariable("GSYNC_FAIL_PAGE_INIT")?.Trim().ToLowerInvariant();
+        if (string.Equals(configured, pageKey, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Forced {pageKey} page initialization failure for diagnostics.");
         }
     }
 

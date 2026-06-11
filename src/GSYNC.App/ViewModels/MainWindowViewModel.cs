@@ -9,7 +9,7 @@ public partial class MainWindowViewModel : ObservableObject
     private string? _startupStatusOverride;
 
     [ObservableProperty]
-    private string _selectedPageKey = "library";
+    private string _selectedPageKey = GetInitialPageKey();
 
     public MainWindowViewModel(ILocalizationService localizationService)
     {
@@ -136,5 +136,15 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         return "library";
+    }
+
+    private static string GetInitialPageKey()
+    {
+        var configured = Environment.GetEnvironmentVariable("GSYNC_START_PAGE")?.Trim().ToLowerInvariant();
+        return configured switch
+        {
+            "library" or "settings" or "history" or "targets" or "variables" or "wizard" or "conflict" => configured,
+            _ => "library",
+        };
     }
 }

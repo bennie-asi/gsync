@@ -10,12 +10,17 @@ public partial class AddGameWizardViewModel : ObservableObject
     [ObservableProperty]
     private int _currentStep = 1;
 
+    [ObservableProperty]
+    private bool _showNoResultsState;
+
     public AddGameWizardViewModel(ILocalizationService localizationService)
     {
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
 
         PageTitle = Pick("添加游戏", "Add Game");
         PageSubtitle = Pick("与精炼后的桌面工具流程一致的静态六步向导壳。", "Static six-step wizard shell aligned with the refined desktop utility flow.");
+        WizardRailTitle = Pick("配置流程", "Profile Flow");
+        WizardRailSubtitle = Pick("固定六步，不在向导过程中重排信息架构。", "Fixed six-step flow with no layout drift between steps.");
         Step2DetailsTitle = Pick("检测到的游戏详情", "Detected game details");
         Step4ReviewTitle = Pick("已解析路径检查", "Resolved path review");
         Step6ReadyTitle = Pick("准备添加游戏", "Ready to Add Game");
@@ -24,6 +29,10 @@ public partial class AddGameWizardViewModel : ObservableObject
         FinishExcludedText = Pick("未选择图形配置 · 你已排除 'graphics.ini'。", "Graphics Config not selected · You excluded 'graphics.ini'.");
         CancelText = Pick("取消", "Cancel");
         BackText = Pick("返回", "Back");
+        NoResultsTitle = Pick("没有找到匹配的游戏", "No matching games found");
+        NoResultsMessage = Pick("保持当前向导上下文，返回上一步切换来源，或改用手动配置继续。", "Stay in the same wizard context, go back to switch source, or continue with manual setup." );
+        NoResultsPrimaryActionText = Pick("改用手动配置", "Switch to manual setup");
+        NoResultsSecondaryActionText = Pick("返回来源选择", "Back to source selection");
 
         Steps =
         [
@@ -111,6 +120,8 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     public string PageTitle { get; }
     public string PageSubtitle { get; }
+    public string WizardRailTitle { get; }
+    public string WizardRailSubtitle { get; }
     public string SourcesTitle { get; }
     public string SourcesSubtitle { get; }
     public string GamesTitle { get; }
@@ -127,6 +138,10 @@ public partial class AddGameWizardViewModel : ObservableObject
     public string FinishExcludedText { get; }
     public string CancelText { get; }
     public string BackText { get; }
+    public string NoResultsTitle { get; }
+    public string NoResultsMessage { get; }
+    public string NoResultsPrimaryActionText { get; }
+    public string NoResultsSecondaryActionText { get; }
     public IReadOnlyList<WizardStepItem> Steps { get; }
     public IReadOnlyList<WizardOption> Sources { get; }
     public IReadOnlyList<WizardOption> Games { get; }
@@ -151,7 +166,9 @@ public partial class AddGameWizardViewModel : ObservableObject
     public string CurrentStepDescription => CurrentStep switch
     {
         1 => Pick("选择最适合要添加游戏的来源提供程序。自动来源可以展示检测到的安装与元数据。", "Choose the source provider that best matches the game you want to add. Automated sources can surface discovered installations and metadata."),
-        2 => Pick("从所选来源中选择一个检测到的游戏，或在继续前检查高亮匹配项。", "Choose a discovered game from the selected source or review the highlighted match before moving on."),
+        2 => ShowNoResultsState
+            ? Pick("当前来源下没有匹配的检测结果。保持同一向导上下文并提供恢复动作。", "No matching results were found under the current source. Stay in the same wizard context and recover from here.")
+            : Pick("从所选来源中选择一个检测到的游戏，或在继续前检查高亮匹配项。", "Choose a discovered game from the selected source or review the highlighted match before moving on."),
         3 => Pick("选择此配置文件应同步哪些存档、配置与可选内容。", "Choose which save, configuration, and optional items should be synchronized for this profile."),
         4 => Pick("在绑定目标前验证路径模板、解析结果与可移植性覆盖情况。", "Validate path templates, resolved results, and portability coverage before binding a target."),
         5 => Pick("选择此游戏配置应同步到哪个目标，以及可选备份副本。", "Choose the sync target that should receive the game profile and any optional backup copy."),
@@ -162,7 +179,9 @@ public partial class AddGameWizardViewModel : ObservableObject
     public string CurrentStepFooter => CurrentStep switch
     {
         1 => Pick("共 6 步中的第 1 步 · 选择来源后继续。", "Step 1 of 6 · Continue after choosing a source."),
-        2 => Pick("共 6 步中的第 2 步 · 继续前确认检测到的游戏。", "Step 2 of 6 · Confirm the detected game before continuing."),
+        2 => ShowNoResultsState
+            ? Pick("共 6 步中的第 2 步 · 返回上一步或切换到手动配置。", "Step 2 of 6 · Go back or switch to manual setup." )
+            : Pick("共 6 步中的第 2 步 · 继续前确认检测到的游戏。", "Step 2 of 6 · Confirm the detected game before continuing."),
         3 => Pick("共 6 步中的第 3 步 · 保持可选内容显式可见。", "Step 3 of 6 · Keep optional content explicit."),
         4 => Pick("共 6 步中的第 4 步 · 绑定前验证所有解析路径。", "Step 4 of 6 · Verify all resolved paths before binding."),
         5 => Pick("共 6 步中的第 5 步 · 选择主要目标。", "Step 5 of 6 · Pick the primary destination."),
@@ -181,6 +200,11 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     partial void OnCurrentStepChanged(int value)
     {
+        if (value != 2)
+        {
+            ShowNoResultsState = false;
+        }
+
         OnPropertyChanged(nameof(CurrentStepTitle));
         OnPropertyChanged(nameof(CurrentStepDescription));
         OnPropertyChanged(nameof(CurrentStepFooter));
@@ -192,6 +216,12 @@ public partial class AddGameWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsStep6));
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(NextButtonText));
+    }
+
+    partial void OnShowNoResultsStateChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CurrentStepDescription));
+        OnPropertyChanged(nameof(CurrentStepFooter));
     }
 
     public void GoNext()
@@ -208,6 +238,26 @@ public partial class AddGameWizardViewModel : ObservableObject
         {
             CurrentStep--;
         }
+    }
+
+    public void ToggleNoResultsState()
+    {
+        if (CurrentStep == 2)
+        {
+            ShowNoResultsState = !ShowNoResultsState;
+        }
+    }
+
+    public void SwitchToManualSetup()
+    {
+        ShowNoResultsState = false;
+        CurrentStep = 3;
+    }
+
+    public void BackToSourceSelection()
+    {
+        ShowNoResultsState = false;
+        CurrentStep = 1;
     }
 
     private string Pick(string zh, string en) => _isChinese ? zh : en;

@@ -13,6 +13,9 @@ public partial class VariablesPageViewModel : ObservableObject
     [ObservableProperty]
     private string _selectedScopeFilter;
 
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
     public VariablesPageViewModel(ILocalizationService localizationService)
     {
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
@@ -20,67 +23,96 @@ public partial class VariablesPageViewModel : ObservableObject
         PageTitle = Pick("变量", "Variables");
         PageSubtitle = Pick("精炼后的变量工作区，集中提供路径模板测试与显式覆盖优先级。", "Static refined variable workspace with path template testing and explicit override precedence.");
         SearchPlaceholder = Pick("搜索变量", "Search variables");
-        FilterPlaceholder = Pick("范围", "Scope");
+        ScopeFilterPlaceholder = Pick("全部范围", "All scopes");
         AddVariableText = Pick("添加变量", "Add Variable");
         TestTemplateText = Pick("测试模板", "Test Template");
         RefreshText = Pick("刷新", "Refresh");
-        TableTitle = Pick("已解析变量", "Resolved variables");
-        TableSubtitle = Pick("在测试路径替换时，名称、解析值与类型始终保持可见。", "Name, resolved value, and type remain visible while testing path substitutions.");
-        TableFooterText = Pick("覆盖优先级始终明确：custom > game > source > system。", "Override precedence remains explicit: custom > game > source > system.");
-        PathTemplateTesterText = Pick("路径模板测试器", "Path Template Tester");
-        InputTemplateText = Pick("输入模板字符串：", "Input Template String:");
-        ResolvedOutputText = Pick("解析输出：", "Resolved Output:");
-        OverridePrecedenceTitle = Pick("覆盖优先级", "Override Precedence");
-        SaveChangesText = Pick("保存更改", "Save Changes");
-        ResetText = Pick("重置", "Reset");
-
-        Filters = [Pick("全部范围", "All scopes"), Pick("系统", "System"), Pick("来源", "Source"), Pick("游戏", "Game"), Pick("自定义", "Custom")];
-        _selectedScopeFilter = Filters[0];
+        VariablesSectionTitle = Pick("变量", "Variables");
 
         SelectedVariableName = "%CUSTOM_SAVE_ROOT%";
-        TemplateInput = "%CUSTOM_SAVE_ROOT%/save01.dat";
-        TemplateOutput = "D:\\CloudSync\\GameData\\save01.dat";
-        OverridePrecedence = Pick("自定义 > 游戏 > 来源 > 系统", "Custom > Game > Source > System");
+        VariableScopeText = Pick("用户定义", "User Defined");
+        LastModifiedText = Pick("最近修改 2 小时前", "Last modified 2h ago");
+        VariableNameLabel = Pick("变量名", "Variable Name");
+        ResolvedPathLabel = Pick("基础解析路径", "Base Resolved Path");
+        DescriptionLabel = Pick("描述", "Description");
+        DescriptionValue = Pick("用户定义的高优先级便携存档根目录。", "User-defined portable save root for high-priority games.");
+
+        PathTemplateTesterText = Pick("路径模板测试器", "Path Template Tester");
+        InputTemplateText = Pick("输入模板字符串", "Input Template String");
+        ResolvedOutputText = Pick("解析输出", "Resolved Output");
+        OverridePrecedenceTitle = Pick("覆盖优先级", "Override Precedence");
+        SaveChangesText = Pick("保存更改", "Save Changes");
+        ResetText = Pick("重置覆盖", "Reset Override");
+        DeleteVariableText = Pick("删除变量", "Delete Variable");
+        ParseErrorTitle = Pick("解析错误", "Parse Error");
+        ParseErrorMessage = Pick("检测到未闭合的模板标签，请检查变量或模板字符串语法。", "Unclosed template tag detected. Check the variable or template syntax.");
+        ParseErrorCode = "TEMPLATE_UNCLOSED_TAG";
+        ErrorStatusText = Pick("未解析", "UNRESOLVED");
+        ErrorBadgeText = Pick("失败", "FAILED");
+
+        Filters =
+        [
+            Pick("全部范围", "All scopes"),
+            Pick("系统", "System"),
+            Pick("来源", "Source"),
+            Pick("游戏", "Game"),
+            Pick("自定义", "Custom"),
+        ];
+        _selectedScopeFilter = Filters[0];
+        _showParseError = true;
 
         Variables =
         [
-            new("%APPDATA%", "C:\\Users\\Admin\\AppData\\Roaming", Pick("系统", "System")),
-            new("%USERPROFILE%", "C:\\Users\\Admin", Pick("系统", "System")),
-            new("%DOCUMENTS%", "C:\\Users\\Admin\\Documents", Pick("系统", "System")),
-            new("%STEAM_ID%", "76561198000000000", Pick("来源", "Source")),
-            new("%EPIC_USER%", "ec_9921_x2", Pick("来源", "Source")),
-            new("%GAME_ID%", "elden_ring_01", Pick("游戏", "Game")),
-            new("%SAVE_DIR%", "E:\\Games\\Saves", Pick("游戏", "Game")),
-            new("%CUSTOM_SAVE_ROOT%", "D:\\CloudSync\\GameData", Pick("自定义", "Custom")),
+            new("%APPDATA%", "C:\\Users\\Admin\\AppData\\Roaming", "SYS", Pick("系统", "System"), "ready", false),
+            new("%LOCALAPPDATA%", "C:\\Users\\Admin\\AppData\\Local", "SYS", Pick("系统", "System"), "ready", false),
+            new("%STEAM_ROOT%", "D:\\SteamLibrary", "SRC", Pick("来源", "Source"), "remote newer", false),
+            new("%GOG_ROOT%", "E:\\GOG Games", "SRC", Pick("来源", "Source"), "remote newer", false),
+            new("%SAVE_ID%", "elden_ring_01", "GAME", Pick("游戏", "Game"), "synced", false),
+            new("%CUSTOM_SAVE_ROOT%", "D:\\CloudSync\\GameData", "USR", Pick("自定义", "Custom"), "conflict", true),
+            new("%BACKUP_PATH%", "D:\\CloudSync\\Backup", "USR", Pick("自定义", "Custom"), "ready", false),
         ];
 
         VariableProperties =
         [
             new(Pick("变量名", "Variable Name"), "%CUSTOM_SAVE_ROOT%"),
             new(Pick("解析路径", "Resolved Path"), "D:\\CloudSync\\GameData"),
-            new(Pick("描述", "Description"), Pick("用户定义的高优先级游戏便携存档根目录", "User-defined portable save root for high-priority games")),
+            new(Pick("描述", "Description"), DescriptionValue),
             new(Pick("最近修改", "Last Modified"), Pick("2 小时前", "2h ago")),
         ];
+
+        TemplateInput = "%CUSTOM_SAVE_ROOT%\\save01.dat{{";
+        TemplateOutput = "UNRESOLVED";
+        OverridePrecedence = Pick("自定义 > 游戏 > 来源 > 系统", "Custom > Game > Source > System");
     }
 
     public string PageTitle { get; }
     public string PageSubtitle { get; }
     public string SearchPlaceholder { get; }
-    public string FilterPlaceholder { get; }
+    public string ScopeFilterPlaceholder { get; }
     public string AddVariableText { get; }
     public string TestTemplateText { get; }
     public string RefreshText { get; }
-    public string TableTitle { get; }
-    public string TableSubtitle { get; }
-    public string TableFooterText { get; }
+    public string VariablesSectionTitle { get; }
+    public string SelectedVariableName { get; }
+    public string VariableScopeText { get; }
+    public string LastModifiedText { get; }
+    public string VariableNameLabel { get; }
+    public string ResolvedPathLabel { get; }
+    public string DescriptionLabel { get; }
+    public string DescriptionValue { get; }
     public string PathTemplateTesterText { get; }
     public string InputTemplateText { get; }
     public string ResolvedOutputText { get; }
     public string OverridePrecedenceTitle { get; }
     public string SaveChangesText { get; }
     public string ResetText { get; }
+    public string DeleteVariableText { get; }
+    public string ParseErrorTitle { get; }
+    public string ParseErrorMessage { get; }
+    public string ParseErrorCode { get; }
+    public string ErrorStatusText { get; }
+    public string ErrorBadgeText { get; }
     public bool IsChinese => _isChinese;
-    public string SelectedVariableName { get; }
     public string TemplateInput { get; }
     public string TemplateOutput { get; }
     public string OverridePrecedence { get; }
@@ -91,4 +123,10 @@ public partial class VariablesPageViewModel : ObservableObject
     private string Pick(string zh, string en) => _isChinese ? zh : en;
 }
 
-public sealed record VariableRow(string Name, string Value, string Type);
+public sealed record VariableRow(
+    string Name,
+    string Value,
+    string TypeCode,
+    string ScopeLabel,
+    string StatusVariant,
+    bool IsSelected);

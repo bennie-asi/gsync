@@ -12,7 +12,12 @@ public partial class ConflictResolutionViewModel : ObservableObject
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
 
         Title = Pick("解决冲突", "Resolve Conflict");
+        PageSubtitle = Pick("安全优先的双栏对比界面，明确保留动作、基线摘要与风险提示。", "Safety-first dual comparison workspace with explicit resolution actions, baseline context, and visible risk guidance.");
+        WarningTitle = Pick("检测到双端分叉", "Divergent versions detected");
         WarningMessage = Pick("本地与远端版本都在上次同步后发生了变化。请选择要保留的版本以避免数据丢失。", "Both local and remote versions have changed since the last synchronization. Select which version to keep to avoid data loss.");
+        RiskHintTitle = Pick("操作前提示", "Before you resolve");
+        RiskHintMessage = Pick("先检查基线与受影响文件。危险动作保持在底部动作区，避免误触覆盖。", "Review the baseline and affected files first. Higher-risk actions stay in the bottom action bar to avoid accidental overwrite.");
+        ComparisonContext = Pick("对比本地与远端版本，确认基线后再执行保守或覆盖动作。", "Compare local and remote versions, confirm the baseline, then choose a conservative or overwrite action.");
         LocalTitle = Pick("本地版本", "Local Version");
         RemoteTitle = Pick("远端版本", "Remote Version");
         BaselineTitle = Pick("同步基线", "Sync baseline");
@@ -59,7 +64,12 @@ public partial class ConflictResolutionViewModel : ObservableObject
     }
 
     public string Title { get; }
+    public string PageSubtitle { get; }
+    public string WarningTitle { get; }
     public string WarningMessage { get; }
+    public string RiskHintTitle { get; }
+    public string RiskHintMessage { get; }
+    public string ComparisonContext { get; }
     public string LocalTitle { get; }
     public string RemoteTitle { get; }
     public string BaselineTitle { get; }

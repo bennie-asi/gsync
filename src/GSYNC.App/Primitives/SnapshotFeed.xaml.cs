@@ -18,6 +18,12 @@ public sealed partial class SnapshotFeed : UserControl
         typeof(SnapshotFeed),
         new PropertyMetadata(double.PositiveInfinity));
 
+    public static readonly DependencyProperty ActionTextProperty = DependencyProperty.Register(
+        nameof(ActionText),
+        typeof(string),
+        typeof(SnapshotFeed),
+        new PropertyMetadata("Restore"));
+
     public SnapshotFeed()
     {
         InitializeComponent();
@@ -33,5 +39,11 @@ public sealed partial class SnapshotFeed : UserControl
     {
         get => (double)GetValue(ContentMaxHeightProperty);
         set => SetValue(ContentMaxHeightProperty, value);
+    }
+
+    public string ActionText
+    {
+        get => (string)GetValue(ActionTextProperty);
+        set => SetValue(ActionTextProperty, value);
     }
 }

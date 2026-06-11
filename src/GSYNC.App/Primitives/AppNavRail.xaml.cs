@@ -93,7 +93,7 @@ public sealed partial class AppNavRail : UserControl
         ApplyButtonState(SettingsButton, SelectedKey == "settings");
     }
 
-    private static void ApplyButtonState(Button button, bool isSelected)
+    private void ApplyButtonState(Button button, bool isSelected)
     {
         var resources = Application.Current.Resources;
         button.Background = (Brush)resources[isSelected ? "AppSurfaceRaisedBrush" : "AppSurfaceAltBrush"];

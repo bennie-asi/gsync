@@ -22,6 +22,7 @@ public sealed partial class HomePage : Page
     {
         try
         {
+            ThrowIfInitializationForcedToFail("library");
             Log.Information("Initializing HomePage.");
             _viewModel = App.GetService<LibraryPageViewModel>();
             DataContext = _viewModel;
@@ -36,7 +37,7 @@ public sealed partial class HomePage : Page
                 new ResizableTableColumn { Key = "remoteStatus", Header = _viewModel.IsChinese ? "远端" : "Remote", BindingPath = nameof(LibraryGameRow.RemoteStatus), Width = 104, MinWidth = 84, CellTemplate = (DataTemplate)Resources["LibraryRemoteStatusCellTemplate"] },
                 new ResizableTableColumn { Key = "lastSync", Header = _viewModel.IsChinese ? "上次同步" : "Last Sync", BindingPath = nameof(LibraryGameRow.LastSync), Width = 104, MinWidth = 92 },
                 new ResizableTableColumn { Key = "target", Header = _viewModel.IsChinese ? "目标" : "Target", BindingPath = nameof(LibraryGameRow.Target), Width = 122, MinWidth = 100 },
-                new ResizableTableColumn { Key = "action", Header = _viewModel.IsChinese ? "操作" : "Action", BindingPath = nameof(LibraryGameRow.Name), Width = 118, MinWidth = 110, CellTemplate = (DataTemplate)Resources["LibraryActionCellTemplate"] },
+                new ResizableTableColumn { Key = "action", Header = _viewModel.IsChinese ? "操作" : "Action", BindingPath = nameof(LibraryGameRow.Name), Width = 164, MinWidth = 152, CellTemplate = (DataTemplate)Resources["LibraryActionCellTemplate"] },
             ];
 
             MainContentRoot.Visibility = Visibility.Visible;
@@ -68,11 +69,23 @@ public sealed partial class HomePage : Page
         LibraryTable.Subtitle = _viewModel.TableSubtitle;
         LibraryTable.FooterText = _viewModel.TableFooterText;
         OverviewSheet.Title = _viewModel.OverviewTitle;
+        OverviewSubtitleTextBlock.Text = _viewModel.OverviewSubtitle;
+        ActivitySheet.Title = _viewModel.ActivityTitle;
+        ActivitySubtitleTextBlock.Text = _viewModel.ActivitySubtitle;
     }
 
     private void RetryInitialization_Click(object sender, RoutedEventArgs e)
     {
         TryInitializePage();
+    }
+
+    private static void ThrowIfInitializationForcedToFail(string pageKey)
+    {
+        var configured = Environment.GetEnvironmentVariable("GSYNC_FAIL_PAGE_INIT")?.Trim().ToLowerInvariant();
+        if (string.Equals(configured, pageKey, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Forced {pageKey} page initialization failure for diagnostics.");
+        }
     }
 
     private void OpenAddGameWizard_Click(object sender, RoutedEventArgs e)
