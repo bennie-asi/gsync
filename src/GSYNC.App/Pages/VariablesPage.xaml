@@ -7,7 +7,7 @@
     xmlns:vm="using:GSYNC.App.ViewModels">
     <Page.Resources>
         <DataTemplate x:Key="VariableListRowTemplate" x:DataType="vm:VariableRow">
-            <Border Background="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1" Padding="10,8">
+            <Border Background="Transparent" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1" Padding="10,8" Tapped="VariableRow_Tapped">
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -54,9 +54,9 @@
                     <primitives:FilterDropdown Width="150" ItemsSource="{Binding Filters}" Placeholder="{Binding ScopeFilterPlaceholder}" SelectedItem="{Binding SelectedScopeFilter, Mode=TwoWay}" />
                 </StackPanel>
 
-                <Button Grid.Column="1" Content="{Binding AddVariableText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-                <Button Grid.Column="2" Content="{Binding TestTemplateText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="3" Content="{Binding RefreshText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="1" Click="AddVariableButton_Click" Content="{Binding AddVariableText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                <Button Grid.Column="2" Click="TestTemplateButton_Click" Content="{Binding TestTemplateText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="3" Click="RefreshButton_Click" Content="{Binding RefreshText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
             </Grid>
 
             <Grid Grid.Row="1" ColumnSpacing="14">
@@ -172,9 +172,9 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Button Content="{Binding DeleteVariableText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                <Button Grid.Column="2" Content="{Binding ResetText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                <Button Grid.Column="3" Margin="8,0,0,0" Content="{Binding SaveChangesText}" IsEnabled="{Binding ShowParseError, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                                <Button Click="DeleteVariableButton_Click" Content="{Binding DeleteVariableText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                <Button Grid.Column="2" Click="ClearTesterButton_Click" Content="{Binding ResetText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                <Button Grid.Column="3" Margin="8,0,0,0" Click="EditVariableButton_Click" Content="{Binding SaveChangesText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
                             </Grid>
                         </Border>
                     </Grid>

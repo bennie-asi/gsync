@@ -6,6 +6,8 @@ public sealed class SyncJob
 
     public required SyncDirection Direction { get; init; }
 
+    public ConflictResolutionPlan? ConflictResolutionPlan { get; init; }
+
     public CancellationToken CancellationToken { get; init; }
 
     public IProgress<SyncProgress>? Progress { get; init; }

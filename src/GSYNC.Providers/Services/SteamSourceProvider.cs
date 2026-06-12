@@ -43,6 +43,7 @@ public sealed class SteamSourceProvider : ISourceProvider
                     DisplayName = displayName,
                     SourceProviderId = ProviderId,
                     InstallDirectory = gameDirectory,
+                    PlatformGameId = TryReadSteamAppId(gameDirectory),
                     Variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["GAME_INSTALL_DIR"] = gameDirectory,
@@ -124,5 +125,35 @@ public sealed class SteamSourceProvider : ISourceProvider
         }
 
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Steam");
+    }
+
+    private static string? TryReadSteamAppId(string gameDirectory)
+    {
+        var commonDirectory = Directory.GetParent(gameDirectory)?.FullName;
+        var steamAppsDirectory = commonDirectory is null ? null : Directory.GetParent(commonDirectory)?.FullName;
+        if (string.IsNullOrWhiteSpace(steamAppsDirectory) || !Directory.Exists(steamAppsDirectory))
+        {
+            return null;
+        }
+
+        foreach (var manifestPath in Directory.EnumerateFiles(steamAppsDirectory, "appmanifest_*.acf", SearchOption.TopDirectoryOnly))
+        {
+            foreach (var line in File.ReadLines(manifestPath))
+            {
+                var trimmed = line.Trim();
+                if (!trimmed.Contains("\"installdir\"", StringComparison.OrdinalIgnoreCase) ||
+                    !trimmed.Contains(Path.GetFileName(gameDirectory), StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var name = Path.GetFileNameWithoutExtension(manifestPath);
+                return name.StartsWith("appmanifest_", StringComparison.OrdinalIgnoreCase)
+                    ? name["appmanifest_".Length..]
+                    : null;
+            }
+        }
+
+        return null;
     }
 }

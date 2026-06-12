@@ -29,6 +29,16 @@ public sealed partial class SnapshotFeed : UserControl
         InitializeComponent();
     }
 
+    public event EventHandler<object>? ActionInvoked;
+
+    private void ActionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: { } item })
+        {
+            ActionInvoked?.Invoke(this, item);
+        }
+    }
+
     public IEnumerable ItemsSource
     {
         get => (IEnumerable)GetValue(ItemsSourceProperty);

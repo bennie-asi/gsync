@@ -1,6 +1,7 @@
 using System.Collections;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 
 namespace GSYNC.App.Primitives;
@@ -68,6 +69,20 @@ public sealed partial class FilterDropdown : UserControl
     {
         var itemsPanel = new StackPanel { Spacing = 4, MinWidth = 180 };
 
+        var clearOption = new Button
+        {
+            Content = Placeholder,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Style = (Style)Application.Current.Resources["SecondaryToolbarButtonStyle"],
+            MinWidth = 164,
+        };
+        clearOption.Click += (_, _) =>
+        {
+            SelectedItem = null;
+            _flyout?.Hide();
+        };
+        itemsPanel.Children.Add(clearOption);
+
         if (ItemsSource is not null)
         {
             foreach (var item in ItemsSource)
@@ -91,6 +106,15 @@ public sealed partial class FilterDropdown : UserControl
             }
         }
 
+        var scrollViewer = new ScrollViewer
+        {
+            MaxHeight = 260,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollMode = ScrollMode.Enabled,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = itemsPanel,
+        };
+
         var flyoutBorder = new Border
         {
             Background = (Brush)Application.Current.Resources["AppSurfaceAltBrush"],
@@ -98,11 +122,12 @@ public sealed partial class FilterDropdown : UserControl
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(8),
-            Child = itemsPanel,
+            Child = scrollViewer,
         };
 
         _flyout = new Flyout
         {
+            Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft,
             Content = flyoutBorder,
         };
 

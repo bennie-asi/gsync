@@ -8,7 +8,11 @@ public interface ISyncHistoryRepository
 
     Task<IReadOnlyList<SyncRecord>> ListRecordsAsync(Guid gameInstanceId, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<SyncRecord>> ListRecentRecordsAsync(int limit, CancellationToken cancellationToken);
+
     Task AddSnapshotAsync(Snapshot snapshot, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Snapshot>> ListSnapshotsAsync(Guid gameInstanceId, CancellationToken cancellationToken);
+
+    Task<Snapshot?> GetSnapshotAsync(Guid id, CancellationToken cancellationToken);
 }

@@ -1,11 +1,28 @@
-using GSYNC.App.Infrastructure.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using GSYNC.App.Infrastructure;
+using GSYNC.App.Infrastructure.Configuration;
+using GSYNC.App.Infrastructure.Localization;
+using GSYNC.Core.Abstractions.Data;
+using GSYNC.Core.Abstractions.Manifest;
+using GSYNC.Core.Abstractions.Sync;
+using GSYNC.Core.Models;
+using Serilog;
 
 namespace GSYNC.App.ViewModels;
 
 public partial class LibraryPageViewModel : ObservableObject
 {
     private readonly bool _isChinese;
+    private readonly IGameInstanceRepository _gameInstanceRepository;
+    private readonly IStorageBindingRepository _storageBindingRepository;
+    private readonly ISyncHistoryRepository _syncHistoryRepository;
+    private readonly IManifestService _manifestService;
+    private readonly ISyncEngine _syncEngine;
+    private readonly ISyncQueue _syncQueue;
+    private readonly SyncTargetStore _syncTargetStore;
+
+    private IReadOnlyList<LibraryGameRow> _allGames = [];
+    private bool _sortByNameAscending = true;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -19,9 +36,36 @@ public partial class LibraryPageViewModel : ObservableObject
     [ObservableProperty]
     private string _selectedStatus;
 
-    public LibraryPageViewModel(ILocalizationService localizationService)
+    [ObservableProperty]
+    private IReadOnlyList<LibraryGameRow> _games = [];
+
+    [ObservableProperty]
+    private IReadOnlyList<LibraryOverviewMetric> _overviewMetrics = [];
+
+    [ObservableProperty]
+    private IReadOnlyList<LibraryStat> _stats = [];
+
+    [ObservableProperty]
+    private IReadOnlyList<UiActivityItem> _activity = [];
+
+    public LibraryPageViewModel(
+        ILocalizationService localizationService,
+        IGameInstanceRepository gameInstanceRepository,
+        IStorageBindingRepository storageBindingRepository,
+        ISyncHistoryRepository syncHistoryRepository,
+        IManifestService manifestService,
+        ISyncEngine syncEngine,
+        ISyncQueue syncQueue,
+        SyncTargetStore syncTargetStore)
     {
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
+        _gameInstanceRepository = gameInstanceRepository;
+        _storageBindingRepository = storageBindingRepository;
+        _syncHistoryRepository = syncHistoryRepository;
+        _manifestService = manifestService;
+        _syncEngine = syncEngine;
+        _syncQueue = syncQueue;
+        _syncTargetStore = syncTargetStore;
 
         PageTitle = Pick("游戏库", "Game Library");
         PageSubtitle = Pick("密集型多游戏总览，集中展示同步状态、近期活动与快捷恢复操作。", "Dense multi-game overview with explicit sync state, recent activity, and quick recovery actions.");
@@ -50,43 +94,6 @@ public partial class LibraryPageViewModel : ObservableObject
             Pick("冲突", "Conflict"),
         ];
         _selectedStatus = StatusFilters[0];
-
-        Games =
-        [
-            new("Elden Ring", "Steam", "4", Pick("已同步", "Synced"), Pick("已同步", "Synced"), Pick("2 分钟前", "2 mins ago"), "WebDAV-Main", true, "synced", "synced"),
-            new("Stardew Valley", Pick("自定义", "Custom"), "12", Pick("本地较新", "Local newer"), Pick("远端较新", "Remote newer"), Pick("1 小时前", "1 hour ago"), "WebDAV-Main", false, "local newer", "remote newer"),
-            new("Skyrim", "Epic", "1", Pick("冲突", "Conflict"), Pick("冲突", "Conflict"), Pick("昨天", "Yesterday"), "OneDrive", false, "conflict", "conflict"),
-            new("Hades", "Steam", "6", Pick("已同步", "Synced"), Pick("已同步", "Synced"), Pick("5 小时前", "5 hours ago"), "WebDAV-Main", false, "synced", "synced"),
-        ];
-
-        OverviewMetrics =
-        [
-            new(Pick("游戏总数", "Total Games"), "42"),
-            new(Pick("总大小", "Total Size"), "1.4 GB"),
-            new(Pick("冲突数", "Conflicts"), "1"),
-            new(Pick("待处理", "Pending"), "3"),
-        ];
-
-        Stats =
-        [
-            new(Pick("主要目标", "Primary target"), "WebDAV-Main"),
-            new(Pick("最近同步窗口", "Last sync window"), Pick("今天 · 09:42", "Today · 09:42")),
-            new(Pick("冲突策略", "Conflict policy"), Pick("覆盖前提示", "Prompt before overwrite")),
-            new(Pick("保留期", "Retention"), Pick("90 天", "90 days")),
-        ];
-
-        Activity =
-        [
-            new(Pick("Elden Ring 已同步", "Elden Ring synced"), Pick("已传输 2 个文件", "2 files transferred"), Pick("2 分钟前", "2m ago")),
-            new(Pick("Skyrim 冲突", "Skyrim conflict"), Pick("远端已分叉，需要人工解决", "Remote diverged and requires resolution"), Pick("12 分钟前", "12m ago")),
-            new(Pick("Hades 已同步", "Hades synced"), Pick("未检测到变化", "No changes detected"), Pick("35 分钟前", "35m ago")),
-            new(Pick("Stardew Valley 已上传", "Stardew Valley uploaded"), Pick("存档集已推送到 WebDAV-Main", "Save set pushed to WebDAV-Main"), Pick("1 小时前", "1h ago")),
-            new(Pick("Cyberpunk 2077 已检查", "Cyberpunk 2077 reviewed"), Pick("等待远端元数据刷新", "Pending remote metadata refresh"), Pick("2 小时前", "2h ago")),
-            new(Pick("Balatro 已同步", "Balatro synced"), Pick("配置与存档文件完全匹配", "Config and save files matched"), Pick("3 小时前", "3h ago")),
-            new(Pick("Fallout 4 警告", "Fallout 4 warning"), Pick("覆盖前已创建快照", "Snapshot created before overwrite"), Pick("昨天", "Yesterday")),
-            new(Pick("Slay the Spire 已同步", "Slay the Spire synced"), Pick("未检测到变化", "No changes detected"), Pick("昨天", "Yesterday")),
-            new(Pick("Terraria 归档已更新", "Terraria archive updated"), Pick("远端目标保留策略已刷新", "Remote target retention refreshed"), Pick("2 天前", "2 days ago"), true),
-        ];
     }
 
     public string PageTitle { get; }
@@ -109,10 +116,221 @@ public partial class LibraryPageViewModel : ObservableObject
     public bool IsChinese => _isChinese;
 
     public IReadOnlyList<string> StatusFilters { get; }
-    public IReadOnlyList<LibraryGameRow> Games { get; }
-    public IReadOnlyList<LibraryOverviewMetric> OverviewMetrics { get; }
-    public IReadOnlyList<LibraryStat> Stats { get; }
-    public IReadOnlyList<UiActivityItem> Activity { get; }
+
+    public async Task LoadAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var instances = await _gameInstanceRepository.ListAsync(cancellationToken);
+            var recentRecords = await _syncHistoryRepository.ListRecentRecordsAsync(200, cancellationToken);
+            var lastRecordByInstance = recentRecords
+                .GroupBy(record => record.GameInstanceId)
+                .ToDictionary(group => group.Key, group => group.First());
+            var instanceNames = instances.ToDictionary(instance => instance.Id, instance => instance.DisplayName);
+
+            var rows = new List<LibraryGameRow>(instances.Count);
+            foreach (var instance in instances)
+            {
+                var bindings = await _storageBindingRepository.ListByGameInstanceAsync(instance.Id, cancellationToken);
+                var binding = bindings.FirstOrDefault();
+                var definition = await _manifestService.GetDefinitionAsync(instance.GameId, cancellationToken);
+                lastRecordByInstance.TryGetValue(instance.Id, out var lastRecord);
+
+                var (statusText, statusVariant) = DescribeInstanceStatus(lastRecord);
+                rows.Add(new LibraryGameRow(
+                    instance.DisplayName,
+                    DescribeSource(instance.SourceProviderId),
+                    (definition?.ContentItems.Count ?? 0).ToString(),
+                    statusText,
+                    statusText,
+                    UiFormat.RelativeTime(lastRecord?.CompletedAtUtc ?? lastRecord?.StartedAtUtc, _isChinese),
+                    ResolveTargetName(binding),
+                    false,
+                    statusVariant,
+                    statusVariant)
+                {
+                    InstanceId = instance.Id,
+                });
+            }
+
+            _allGames = rows.OrderBy(row => row.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+            ApplyFilters();
+            IsEmptyState = rows.Count == 0;
+
+            var failedCount = recentRecords.Count(record => record.Status == SyncJobStatus.Failed);
+            OverviewMetrics =
+            [
+                new(Pick("游戏总数", "Total Games"), instances.Count.ToString()),
+                new(Pick("同步记录", "Sync Records"), recentRecords.Count.ToString()),
+                new(Pick("最近失败", "Recent Failures"), failedCount.ToString()),
+                new(Pick("队列中", "Queued"), _syncQueue.QueueDepth.ToString()),
+            ];
+
+            var defaultTarget = _syncTargetStore.GetDefault();
+            var lastSync = recentRecords.FirstOrDefault();
+            Stats =
+            [
+                new(Pick("主要目标", "Primary target"), defaultTarget?.Name ?? Pick("未配置", "Not configured")),
+                new(Pick("最近同步", "Last sync"), UiFormat.RelativeTime(lastSync?.CompletedAtUtc ?? lastSync?.StartedAtUtc, _isChinese)),
+                new(Pick("冲突策略", "Conflict policy"), Pick("覆盖前提示", "Prompt before overwrite")),
+                new(Pick("下载前快照", "Snapshot before download"), Pick("已启用", "Enabled")),
+            ];
+
+            Activity = recentRecords
+                .Take(12)
+                .Select(record => new UiActivityItem(
+                    DescribeActivityTitle(record, instanceNames),
+                    record.ErrorMessage ?? record.Summary ?? UiFormat.StatusText(record.Status, _isChinese),
+                    UiFormat.RelativeTime(record.CompletedAtUtc ?? record.StartedAtUtc, _isChinese),
+                    record.Status == SyncJobStatus.Failed))
+                .ToArray();
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Failed to load library page data.");
+        }
+    }
+
+    public async Task SyncAllAsync(CancellationToken cancellationToken = default)
+    {
+        if (IsSyncInProgress)
+        {
+            return;
+        }
+
+        IsSyncInProgress = true;
+        try
+        {
+            var instances = await _gameInstanceRepository.ListAsync(cancellationToken);
+            foreach (var instance in instances)
+            {
+                await _syncEngine.QueueAsync(new SyncJob
+                {
+                    GameInstanceId = instance.Id,
+                    Direction = SyncDirection.Upload,
+                }, cancellationToken);
+            }
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Failed to queue sync-all jobs.");
+        }
+        finally
+        {
+            IsSyncInProgress = false;
+        }
+    }
+
+    public async Task QueueSyncForGameAsync(Guid instanceId, SyncDirection direction, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _syncEngine.QueueAsync(new SyncJob
+            {
+                GameInstanceId = instanceId,
+                Direction = direction,
+            }, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Failed to queue {Direction} for game {GameInstanceId}.", direction, instanceId);
+        }
+    }
+
+    public void ToggleSort()
+    {
+        _sortByNameAscending = !_sortByNameAscending;
+        ApplyFilters();
+    }
+
+    partial void OnSearchTextChanged(string value)
+    {
+        ApplyFilters();
+    }
+
+    partial void OnSelectedStatusChanged(string value)
+    {
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        IEnumerable<LibraryGameRow> filtered = _allGames;
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            filtered = filtered.Where(row => row.Name.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(SelectedStatus) && SelectedStatus != StatusFilters[0])
+        {
+            filtered = filtered.Where(row =>
+                string.Equals(row.LocalStatus, SelectedStatus, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(row.RemoteStatus, SelectedStatus, StringComparison.OrdinalIgnoreCase));
+        }
+
+        filtered = _sortByNameAscending
+            ? filtered.OrderBy(row => row.Name, StringComparer.OrdinalIgnoreCase)
+            : filtered.OrderByDescending(row => row.Name, StringComparer.OrdinalIgnoreCase);
+
+        Games = filtered.ToArray();
+    }
+
+    private (string Text, string Variant) DescribeInstanceStatus(SyncRecord? lastRecord)
+    {
+        if (lastRecord is null)
+        {
+            return (Pick("未同步", "Not synced"), "pending");
+        }
+
+        return lastRecord.Status switch
+        {
+            SyncJobStatus.Completed => (Pick("已同步", "Synced"), "synced"),
+            SyncJobStatus.Failed => (Pick("失败", "Failed"), "conflict"),
+            SyncJobStatus.Cancelled => (Pick("已取消", "Cancelled"), "disabled"),
+            _ => (Pick("进行中", "In progress"), "pending"),
+        };
+    }
+
+    private string DescribeSource(string sourceProviderId)
+    {
+        return sourceProviderId.ToLowerInvariant() switch
+        {
+            "steam" => "Steam",
+            "epic" => "Epic",
+            "custom" => Pick("自定义", "Custom"),
+            _ => sourceProviderId,
+        };
+    }
+
+    private string ResolveTargetName(StorageBinding? binding)
+    {
+        if (binding is null)
+        {
+            return Pick("未绑定", "Unbound");
+        }
+
+        if (binding.Settings.TryGetValue("targetName", out var targetName) && !string.IsNullOrWhiteSpace(targetName))
+        {
+            return targetName;
+        }
+
+        return binding.StorageProviderId;
+    }
+
+    private string DescribeActivityTitle(SyncRecord record, IReadOnlyDictionary<Guid, string> instanceNames)
+    {
+        var name = instanceNames.GetValueOrDefault(record.GameInstanceId, Pick("未知游戏", "Unknown game"));
+        var action = (record.Direction, record.Status) switch
+        {
+            (_, SyncJobStatus.Failed) => Pick("失败", "failed"),
+            (SyncDirection.Upload, _) => Pick("已上传", "uploaded"),
+            (SyncDirection.Download, _) => Pick("已下载", "downloaded"),
+            (SyncDirection.Compare, _) => Pick("已比较", "compared"),
+            _ => Pick("已同步", "synced"),
+        };
+
+        return _isChinese ? $"{name} {action}" : $"{name} {action}";
+    }
 
     private string Pick(string zh, string en) => _isChinese ? zh : en;
 }
@@ -129,6 +347,9 @@ public sealed record LibraryGameRow(
     string Target,
     bool IsSelected,
     string LocalStatusVariant = "ready",
-    string RemoteStatusVariant = "ready");
+    string RemoteStatusVariant = "ready")
+{
+    public Guid InstanceId { get; init; }
+}
 
 public sealed record LibraryStat(string Label, string Value);

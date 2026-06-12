@@ -7,7 +7,7 @@
     xmlns:vm="using:GSYNC.App.ViewModels">
     <Page.Resources>
         <DataTemplate x:Key="SyncTargetRowTemplate" x:DataType="vm:SyncTargetRow">
-            <Border BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1" Padding="12,10">
+            <Border Background="Transparent" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1" Padding="12,10" Tapped="TargetRow_Tapped">
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -85,10 +85,10 @@
                     <primitives:FilterDropdown Width="150" ItemsSource="{Binding Filters}" Placeholder="{Binding FilterPlaceholder}" SelectedItem="{Binding SelectedTargetFilter, Mode=TwoWay}" />
                 </StackPanel>
 
-                <Button Grid.Column="1" Content="{Binding RefreshText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="2" Content="{Binding TestSelectedText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="3" Content="{Binding AddTargetText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-                <Button Grid.Column="4" Content="{Binding HelpText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="1" Click="RefreshButton_Click" Content="{Binding RefreshText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="2" Click="TestSelectedButton_Click" Content="{Binding TestSelectedText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="3" Click="AddTargetButton_Click" Content="{Binding AddTargetText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                <Button Grid.Column="4" Click="OpenHelpButton_Click" Content="{Binding HelpText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
             </Grid>
 
             <Grid Grid.Row="1" ColumnSpacing="14">
@@ -111,7 +111,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TargetsCountText}" />
-                            <Button Grid.Column="1" Padding="8,6" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                            <Button Grid.Column="1" Click="AddTargetButton_Click" Padding="8,6" Style="{StaticResource SecondaryToolbarButtonStyle}">
                                 <SymbolIcon Symbol="Add" />
                             </Button>
                         </Grid>
@@ -160,7 +160,7 @@
                                     <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource AppDangerBrush}" Text="{Binding FailureCodeText}" />
-                                            <Button Content="Copy Code" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                            <Button Click="CopyCodeButton_Click" Content="Copy Code" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -204,10 +204,10 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Content="{Binding RemoveTargetText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="1" Margin="8,0,0,0" Content="{Binding OpenRootText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="3" Content="{Binding TestConnectionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="4" Margin="8,0,0,0" Content="{Binding SaveChangesText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                                    <Button Click="RemoveTargetButton_Click" Content="{Binding RemoveTargetText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button Grid.Column="1" Margin="8,0,0,0" Click="OpenRootButton_Click" Content="{Binding OpenRootText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button Grid.Column="3" Click="TestSelectedButton_Click" Content="{Binding TestConnectionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button Grid.Column="4" Margin="8,0,0,0" Click="EditTargetButton_Click" Content="{Binding SaveChangesText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
                                 </Grid>
                                 <Grid Visibility="{Binding ShowFailureState, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Grid.ColumnDefinitions>
@@ -217,10 +217,10 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Content="{Binding EditCredentialsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="1" Margin="8,0,0,0" Content="{Binding OpenLogsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="3" Content="{Binding RetryConnectionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="4" Margin="8,0,0,0" Content="{Binding SaveChangesText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                                    <Button Click="EditTargetButton_Click" Content="{Binding EditCredentialsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button Grid.Column="1" Margin="8,0,0,0" Click="OpenLogsButton_Click" Content="{Binding OpenLogsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button Grid.Column="3" Click="TestSelectedButton_Click" Content="{Binding RetryConnectionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button Grid.Column="4" Margin="8,0,0,0" Click="EditTargetButton_Click" Content="{Binding SaveChangesText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
                                 </Grid>
                             </Grid>
                         </Border>

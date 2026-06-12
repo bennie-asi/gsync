@@ -5,4 +5,5 @@ public enum SyncDirection
     Upload,
     Download,
     Compare,
+    ResolveConflict,
 }

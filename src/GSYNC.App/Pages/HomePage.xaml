@@ -23,7 +23,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Button Padding="8,4" MinHeight="28" Content="{Binding ElementName=RootPage, Path=ViewModel.OpenButtonText}" Click="OpenGameDetails_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="1" Padding="8,4" MinHeight="28" Content="{Binding ElementName=RootPage, Path=ViewModel.MoreButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="1" Padding="8,4" MinHeight="28" Content="{Binding ElementName=RootPage, Path=ViewModel.MoreButtonText}" Click="ShowRowActions_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
             </Grid>
         </DataTemplate>
         <DataTemplate x:Key="LibraryPropertyRowTemplate">
@@ -71,6 +71,7 @@
                     <Button
                         x:Name="SortButton"
                         Grid.Column="1"
+                        Click="SortButton_Click"
                         Content="Sort"
                         Style="{StaticResource SecondaryToolbarButtonStyle}" />
 
@@ -88,50 +89,52 @@
                     PersistedStateKey="library-main-table" />
             </Grid>
 
-            <Grid Grid.Column="1" RowSpacing="12">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                <Grid RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                    <Button
-                        x:Name="AddGameButton"
-                        Content="Add Game"
-                        Click="OpenAddGameWizard_Click"
-                        Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                        <Button
+                            x:Name="AddGameButton"
+                            Content="Add Game"
+                            Click="OpenAddGameWizard_Click"
+                            Style="{StaticResource SecondaryToolbarButtonStyle}" />
 
-                    <Button
-                        x:Name="SyncNowButton"
-                        Grid.Column="1"
-                        Content="Sync Now"
-                        Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                        <Button
+                            x:Name="SyncNowButton"
+                            Grid.Column="1"
+                            Content="Sync Now"
+                            Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                    </Grid>
+
+                    <primitives:PropertySheet x:Name="OverviewSheet" Grid.Row="1" Title="Overview">
+                        <primitives:PropertySheet.PanelContent>
+                            <StackPanel Spacing="10">
+                                <TextBlock x:Name="OverviewSubtitleTextBlock" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="WrapWholeWords" />
+                                <ItemsControl ItemTemplate="{StaticResource LibraryPropertyRowTemplate}" ItemsSource="{Binding OverviewMetrics}" />
+                            </StackPanel>
+                        </primitives:PropertySheet.PanelContent>
+                    </primitives:PropertySheet>
+
+                    <primitives:PropertySheet x:Name="ActivitySheet" Grid.Row="2" Title="Activity Timeline">
+                        <primitives:PropertySheet.PanelContent>
+                            <StackPanel Spacing="10">
+                                <TextBlock x:Name="ActivitySubtitleTextBlock" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="WrapWholeWords" />
+                                <primitives:ActivityFeed ItemsSource="{Binding Activity}" ContentHeight="320" />
+                            </StackPanel>
+                        </primitives:PropertySheet.PanelContent>
+                    </primitives:PropertySheet>
                 </Grid>
-
-                <primitives:PropertySheet x:Name="OverviewSheet" Grid.Row="1" Title="Overview">
-                    <primitives:PropertySheet.PanelContent>
-                        <StackPanel Spacing="10">
-                            <TextBlock x:Name="OverviewSubtitleTextBlock" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="WrapWholeWords" />
-                            <ItemsControl ItemTemplate="{StaticResource LibraryPropertyRowTemplate}" ItemsSource="{Binding OverviewMetrics}" />
-                        </StackPanel>
-                    </primitives:PropertySheet.PanelContent>
-                </primitives:PropertySheet>
-
-                <primitives:PropertySheet x:Name="ActivitySheet" Grid.Row="2" Title="Activity Timeline">
-                    <primitives:PropertySheet.PanelContent>
-                        <StackPanel Spacing="10">
-                            <TextBlock x:Name="ActivitySubtitleTextBlock" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="WrapWholeWords" />
-                            <primitives:ActivityFeed ItemsSource="{Binding Activity}" ContentHeight="320" />
-                        </StackPanel>
-                    </primitives:PropertySheet.PanelContent>
-                </primitives:PropertySheet>
-            </Grid>
+            </ScrollViewer>
         </Grid>
 
         <Border

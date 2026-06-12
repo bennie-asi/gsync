@@ -7,11 +7,11 @@ namespace GSYNC.Storage.Services;
 
 public sealed class LocalFolderStorageProvider : IStorageProvider
 {
-    private readonly LocalFolderOptions _options;
+    private readonly IOptions<LocalFolderOptions> _options;
 
     public LocalFolderStorageProvider(IOptions<LocalFolderOptions> options)
     {
-        _options = options.Value;
+        _options = options;
     }
 
     public string ProviderId => "local-folder";
@@ -128,11 +128,12 @@ public sealed class LocalFolderStorageProvider : IStorageProvider
             return configured;
         }
 
-        if (string.IsNullOrWhiteSpace(_options.RootPath))
+        var options = _options.Value;
+        if (string.IsNullOrWhiteSpace(options.RootPath))
         {
             throw new InvalidOperationException("Local folder root path has not been configured.");
         }
 
-        return _options.RootPath;
+        return options.RootPath;
     }
 }

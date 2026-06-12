@@ -1,4 +1,6 @@
+using GSYNC.App.Infrastructure.Configuration;
 using GSYNC.App.Infrastructure.Localization;
+using GSYNC.App.Infrastructure.Wizard;
 using GSYNC.App.ViewModels;
 using GSYNC.Core.Abstractions;
 using GSYNC.Core.Abstractions.Data;
@@ -37,6 +39,10 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IAppPathService, AppPathService>();
         services.AddSingleton<UiSettingsStore>();
+        services.AddSingleton<SyncTargetStore>();
+        services.AddSingleton<UserVariablesStore>();
+        services.AddSingleton<Microsoft.Extensions.Options.IOptions<GSYNC.Storage.Options.WebDavOptions>, StoreBackedWebDavOptions>();
+        services.AddSingleton<Microsoft.Extensions.Options.IOptions<GSYNC.Storage.Options.LocalFolderOptions>, StoreBackedLocalFolderOptions>();
         services.AddSingleton<ILocalizationService, LocalizationService>();
         services.AddSingleton(sp =>
         {
@@ -54,6 +60,8 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<PathResolver>();
         services.AddSingleton<SystemVariableProvider>();
+        services.AddSingleton<AddGameMatchService>();
+        services.AddSingleton<AddGamePathValidationService>();
         services.AddSingleton<EmbeddedManifestReader>();
         services.AddSingleton<ILudusaviManifestParser, LudusaviManifestParser>();
         services.AddSingleton<IUserDefinitionStore>(sp =>
@@ -69,13 +77,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISourceProvider, CustomSourceProvider>();
 
         services.AddSingleton<IStorageProvider>(sp =>
-        {
-            var appPaths = sp.GetRequiredService<IAppPathService>();
-            return new LocalFolderStorageProvider(Microsoft.Extensions.Options.Options.Create(new LocalFolderOptions
-            {
-                RootPath = Path.Combine(appPaths.GetAppDataRoot(), "storage"),
-            }));
-        });
+            new LocalFolderStorageProvider(sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LocalFolderOptions>>()));
         services.AddTransient<IStorageProvider>(sp => sp.GetRequiredService<WebDavStorageProvider>());
 
         services.AddSingleton<SyncQueue>();

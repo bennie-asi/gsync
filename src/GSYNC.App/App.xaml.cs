@@ -28,6 +28,8 @@ public partial class App : Application
 
     public static new App Current => (App)Application.Current;
 
+    public Window MainWindow => _window ?? throw new InvalidOperationException("Main window has not been created yet.");
+
     public IServiceProvider Services => _services ?? throw new InvalidOperationException("Services have not been initialized.");
 
     public static T GetService<T>() where T : notnull

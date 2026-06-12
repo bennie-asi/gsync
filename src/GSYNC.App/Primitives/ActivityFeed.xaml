@@ -5,7 +5,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ScrollViewer
-        Height="{Binding ContentHeight, ElementName=Root}"
+        MaxHeight="{Binding ContentHeight, ElementName=Root}"
         VerticalScrollBarVisibility="Auto"
         VerticalScrollMode="Enabled">
         <ItemsControl ItemsSource="{Binding ItemsSource, ElementName=Root}">

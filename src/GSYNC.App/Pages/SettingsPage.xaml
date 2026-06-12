@@ -64,93 +64,97 @@
                 </primitives:PropertySheet.PanelContent>
             </primitives:PropertySheet>
 
-            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="16">
-                <primitives:SectionHeader x:Name="AppearanceHeader" Title="Appearance" Subtitle="Theme mode, accent color, density, icon style, and system behavior stay grouped as compact utility cards." />
+            <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                <StackPanel Spacing="16">
+                    <primitives:SectionHeader x:Name="AppearanceHeader" Title="Appearance" Subtitle="Theme mode, accent color, density, icon style, and system behavior stay grouped as compact utility cards." />
 
-                <primitives:PropertySheet x:Name="ThemeBehaviorSheet" Title="Theme and system behavior">
-                    <primitives:PropertySheet.PanelContent>
-                        <StackPanel Spacing="14">
-                            <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding ThemeBehaviorSubtitle}" TextWrapping="WrapWholeWords" />
-                            <StackPanel Spacing="6">
-                                <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding LanguageLabel}" />
-                                <ComboBox ItemsSource="{Binding SupportedLanguages}" SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
+                    <primitives:PropertySheet x:Name="ThemeBehaviorSheet" Title="Theme and system behavior">
+                        <primitives:PropertySheet.PanelContent>
+                            <StackPanel Spacing="14">
+                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding ThemeBehaviorSubtitle}" TextWrapping="WrapWholeWords" />
+                                <StackPanel Spacing="6">
+                                    <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding LanguageLabel}" />
+                                    <ComboBox ItemsSource="{Binding SupportedLanguages}" SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
+                                </StackPanel>
+
+                                <ItemsControl ItemTemplate="{StaticResource SettingsPropertyTemplate}" ItemsSource="{Binding Details}" />
                             </StackPanel>
+                        </primitives:PropertySheet.PanelContent>
+                    </primitives:PropertySheet>
 
-                            <ItemsControl ItemTemplate="{StaticResource SettingsPropertyTemplate}" ItemsSource="{Binding Details}" />
-                        </StackPanel>
-                    </primitives:PropertySheet.PanelContent>
-                </primitives:PropertySheet>
+                    <primitives:PropertySheet Title="{Binding DiagnosticsTitle}">
+                        <primitives:PropertySheet.PanelContent>
+                            <StackPanel Spacing="10">
+                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding DiagnosticsSubtitle}" TextWrapping="WrapWholeWords" />
+                                <ItemsControl ItemTemplate="{StaticResource SettingsPropertyTemplate}" ItemsSource="{Binding Diagnostics}" />
+                            </StackPanel>
+                        </primitives:PropertySheet.PanelContent>
+                    </primitives:PropertySheet>
 
-                <primitives:PropertySheet Title="{Binding DiagnosticsTitle}">
-                    <primitives:PropertySheet.PanelContent>
-                        <StackPanel Spacing="10">
-                            <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding DiagnosticsSubtitle}" TextWrapping="WrapWholeWords" />
-                            <ItemsControl ItemTemplate="{StaticResource SettingsPropertyTemplate}" ItemsSource="{Binding Diagnostics}" />
-                        </StackPanel>
-                    </primitives:PropertySheet.PanelContent>
-                </primitives:PropertySheet>
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="RestoreDefaultsButton" Click="RestoreDefaultsButton_Click" Content="Restore Defaults" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                        <Button x:Name="ApplyThemeButton" Grid.Column="2" Click="ApplyThemeButton_Click" Content="Apply Theme" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                        <Button x:Name="SaveSettingsButton" Grid.Column="3" Click="SaveSettingsButton_Click" Content="Save Settings" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
 
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Button x:Name="RestoreDefaultsButton" Content="Restore Defaults" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                    <Button x:Name="ApplyThemeButton" Grid.Column="2" Content="Apply Theme" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                    <Button x:Name="SaveSettingsButton" Grid.Column="3" Content="Save Settings" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-                </Grid>
-            </StackPanel>
+            <ScrollViewer Grid.Row="1" Grid.Column="2" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                <StackPanel Spacing="12">
+                    <primitives:InspectorPanel Title="{Binding PreviewHeader}">
+                        <primitives:InspectorPanel.PanelContent>
+                            <StackPanel Spacing="12">
+                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding PreviewSubtitle}" TextWrapping="WrapWholeWords" />
 
-            <StackPanel Grid.Row="1" Grid.Column="2" Spacing="12">
-                <primitives:InspectorPanel Title="{Binding PreviewHeader}">
-                    <primitives:InspectorPanel.PanelContent>
-                        <StackPanel Spacing="12">
-                            <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding PreviewSubtitle}" TextWrapping="WrapWholeWords" />
+                                <primitives:PropertySheet Title="{Binding PreviewSectionTitle}">
+                                    <primitives:PropertySheet.PanelContent>
+                                        <StackPanel Spacing="10">
+                                            <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding PreviewSectionSubtitle}" TextWrapping="WrapWholeWords" />
+                                            <ItemsControl ItemsSource="{Binding PreviewRows}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:UiPreviewRow">
+                                                        <Border Padding="0,0,0,10" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1">
+                                                            <StackPanel Spacing="6">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock FontWeight="SemiBold" Text="{x:Bind Name}" />
+                                                                    <primitives:Badge Grid.Column="1" Text="{x:Bind Status}" Variant="{x:Bind Variant}" />
+                                                                </Grid>
+                                                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Path}" TextWrapping="WrapWholeWords" />
+                                                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Button Click="PreviewPrimaryActionButton_Click" Content="{x:Bind PrimaryActionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                                                    <Button Grid.Column="1" Margin="8,0,0,0" Click="PreviewSecondaryActionButton_Click" Content="{x:Bind SecondaryActionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                                                </Grid>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </primitives:PropertySheet.PanelContent>
+                                </primitives:PropertySheet>
+                            </StackPanel>
+                        </primitives:InspectorPanel.PanelContent>
+                    </primitives:InspectorPanel>
 
-                            <primitives:PropertySheet Title="{Binding PreviewSectionTitle}">
-                                <primitives:PropertySheet.PanelContent>
-                                    <StackPanel Spacing="10">
-                                        <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding PreviewSectionSubtitle}" TextWrapping="WrapWholeWords" />
-                                        <ItemsControl ItemsSource="{Binding PreviewRows}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:UiPreviewRow">
-                                                    <Border Padding="0,0,0,10" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1">
-                                                        <StackPanel Spacing="6">
-                                                            <Grid>
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                </Grid.ColumnDefinitions>
-                                                                <TextBlock FontWeight="SemiBold" Text="{x:Bind Name}" />
-                                                                <primitives:Badge Grid.Column="1" Text="{x:Bind Status}" Variant="{x:Bind Variant}" />
-                                                            </Grid>
-                                                            <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Path}" TextWrapping="WrapWholeWords" />
-                                                            <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
-                                                            <Grid>
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                    <ColumnDefinition Width="*" />
-                                                                </Grid.ColumnDefinitions>
-                                                                <Button Content="{x:Bind PrimaryActionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                                                <Button Grid.Column="1" Margin="8,0,0,0" Content="{x:Bind SecondaryActionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                                            </Grid>
-                                                        </StackPanel>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </primitives:PropertySheet.PanelContent>
-                            </primitives:PropertySheet>
-                        </StackPanel>
-                    </primitives:InspectorPanel.PanelContent>
-                </primitives:InspectorPanel>
-
-                <Button x:Name="AddNewTargetButton" Content="Add New Target" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-            </StackPanel>
+                    <Button x:Name="AddNewTargetButton" Click="AddNewTargetButton_Click" Content="Add New Target" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
 
         <Border

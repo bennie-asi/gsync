@@ -21,7 +21,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding Timestamp}" />
-                                <Button Grid.Column="1" Content="{Binding ActionText, ElementName=Root}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                <Button Grid.Column="1" Click="ActionButton_Click" Content="{Binding ActionText, ElementName=Root}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                             </Grid>
                         </StackPanel>
                     </Border>

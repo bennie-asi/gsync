@@ -13,7 +13,7 @@
             <primitives:Badge Text="{x:Bind Status}" Variant="{x:Bind StatusVariant}" />
         </DataTemplate>
         <DataTemplate x:Key="ContentItemToggleTemplate" x:DataType="vm:ContentItemRow">
-            <ToggleSwitch HorizontalAlignment="Right" IsEnabled="False" IsOn="{Binding Enabled, Mode=OneWay}" OffContent="" OnContent="" MinWidth="44" />
+            <primitives:Badge Text="{x:Bind EnabledText}" Variant="{x:Bind EnabledVariant}" />
         </DataTemplate>
         <DataTemplate x:Key="ContextMetricTemplate" x:DataType="vm:UiPropertyRow">
             <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8">
@@ -48,22 +48,23 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <Button Content="{Binding UploadText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                    <Button Grid.Column="1" Content="{Binding DownloadText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    <Button Click="UploadButton_Click" Content="{Binding UploadText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    <Button Grid.Column="1" Click="DownloadButton_Click" Content="{Binding DownloadText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                     <Button Grid.Column="2" Click="OpenConflictResolution_Click" Content="{Binding CompareText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                    <Button Grid.Column="3" Content="{Binding RestoreText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                    <Button Grid.Column="3" Click="RestoreButton_Click" Content="{Binding RestoreText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
                 </Grid>
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1" ColumnSpacing="14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="860" />
-                <ColumnDefinition Width="320" MinWidth="300" />
-            </Grid.ColumnDefinitions>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+            <Grid ColumnSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="860" />
+                    <ColumnDefinition Width="320" MinWidth="300" />
+                </Grid.ColumnDefinitions>
 
-            <Grid RowSpacing="14">
-                <Grid.RowDefinitions>
+                <Grid RowSpacing="14">
+                    <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="260" />
@@ -152,7 +153,7 @@
                                 <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding TableSectionTitle}" />
                                 <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TableSectionSubtitle}" TextWrapping="WrapWholeWords" />
                             </StackPanel>
-                            <Button Grid.Column="1" Content="{Binding AddItemText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                            <Button Grid.Column="1" Click="NotYetEditableButton_Click" Content="{Binding AddItemText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                         </Grid>
                     </Border>
 
@@ -183,8 +184,8 @@
                                 <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding HistorySectionTitle}" />
                                 <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding HistorySectionSubtitle}" TextWrapping="WrapWholeWords" />
                             </StackPanel>
-                            <Button Grid.Column="1" Content="{Binding HistoryTabText}" HorizontalAlignment="Left" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-                            <Button Grid.Column="2" Margin="8,0,0,0" Content="{Binding SnapshotsTabText}" HorizontalAlignment="Left" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                            <Button Grid.Column="1" Click="OpenActivityInfoButton_Click" Content="{Binding HistoryTabText}" HorizontalAlignment="Left" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                            <Button Grid.Column="2" Margin="8,0,0,0" Click="OpenSnapshotInfoButton_Click" Content="{Binding SnapshotsTabText}" HorizontalAlignment="Left" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                         </Grid>
 
                         <Grid Grid.Row="1" ColumnSpacing="14">
@@ -209,7 +210,7 @@
                 </Border>
             </Grid>
 
-            <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
+            <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Visibility="{Binding IsInspectorVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -225,7 +226,7 @@
                             <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding PropertiesTitle}" />
                             <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding PropertiesSubtitle}" TextWrapping="WrapWholeWords" />
                         </StackPanel>
-                        <Button Grid.Column="1" Content="×" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                        <Button Grid.Column="1" Click="NotYetEditableButton_Click" Content="×" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                     </Grid>
 
                     <ScrollViewer Grid.Row="1" Padding="12" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
@@ -237,8 +238,8 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Button Content="{Binding OpenFolderText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                <Button Grid.Column="1" Content="{Binding TestPathText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                <Button Click="OpenFolderButton_Click" Content="{Binding OpenFolderText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                <Button Grid.Column="1" Click="TestPathButton_Click" Content="{Binding TestPathText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                             </Grid>
 
                             <primitives:PropertySheet Title="{Binding PropertiesTitle}">
@@ -251,5 +252,6 @@
                 </Grid>
             </Border>
         </Grid>
-    </Grid>
+    </ScrollViewer>
+</Grid>
 </Page>

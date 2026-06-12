@@ -1,5 +1,7 @@
 using GSYNC.App.ViewModels;
+using GSYNC.App.Infrastructure;
 using GSYNC.App.Primitives;
+using GSYNC.Core.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Serilog;
@@ -42,6 +44,11 @@ public sealed partial class HomePage : Page
 
             MainContentRoot.Visibility = Visibility.Visible;
             InitializationErrorPanel.Visibility = Visibility.Collapsed;
+            RefreshButton.Click -= RefreshButton_Click;
+            RefreshButton.Click += RefreshButton_Click;
+            SyncNowButton.Click -= SyncNowButton_Click;
+            SyncNowButton.Click += SyncNowButton_Click;
+            _ = _viewModel.LoadAsync();
             Log.Information("HomePage initialized successfully.");
         }
         catch (Exception exception)
@@ -97,10 +104,73 @@ public sealed partial class HomePage : Page
     {
         if (sender is Button { DataContext: LibraryGameRow row })
         {
-            Frame?.Navigate(typeof(GameDetailsPage), row.Name);
+            Frame?.Navigate(typeof(GameDetailsPage), row.InstanceId.ToString("D"));
             return;
         }
 
         Frame?.Navigate(typeof(GameDetailsPage));
+    }
+
+    private void RefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = _viewModel?.LoadAsync();
+    }
+
+    private async void SortButton_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel?.ToggleSort();
+        var dialog = DialogStyler.Apply(new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = _viewModel?.IsChinese == true ? "排序已切换" : "Sort toggled",
+            Content = _viewModel?.IsChinese == true
+                ? "当前已在名称升序和降序之间切换。"
+                : "The current sort has been toggled between ascending and descending by name.",
+            CloseButtonText = _viewModel?.IsChinese == true ? "关闭" : "Close",
+        });
+        await dialog.ShowAsync();
+    }
+
+    private async void SyncNowButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        await _viewModel.SyncAllAsync();
+        await _viewModel.LoadAsync();
+    }
+
+    private async void ShowRowActions_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel is null || sender is not Button { DataContext: LibraryGameRow row })
+        {
+            return;
+        }
+
+        var isChinese = _viewModel.IsChinese;
+        var dialog = DialogStyler.Apply(new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = row.Name,
+            Content = isChinese ? "选择要执行的操作。" : "Choose an action.",
+            PrimaryButtonText = isChinese ? "打开详情" : "Open Details",
+            SecondaryButtonText = isChinese ? "排队上传" : "Queue Upload",
+            CloseButtonText = isChinese ? "取消" : "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        });
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            Frame?.Navigate(typeof(GameDetailsPage), row.InstanceId.ToString("D"));
+            return;
+        }
+
+        if (result == ContentDialogResult.Secondary)
+        {
+            await _viewModel.QueueSyncForGameAsync(row.InstanceId, SyncDirection.Upload);
+        }
     }
 }

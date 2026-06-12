@@ -85,24 +85,39 @@ public sealed class SyncEngineExecutionTests
     }
 
     [Fact]
-    public async Task DownloadJob_WhenCancelled_WritesCancelledRecord()
+    public async Task ResolveConflictJob_AppliesOnlyDecidedFiles_AndWritesSyncRecord()
     {
-        var fixture = new SyncEngineFixture(delayDownloads: true);
-        fixture.StorageProvider.RemoteFiles["games/game-a/default/save1.sav"] = new byte[1024];
-        using var jobCts = new CancellationTokenSource(10);
+        var fixture = new SyncEngineFixture();
+        var localFile = Path.Combine(fixture.RootPath, "game-a", "save1.sav");
+        Directory.CreateDirectory(Path.GetDirectoryName(localFile)!);
+        await File.WriteAllTextAsync(localFile, "local-save");
+        fixture.StorageProvider.RemoteFiles["games/game-a/default/save1.sav"] = "remote-save"u8.ToArray();
+        fixture.StorageProvider.RemoteFiles["games/game-a/default/save2.sav"] = "remote-save-2"u8.ToArray();
 
         var job = new SyncJob
         {
             GameInstanceId = fixture.GameInstance.Id,
-            Direction = SyncDirection.Download,
-            CancellationToken = jobCts.Token,
+            Direction = SyncDirection.ResolveConflict,
+            ConflictResolutionPlan = new ConflictResolutionPlan
+            {
+                GameInstanceId = fixture.GameInstance.Id,
+                Decisions =
+                [
+                    new ConflictResolutionDecision { RelativePath = "games/game-a/default/save1.sav", Action = ConflictResolutionAction.KeepRemote },
+                    new ConflictResolutionDecision { RelativePath = "games/game-a/default/save2.sav", Action = ConflictResolutionAction.Undecided },
+                ],
+            },
         };
 
         using var cts = new CancellationTokenSource();
         await RunQueuedJobAsync(fixture, job, cts);
 
+        Assert.Equal("remote-save", await File.ReadAllTextAsync(localFile));
+        Assert.Single(fixture.SyncHistoryRepository.Snapshots);
         Assert.Single(fixture.SyncHistoryRepository.Records);
-        Assert.Equal(SyncJobStatus.Cancelled, fixture.SyncHistoryRepository.Records[0].Status);
+        Assert.Equal(SyncDirection.ResolveConflict, fixture.SyncHistoryRepository.Records[0].Direction);
+        Assert.Equal(SyncJobStatus.Completed, fixture.SyncHistoryRepository.Records[0].Status);
+        Assert.Equal(1, fixture.SyncHistoryRepository.Records[0].ProcessedFiles);
     }
 
     private static async Task RunQueuedJobAsync(SyncEngineFixture fixture, SyncJob job, CancellationTokenSource queueCts)
@@ -268,6 +283,9 @@ public sealed class SyncEngineExecutionTests
         public Task<IReadOnlyList<SyncRecord>> ListRecordsAsync(Guid gameInstanceId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<SyncRecord>>(Records.Where(r => r.GameInstanceId == gameInstanceId).ToArray());
 
+        public Task<IReadOnlyList<SyncRecord>> ListRecentRecordsAsync(int limit, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<SyncRecord>>(Records.OrderByDescending(r => r.StartedAtUtc).Take(limit).ToArray());
+
         public Task AddSnapshotAsync(Snapshot snapshot, CancellationToken cancellationToken)
         {
             Snapshots.Add(snapshot);
@@ -276,6 +294,9 @@ public sealed class SyncEngineExecutionTests
 
         public Task<IReadOnlyList<Snapshot>> ListSnapshotsAsync(Guid gameInstanceId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<Snapshot>>(Snapshots.Where(s => s.GameInstanceId == gameInstanceId).ToArray());
+
+        public Task<Snapshot?> GetSnapshotAsync(Guid id, CancellationToken cancellationToken)
+            => Task.FromResult(Snapshots.FirstOrDefault(s => s.Id == id));
     }
 
     private sealed class FakeSourceProvider : ISourceProvider

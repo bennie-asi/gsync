@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using GSYNC.App.Primitives;
 using GSYNC.App.ViewModels;
+using GSYNC.App.Infrastructure;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Serilog;
@@ -36,8 +38,12 @@ public sealed partial class HistoryPage : Page
                 new ResizableTableColumn { Key = "size", Header = _viewModel.IsChinese ? "大小" : "Size", BindingPath = nameof(HistoryRow.Size), Width = 84, MinWidth = 72 },
             ];
 
+            HistoryTable.RowInvoked -= HistoryTable_RowInvoked;
+            HistoryTable.RowInvoked += HistoryTable_RowInvoked;
+
             MainContentRoot.Visibility = Visibility.Visible;
             InitializationErrorPanel.Visibility = Visibility.Collapsed;
+            _ = _viewModel.LoadAsync();
             Log.Information("HistoryPage initialized successfully.");
         }
         catch (Exception exception)
@@ -61,5 +67,107 @@ public sealed partial class HistoryPage : Page
     private void RetryInitialization_Click(object sender, RoutedEventArgs e)
     {
         TryInitializePage();
+    }
+
+    private void HistoryTable_RowInvoked(object? sender, object item)
+    {
+        if (_viewModel is not null && item is HistoryRow row)
+        {
+            _ = _viewModel.SelectRecordAsync(row);
+        }
+    }
+
+    private void RefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = _viewModel?.LoadAsync();
+    }
+
+    private void GoToLibraryButton_Click(object sender, RoutedEventArgs e)
+    {
+        Frame?.Navigate(typeof(HomePage));
+    }
+
+    private async void RestoreLatestSnapshotButton_Click(object sender, RoutedEventArgs e)
+    {
+        var latest = _viewModel?.Snapshots.FirstOrDefault();
+        if (latest is null)
+        {
+            return;
+        }
+
+        await ConfirmAndRestoreAsync(latest);
+    }
+
+    private async void SnapshotFeed_ActionInvoked(object? sender, object item)
+    {
+        if (item is SnapshotRow snapshotRow)
+        {
+            await ConfirmAndRestoreAsync(snapshotRow);
+        }
+    }
+
+    private async Task ConfirmAndRestoreAsync(SnapshotRow snapshotRow)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        var isChinese = _viewModel.IsChinese;
+        var confirmDialog = DialogStyler.Apply(new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = isChinese ? "恢复快照" : "Restore Snapshot",
+            Content = isChinese
+                ? $"将使用快照 {snapshotRow.Name}（{snapshotRow.Timestamp}）覆盖本地存档文件。是否继续？"
+                : $"Local save files will be overwritten with snapshot {snapshotRow.Name} ({snapshotRow.Timestamp}). Continue?",
+            PrimaryButtonText = isChinese ? "恢复" : "Restore",
+            CloseButtonText = isChinese ? "取消" : "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+        });
+
+        if (await confirmDialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        var error = await _viewModel.RestoreSnapshotAsync(snapshotRow);
+        if (error is not null)
+        {
+            var errorDialog = DialogStyler.Apply(new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = isChinese ? "恢复失败" : "Restore Failed",
+                Content = error,
+                CloseButtonText = isChinese ? "关闭" : "Close",
+            });
+            await errorDialog.ShowAsync();
+        }
+    }
+
+    private void OpenLogsButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var logsDirectory = new GSYNC.Data.Services.AppPathService().GetLogsDirectory();
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{logsDirectory}\""));
+        }
+        catch
+        {
+        }
+    }
+
+    private async void OpenHelpButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = DialogStyler.Apply(new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = _viewModel?.IsChinese == true ? "历史与快照说明" : "History & Snapshots Help",
+            Content = _viewModel?.IsChinese == true
+                ? "此页用于查看同步记录、恢复快照，以及排查历史同步问题。"
+                : "Use this page to review sync records, restore snapshots, and investigate previous sync issues.",
+            CloseButtonText = _viewModel?.IsChinese == true ? "关闭" : "Close",
+        });
+        await dialog.ShowAsync();
     }
 }

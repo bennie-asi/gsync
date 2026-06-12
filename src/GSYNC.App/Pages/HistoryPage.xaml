@@ -44,16 +44,16 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <primitives:SearchField Width="220" PlaceholderText="{Binding SearchPlaceholder}" />
+                    <primitives:SearchField Width="220" PlaceholderText="{Binding SearchPlaceholder}" Text="{Binding SearchText, Mode=TwoWay}" />
                     <primitives:FilterDropdown Width="150" ItemsSource="{Binding GameFilters}" Placeholder="{Binding GameFilterPlaceholder}" SelectedItem="{Binding SelectedGameFilter, Mode=TwoWay}" />
                     <primitives:FilterDropdown Width="150" ItemsSource="{Binding ResultFilters}" Placeholder="{Binding ResultFilterPlaceholder}" SelectedItem="{Binding SelectedResultFilter, Mode=TwoWay}" />
                     <primitives:FilterDropdown Width="150" ItemsSource="{Binding TimeRangeFilters}" Placeholder="{Binding TimeRangePlaceholder}" SelectedItem="{Binding SelectedHistoryFilter, Mode=TwoWay}" />
                 </StackPanel>
 
-                <Button Grid.Column="1" Content="{Binding RefreshButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="2" Content="{Binding RestoreSnapshotButtonText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-                <Button Grid.Column="3" Content="{Binding LogsButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="4" Content="{Binding HelpButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="1" Click="RefreshButton_Click" Content="{Binding RefreshButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="2" Click="RestoreLatestSnapshotButton_Click" Content="{Binding RestoreSnapshotButtonText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                <Button Grid.Column="3" Click="OpenLogsButton_Click" Content="{Binding LogsButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="4" Click="OpenHelpButton_Click" Content="{Binding HelpButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
             </Grid>
 
             <Grid Grid.Row="1" ColumnSpacing="14">
@@ -83,8 +83,8 @@
                             <primitives:InfoCallout Severity="Info" Title="{Binding EmptyStateTitle}" Message="{Binding EmptyStateMessage}" />
                             <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding EmptyStateHint}" TextWrapping="WrapWholeWords" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="{Binding EmptyStateActionText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-                                <Button Content="{Binding EmptyStateSecondaryActionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                <Button Click="GoToLibraryButton_Click" Content="{Binding EmptyStateActionText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                                <Button Click="OpenLogsButton_Click" Content="{Binding EmptyStateSecondaryActionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                             </StackPanel>
                             <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SystemStatus}" TextWrapping="WrapWholeWords" />
                         </StackPanel>
@@ -139,7 +139,7 @@
                                                     <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SnapshotsSubtitle}" TextWrapping="WrapWholeWords" />
                                                     <TextBlock Grid.Column="1" FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SnapshotGameLabel}" />
                                                 </Grid>
-                                                <primitives:SnapshotFeed ActionText="{Binding RestoreActionText}" ContentMaxHeight="280" ItemsSource="{Binding Snapshots}" />
+                                                <primitives:SnapshotFeed ActionInvoked="SnapshotFeed_ActionInvoked" ActionText="{Binding RestoreActionText}" ContentMaxHeight="280" ItemsSource="{Binding Snapshots}" />
                                             </StackPanel>
                                         </primitives:PropertySheet.PanelContent>
                                     </primitives:PropertySheet>
@@ -156,7 +156,7 @@
                                         <primitives:PropertySheet.PanelContent>
                                             <StackPanel Spacing="8">
                                                 <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SystemStatus}" TextWrapping="WrapWholeWords" />
-                                                <primitives:SnapshotFeed ActionText="{Binding RestoreActionText}" ContentMaxHeight="220" ItemsSource="{Binding Snapshots}" />
+                                                <primitives:SnapshotFeed ActionInvoked="SnapshotFeed_ActionInvoked" ActionText="{Binding RestoreActionText}" ContentMaxHeight="220" ItemsSource="{Binding Snapshots}" />
                                             </StackPanel>
                                         </primitives:PropertySheet.PanelContent>
                                     </primitives:PropertySheet>

@@ -63,6 +63,19 @@ public sealed class SyncEngine : ISyncEngine
         return await CompareInternalAsync(syncJob, linked.Token);
     }
 
+    public async Task ResolveConflictsAsync(ConflictResolutionPlan plan, CancellationToken cancellationToken)
+    {
+        var syncJob = new SyncJob
+        {
+            GameInstanceId = plan.GameInstanceId,
+            Direction = SyncDirection.ResolveConflict,
+            ConflictResolutionPlan = plan,
+            CancellationToken = cancellationToken,
+        };
+
+        await ExecuteResolveConflictAsync(syncJob, cancellationToken);
+    }
+
     public async Task ProcessQueuedJobsAsync(CancellationToken cancellationToken)
     {
         await foreach (var job in _syncQueue.ReadAllAsync(cancellationToken))
@@ -83,6 +96,9 @@ public sealed class SyncEngine : ISyncEngine
                         break;
                     case SyncDirection.Compare:
                         await ExecuteCompareAsync(job, jobToken);
+                        break;
+                    case SyncDirection.ResolveConflict:
+                        await ExecuteResolveConflictAsync(job, jobToken);
                         break;
                 }
             }
@@ -317,24 +333,261 @@ public sealed class SyncEngine : ISyncEngine
         }
     }
 
+    public async Task RestoreSnapshotAsync(Guid snapshotId, CancellationToken cancellationToken)
+    {
+        var snapshot = await _syncHistoryRepository.GetSnapshotAsync(snapshotId, cancellationToken)
+            ?? throw new InvalidOperationException($"Snapshot '{snapshotId}' was not found.");
+
+        if (!File.Exists(snapshot.ArchivePath))
+        {
+            throw new InvalidOperationException($"Snapshot archive '{snapshot.ArchivePath}' no longer exists.");
+        }
+
+        var context = await BuildContextAsync(snapshot.GameInstanceId, cancellationToken);
+        var rootsByContentId = context.ContentRoots
+            .GroupBy(root => root.ContentItem.ContentId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        var restored = 0;
+        var total = 0;
+
+        try
+        {
+            using var archive = ZipFile.OpenRead(snapshot.ArchivePath);
+            total = archive.Entries.Count(entry => !string.IsNullOrEmpty(entry.Name));
+
+            foreach (var entry in archive.Entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (string.IsNullOrEmpty(entry.Name))
+                {
+                    continue;
+                }
+
+                var normalized = entry.FullName.Replace('\\', '/').TrimStart('/');
+                var separatorIndex = normalized.IndexOf('/');
+                if (separatorIndex <= 0)
+                {
+                    continue;
+                }
+
+                var contentId = normalized[..separatorIndex];
+                var relativePath = normalized[(separatorIndex + 1)..];
+                if (!rootsByContentId.TryGetValue(contentId, out var root) || string.IsNullOrWhiteSpace(relativePath))
+                {
+                    continue;
+                }
+
+                var targetPath = ResolveTargetLocalPath(root, relativePath);
+                var directory = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                entry.ExtractToFile(targetPath, overwrite: true);
+                restored++;
+            }
+
+            await WriteTerminalRecordAsync(
+                snapshot.GameInstanceId,
+                SyncDirection.Download,
+                SyncJobStatus.Completed,
+                cancellationToken,
+                snapshotId: snapshot.Id,
+                processedFiles: restored,
+                totalFiles: total,
+                summary: $"Restored {restored} files from snapshot.");
+        }
+        catch (OperationCanceledException)
+        {
+            await WriteTerminalRecordAsync(
+                snapshot.GameInstanceId,
+                SyncDirection.Download,
+                SyncJobStatus.Cancelled,
+                CancellationToken.None,
+                snapshotId: snapshot.Id,
+                processedFiles: restored,
+                totalFiles: total,
+                summary: "Snapshot restore cancelled.");
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Snapshot restore failed for snapshot {SnapshotId}.", snapshotId);
+            await WriteTerminalRecordAsync(
+                snapshot.GameInstanceId,
+                SyncDirection.Download,
+                SyncJobStatus.Failed,
+                CancellationToken.None,
+                snapshotId: snapshot.Id,
+                processedFiles: restored,
+                totalFiles: total,
+                errorMessage: exception.Message);
+            throw;
+        }
+    }
+
+    private async Task ExecuteResolveConflictAsync(SyncJob job, CancellationToken cancellationToken)
+    {
+        if (job.ConflictResolutionPlan is null)
+        {
+            throw new InvalidOperationException("Conflict resolution plan is required for ResolveConflict jobs.");
+        }
+
+        var processed = 0;
+        var total = 0;
+        Snapshot? snapshot = null;
+
+        try
+        {
+            var context = await BuildContextAsync(job.GameInstanceId, cancellationToken);
+            var remoteFileSets = new Dictionary<ResolvedContentRoot, IReadOnlyDictionary<string, RemoteFileEntry>>();
+            foreach (var root in context.ContentRoots)
+            {
+                remoteFileSets[root] = await ListRemoteFilesAsync(context, root, cancellationToken);
+            }
+
+            var decisions = job.ConflictResolutionPlan.Decisions
+                .Where(decision => decision.Action != ConflictResolutionAction.Undecided && decision.Action != ConflictResolutionAction.Skip)
+                .ToArray();
+            total = decisions.Length;
+            var remoteOverwriteTargets = decisions
+                .Where(decision => decision.Action == ConflictResolutionAction.KeepRemote)
+                .ToArray();
+
+            if (remoteOverwriteTargets.Length > 0)
+            {
+                snapshot = CreateSnapshotForRelativePaths(context, remoteFileSets, remoteOverwriteTargets.Select(decision => decision.RelativePath));
+                await _syncHistoryRepository.AddSnapshotAsync(snapshot, cancellationToken);
+            }
+
+            foreach (var decision in decisions)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!TryResolvePlanPath(context, remoteFileSets, decision.RelativePath, out var root, out var relativePath, out var remoteFile))
+                {
+                    continue;
+                }
+
+                switch (decision.Action)
+                {
+                    case ConflictResolutionAction.KeepLocal:
+                    {
+                        var localFile = EnumerateLocalFiles(root).FirstOrDefault(file => string.Equals(file.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase));
+                        if (localFile is null)
+                        {
+                            continue;
+                        }
+
+                        await using var stream = File.OpenRead(localFile.AbsolutePath);
+                        var remotePath = BuildRemotePath(context.Binding.RemoteNamespace, root.ContentItem.ContentId, relativePath);
+                        await context.StorageProvider.UploadAsync(remotePath, stream, cancellationToken);
+                        break;
+                    }
+                    case ConflictResolutionAction.KeepRemote when remoteFile is not null:
+                    {
+                        var localPath = ResolveTargetLocalPath(root, relativePath);
+                        using var download = await context.StorageProvider.DownloadAsync(remoteFile.StoragePath, cancellationToken);
+                        var directory = Path.GetDirectoryName(localPath);
+                        if (!string.IsNullOrWhiteSpace(directory))
+                        {
+                            Directory.CreateDirectory(directory);
+                        }
+
+                        await using var target = File.Create(localPath);
+                        await download.Content.CopyToAsync(target, cancellationToken);
+                        break;
+                    }
+                    default:
+                        continue;
+                }
+
+                processed++;
+            }
+
+            await WriteTerminalRecordAsync(
+                job.GameInstanceId,
+                SyncDirection.ResolveConflict,
+                SyncJobStatus.Completed,
+                cancellationToken,
+                snapshotId: snapshot?.Id,
+                processedFiles: processed,
+                totalFiles: total,
+                summary: $"Resolved {processed} conflict file decisions.");
+        }
+        catch (OperationCanceledException)
+        {
+            await WriteTerminalRecordAsync(
+                job.GameInstanceId,
+                SyncDirection.ResolveConflict,
+                SyncJobStatus.Cancelled,
+                CancellationToken.None,
+                snapshotId: snapshot?.Id,
+                processedFiles: processed,
+                totalFiles: total,
+                summary: "Conflict resolution cancelled.");
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Conflict resolution job failed for game instance {GameInstanceId}.", job.GameInstanceId);
+            await WriteTerminalRecordAsync(
+                job.GameInstanceId,
+                SyncDirection.ResolveConflict,
+                SyncJobStatus.Failed,
+                CancellationToken.None,
+                snapshotId: snapshot?.Id,
+                processedFiles: processed,
+                totalFiles: total,
+                errorMessage: exception.Message);
+            throw;
+        }
+    }
+
     private Snapshot CreateSnapshot(
         SyncExecutionContext context,
         IReadOnlyDictionary<ResolvedContentRoot, IReadOnlyDictionary<string, RemoteFileEntry>> remoteFileSets)
     {
+        var filesToSnapshot = remoteFileSets
+            .SelectMany(pair => pair.Value.Values.Select(remote => new SnapshotCandidate(
+                ResolveTargetLocalPath(pair.Key, remote.RelativePath),
+                BuildRemotePath(pair.Key.ContentItem.ContentId, remote.RelativePath))))
+            .Where(candidate => File.Exists(candidate.LocalPath))
+            .DistinctBy(candidate => candidate.LocalPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return CreateSnapshotArchive(context.GameInstance.Id, filesToSnapshot);
+    }
+
+    private Snapshot CreateSnapshotForRelativePaths(
+        SyncExecutionContext context,
+        IReadOnlyDictionary<ResolvedContentRoot, IReadOnlyDictionary<string, RemoteFileEntry>> remoteFileSets,
+        IEnumerable<string> relativePaths)
+    {
+        var namespacePrefix = context.Binding.RemoteNamespace.Trim('/');
+        var requested = new HashSet<string>(
+            relativePaths.Select(path => NormalizePlanPath(namespacePrefix, path)),
+            StringComparer.OrdinalIgnoreCase);
+        var filesToSnapshot = remoteFileSets
+            .SelectMany(pair => pair.Value.Values
+                .Where(remote => requested.Contains(BuildRemotePath(pair.Key.ContentItem.ContentId, remote.RelativePath)))
+                .Select(remote => new SnapshotCandidate(
+                    ResolveTargetLocalPath(pair.Key, remote.RelativePath),
+                    BuildRemotePath(pair.Key.ContentItem.ContentId, remote.RelativePath))))
+            .Where(candidate => File.Exists(candidate.LocalPath))
+            .DistinctBy(candidate => candidate.LocalPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return CreateSnapshotArchive(context.GameInstance.Id, filesToSnapshot);
+    }
+
+    private Snapshot CreateSnapshotArchive(Guid gameInstanceId, IReadOnlyList<SnapshotCandidate> filesToSnapshot)
+    {
         var snapshotDirectory = _appPathService.GetSnapshotsDirectory();
         Directory.CreateDirectory(snapshotDirectory);
 
-        var snapshotPath = Path.Combine(snapshotDirectory, $"{context.GameInstance.Id:N}-{DateTime.UtcNow:yyyyMMddHHmmss}.zip");
-        var filesToSnapshot = remoteFileSets
-            .SelectMany(pair => pair.Value.Values.Select(remote => new
-            {
-                LocalPath = ResolveTargetLocalPath(pair.Key, remote.RelativePath),
-                SnapshotEntry = BuildRemotePath(pair.Key.ContentItem.ContentId, remote.RelativePath),
-            }))
-            .Where(item => File.Exists(item.LocalPath))
-            .DistinctBy(item => item.LocalPath, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
+        var snapshotPath = Path.Combine(snapshotDirectory, $"{gameInstanceId:N}-{DateTime.UtcNow:yyyyMMddHHmmss}.zip");
         using var archive = ZipFile.Open(snapshotPath, ZipArchiveMode.Create);
         foreach (var file in filesToSnapshot)
         {
@@ -343,9 +596,9 @@ public sealed class SyncEngine : ISyncEngine
 
         return new Snapshot
         {
-            GameInstanceId = context.GameInstance.Id,
+            GameInstanceId = gameInstanceId,
             ArchivePath = snapshotPath,
-            FileCount = filesToSnapshot.Length,
+            FileCount = filesToSnapshot.Count,
             TotalBytes = filesToSnapshot.Sum(file => new FileInfo(file.LocalPath).Length),
         };
     }
@@ -551,6 +804,53 @@ public sealed class SyncEngine : ISyncEngine
     {
         return string.Join('/', segments.Where(segment => !string.IsNullOrWhiteSpace(segment)).Select(segment => segment.Trim('/')));
     }
+
+    private static bool TryResolvePlanPath(
+        SyncExecutionContext context,
+        IReadOnlyDictionary<ResolvedContentRoot, IReadOnlyDictionary<string, RemoteFileEntry>> remoteFileSets,
+        string planPath,
+        out ResolvedContentRoot root,
+        out string relativePath,
+        out RemoteFileEntry? remoteFile)
+    {
+        var normalizedPlanPath = NormalizePlanPath(context.Binding.RemoteNamespace.Trim('/'), planPath);
+        foreach (var contentRoot in context.ContentRoots)
+        {
+            var prefix = BuildRemotePath(contentRoot.ContentItem.ContentId);
+            if (!normalizedPlanPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            relativePath = normalizedPlanPath.Length == prefix.Length
+                ? string.Empty
+                : normalizedPlanPath[(prefix.Length + 1)..];
+            root = contentRoot;
+            remoteFile = null;
+            remoteFileSets.TryGetValue(contentRoot, out var remoteFiles);
+            remoteFiles?.TryGetValue(relativePath, out remoteFile);
+            return !string.IsNullOrWhiteSpace(relativePath);
+        }
+
+        root = default!;
+        relativePath = string.Empty;
+        remoteFile = null;
+        return false;
+    }
+
+    private static string NormalizePlanPath(string namespacePrefix, string planPath)
+    {
+        var normalized = planPath.Trim('/');
+        if (!string.IsNullOrWhiteSpace(namespacePrefix) &&
+            normalized.StartsWith(namespacePrefix + '/', StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized[(namespacePrefix.Length + 1)..];
+        }
+
+        return normalized;
+    }
+
+    private sealed record SnapshotCandidate(string LocalPath, string SnapshotEntry);
 
     private static void CleanupTempFiles(IEnumerable<string> tempFiles)
     {

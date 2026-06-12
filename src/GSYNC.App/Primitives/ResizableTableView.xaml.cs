@@ -40,6 +40,9 @@ public sealed partial class ResizableTableView : UserControl
     private int _activeResizeIndex = -1;
     private double _lastPointerX;
     private bool _isDragging;
+    private Border? _selectedRowBorder;
+
+    public event EventHandler<object>? RowInvoked;
 
     public ResizableTableView()
     {
@@ -122,6 +125,7 @@ public sealed partial class ResizableTableView : UserControl
         HeaderGrid.ColumnDefinitions.Clear();
         HeaderGrid.Children.Clear();
         RowsPanel.Children.Clear();
+        _selectedRowBorder = null;
 
         if (Columns is null)
         {
@@ -159,6 +163,18 @@ public sealed partial class ResizableTableView : UserControl
                 }
 
                 rowBorder.Child = rowGrid;
+                var capturedItem = item;
+                rowBorder.Tapped += (_, _) =>
+                {
+                    if (_selectedRowBorder is not null)
+                    {
+                        _selectedRowBorder.Background = null;
+                    }
+
+                    _selectedRowBorder = rowBorder;
+                    rowBorder.Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(18, 255, 255, 255));
+                    RowInvoked?.Invoke(this, capturedItem);
+                };
                 RowsPanel.Children.Add(rowBorder);
             }
         }

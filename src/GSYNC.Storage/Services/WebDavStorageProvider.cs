@@ -12,12 +12,12 @@ namespace GSYNC.Storage.Services;
 public sealed class WebDavStorageProvider : IStorageProvider
 {
     private readonly HttpClient _httpClient;
-    private readonly WebDavOptions _options;
+    private readonly IOptions<WebDavOptions> _options;
 
     public WebDavStorageProvider(HttpClient httpClient, IOptions<WebDavOptions> options)
     {
         _httpClient = httpClient;
-        _options = options.Value;
+        _options = options;
     }
 
     public string ProviderId => "webdav";
@@ -179,22 +179,24 @@ public sealed class WebDavStorageProvider : IStorageProvider
             return configured;
         }
 
-        if (string.IsNullOrWhiteSpace(_options.BaseUrl))
+        var options = _options.Value;
+        if (string.IsNullOrWhiteSpace(options.BaseUrl))
         {
             throw new InvalidOperationException("WebDAV base URL has not been configured.");
         }
 
-        return _options.BaseUrl;
+        return options.BaseUrl;
     }
 
     private (string username, string password)? ResolveCredentials(IReadOnlyDictionary<string, string>? configuration = null)
     {
+        var options = _options.Value;
         var username = configuration is not null && configuration.TryGetValue("username", out var configuredUsername)
             ? configuredUsername
-            : _options.Username;
+            : options.Username;
         var password = configuration is not null && configuration.TryGetValue("password", out var configuredPassword)
             ? configuredPassword
-            : _options.Password;
+            : options.Password;
 
         if (string.IsNullOrWhiteSpace(username))
         {

@@ -92,4 +92,29 @@
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Foreground" Value="{StaticResource AppTextPrimaryBrush}" />
     </Style>
+
+    <Style TargetType="PasswordBox">
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Background" Value="{StaticResource AppInputBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource AppDividerBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Foreground" Value="{StaticResource AppTextPrimaryBrush}" />
+    </Style>
+
+    <Style TargetType="ComboBox">
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Background" Value="{StaticResource AppInputBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource AppDividerBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Foreground" Value="{StaticResource AppTextPrimaryBrush}" />
+    </Style>
+
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="{StaticResource AppTextPrimaryBrush}" />
+        <Setter Property="Background" Value="{StaticResource AppSurfaceAltBrush}" />
+    </Style>
 </ResourceDictionary>
