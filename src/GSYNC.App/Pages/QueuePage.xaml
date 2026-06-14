@@ -39,7 +39,9 @@
                     <TextBlock VerticalAlignment="Bottom" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding PageSubtitle}" TextWrapping="WrapWholeWords" />
                 </StackPanel>
 
-                <Button Grid.Column="1" Click="RefreshButton_Click" Content="{Binding RefreshButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="1" Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding RefreshButtonText}" />
+                </Button>
             </Grid>
 
             <Grid Grid.Row="1" ColumnSpacing="14">
@@ -69,8 +71,12 @@
                             <primitives:InfoCallout Severity="Info" Title="{Binding EmptyStateTitle}" Message="{Binding EmptyStateMessage}" />
                             <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding EmptyStateHint}" TextWrapping="WrapWholeWords" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Click="GoToLibraryButton_Click" Content="{Binding EmptyStateActionText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-                                <Button Click="RefreshButton_Click" Content="{Binding EmptyStateSecondaryActionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                <Button Click="GoToLibraryButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                                    <primitives:IconText Glyph="{StaticResource IconLibrary}" Text="{Binding EmptyStateActionText}" />
+                                </Button>
+                                <Button Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding EmptyStateSecondaryActionText}" />
+                                </Button>
                             </StackPanel>
                             <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SystemStatus}" TextWrapping="WrapWholeWords" />
                         </StackPanel>
@@ -111,8 +117,12 @@
                                                 </StackPanel>
                                                 <ItemsControl ItemTemplate="{StaticResource QueueDetailRowTemplate}" ItemsSource="{Binding JobDetails}" />
                                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <Button Click="CancelSelectedButton_Click" Content="{Binding CancelButtonText}" Style="{StaticResource PrimaryToolbarButtonStyle}" Visibility="{Binding SelectedJobIsActive, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                    <Button Click="RemoveSelectedButton_Click" Content="{Binding RemoveButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" Visibility="{Binding SelectedJobIsPending, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                    <Button Click="CancelSelectedButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}" Visibility="{Binding SelectedJobIsActive, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <primitives:IconText Glyph="{StaticResource IconCancel}" GlyphSize="16" Text="{Binding CancelButtonText}" />
+                                                    </Button>
+                                                    <Button Click="RemoveSelectedButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" Visibility="{Binding SelectedJobIsPending, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <primitives:IconText Glyph="{StaticResource IconRemove}" GlyphSize="16" Text="{Binding RemoveButtonText}" />
+                                                    </Button>
                                                 </StackPanel>
                                             </StackPanel>
                                         </primitives:PropertySheet.PanelContent>
@@ -168,9 +178,10 @@
                 </StackPanel>
 
                 <Button
-                    Content="重试加载"
                     Click="RetryInitialization_Click"
-                    Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                    Style="{StaticResource PrimaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="重试加载" />
+                </Button>
             </StackPanel>
         </Border>
     </Grid>

@@ -32,7 +32,7 @@ public sealed partial class HomePage : Page
 
             LibraryTable.Columns =
             [
-                new ResizableTableColumn { Key = "name", Header = _viewModel.IsChinese ? "游戏" : "Game", BindingPath = nameof(LibraryGameRow.Name), Width = 240, MinWidth = 160, IsBold = true, IsFillColumn = true },
+                new ResizableTableColumn { Key = "name", Header = _viewModel.IsChinese ? "游戏" : "Game", BindingPath = nameof(LibraryGameRow.Name), Width = 240, MinWidth = 160, IsBold = true, IsFillColumn = true, CellTemplate = (DataTemplate)Resources["LibraryNameCellTemplate"] },
                 new ResizableTableColumn { Key = "source", Header = _viewModel.IsChinese ? "来源" : "Source", BindingPath = nameof(LibraryGameRow.Source), Width = 98, MinWidth = 82 },
                 new ResizableTableColumn { Key = "itemCount", Header = _viewModel.IsChinese ? "条目" : "Items", BindingPath = nameof(LibraryGameRow.ItemCount), Width = 68, MinWidth = 56 },
                 new ResizableTableColumn { Key = "localStatus", Header = _viewModel.IsChinese ? "本地" : "Local", BindingPath = nameof(LibraryGameRow.LocalStatus), Width = 104, MinWidth = 84, CellTemplate = (DataTemplate)Resources["LibraryStatusCellTemplate"] },

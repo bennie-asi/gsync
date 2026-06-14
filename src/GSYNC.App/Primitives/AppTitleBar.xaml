@@ -14,7 +14,10 @@
 
             <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Text="{Binding Title, ElementName=Root}" />
             <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding Subtitle, ElementName=Root}" TextTrimming="CharacterEllipsis" />
-            <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding StatusText, ElementName=Root}" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <FontIcon FontFamily="{StaticResource MaterialSymbolsFont}" FontSize="15" Foreground="{StaticResource AppTextDimBrush}" Glyph="{StaticResource IconSync}" IsTextScaleFactorEnabled="False" />
+                <TextBlock VerticalAlignment="Center" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding StatusText, ElementName=Root}" />
+            </StackPanel>
         </Grid>
     </Border>
 </UserControl>

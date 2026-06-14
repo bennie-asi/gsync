@@ -36,6 +36,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="Assets\Fonts\MaterialSymbolsOutlined.ttf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Include="Assets\Fonts\MaterialSymbolsOutlined.codepoints" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\GSYNC.Core\GSYNC.Core.csproj" />
     <ProjectReference Include="..\GSYNC.Data\GSYNC.Data.csproj" />
     <ProjectReference Include="..\GSYNC.Manifest\GSYNC.Manifest.csproj" />

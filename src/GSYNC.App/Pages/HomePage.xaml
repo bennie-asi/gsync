@@ -10,6 +10,18 @@
     xmlns:vm="using:GSYNC.App.ViewModels"
     mc:Ignorable="d">
     <Page.Resources>
+        <DataTemplate x:Key="LibraryNameCellTemplate" x:DataType="vm:LibraryGameRow">
+            <Grid ColumnSpacing="8" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Width="26" Height="26" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="6">
+                    <FontIcon FontFamily="{StaticResource MaterialSymbolsFont}" FontSize="15" Foreground="{StaticResource AppTextSecondaryBrush}" Glyph="{StaticResource IconGameEsports}" />
+                </Border>
+                <primitives:TooltipTextBlock Grid.Column="1" VerticalAlignment="Center" Text="{x:Bind Name}" />
+            </Grid>
+        </DataTemplate>
         <DataTemplate x:Key="LibraryStatusCellTemplate" x:DataType="vm:LibraryGameRow">
             <primitives:Badge Text="{x:Bind LocalStatus}" Variant="{x:Bind LocalStatusVariant}" />
         </DataTemplate>
@@ -22,8 +34,12 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Button Padding="8,4" MinHeight="28" Content="{x:Bind OpenLabel}" ToolTipService.ToolTip="{x:Bind OpenLabel}" Click="OpenGameDetails_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="1" Padding="8,4" MinHeight="28" Content="{x:Bind MoreLabel}" ToolTipService.ToolTip="{x:Bind MoreLabel}" Click="ShowRowActions_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Padding="8,4" MinHeight="28" ToolTipService.ToolTip="{x:Bind OpenLabel}" Click="OpenGameDetails_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconOpenInNew}" GlyphSize="16" Text="{x:Bind OpenLabel}" />
+                </Button>
+                <Button Grid.Column="1" Padding="6,4" MinHeight="28" ToolTipService.ToolTip="{x:Bind MoreLabel}" Click="ShowRowActions_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                    <FontIcon Style="{StaticResource AppIcon}" FontSize="18" Glyph="{StaticResource IconMore}" />
+                </Button>
             </Grid>
         </DataTemplate>
         <DataTemplate x:Key="LibraryPropertyRowTemplate">
@@ -72,14 +88,16 @@
                         x:Name="SortButton"
                         Grid.Column="1"
                         Click="SortButton_Click"
-                        Content="Sort"
-                        Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                        Style="{StaticResource SecondaryToolbarButtonStyle}">
+                        <primitives:IconText Glyph="{StaticResource IconFilter}" Text="Sort" />
+                    </Button>
 
                     <Button
                         x:Name="RefreshButton"
                         Grid.Column="2"
-                        Content="Refresh"
-                        Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                        Style="{StaticResource SecondaryToolbarButtonStyle}">
+                        <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="Refresh" />
+                    </Button>
                 </Grid>
 
                 <primitives:ResizableTableView
@@ -105,15 +123,17 @@
 
                         <Button
                             x:Name="AddGameButton"
-                            Content="Add Game"
                             Click="OpenAddGameWizard_Click"
-                            Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                            Style="{StaticResource SecondaryToolbarButtonStyle}">
+                            <primitives:IconText Glyph="{StaticResource IconAdd}" Text="Add Game" />
+                        </Button>
 
                         <Button
                             x:Name="SyncNowButton"
                             Grid.Column="1"
-                            Content="Sync Now"
-                            Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                            Style="{StaticResource PrimaryToolbarButtonStyle}">
+                            <primitives:IconText Glyph="{StaticResource IconSync}" Text="Sync Now" />
+                        </Button>
                     </Grid>
 
                     <primitives:PropertySheet x:Name="OverviewSheet" Grid.Row="1" Title="Overview">
@@ -167,9 +187,10 @@
                 </StackPanel>
 
                 <Button
-                    Content="重试加载"
                     Click="RetryInitialization_Click"
-                    Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                    Style="{StaticResource PrimaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="重试加载" />
+                </Button>
             </StackPanel>
         </Border>
     </Grid>

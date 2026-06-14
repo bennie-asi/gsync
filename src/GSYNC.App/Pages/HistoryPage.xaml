@@ -50,10 +50,18 @@
                     <primitives:FilterDropdown Width="150" ItemsSource="{Binding TimeRangeFilters}" Placeholder="{Binding TimeRangePlaceholder}" SelectedItem="{Binding SelectedHistoryFilter, Mode=TwoWay}" />
                 </StackPanel>
 
-                <Button Grid.Column="1" Click="RefreshButton_Click" Content="{Binding RefreshButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="2" Click="RestoreLatestSnapshotButton_Click" Content="{Binding RestoreSnapshotButtonText}" IsEnabled="{Binding CanRestore}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-                <Button Grid.Column="3" Click="OpenLogsButton_Click" Content="{Binding LogsButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="4" Click="OpenHelpButton_Click" Content="{Binding HelpButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="1" Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding RefreshButtonText}" />
+                </Button>
+                <Button Grid.Column="2" Click="RestoreLatestSnapshotButton_Click" IsEnabled="{Binding CanRestore}" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconRestore}" Text="{Binding RestoreSnapshotButtonText}" />
+                </Button>
+                <Button Grid.Column="3" Click="OpenLogsButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconDescription}" Text="{Binding LogsButtonText}" />
+                </Button>
+                <Button Grid.Column="4" Click="OpenHelpButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconHelp}" Text="{Binding HelpButtonText}" />
+                </Button>
             </Grid>
 
             <Grid Grid.Row="1" ColumnSpacing="14">
@@ -83,8 +91,12 @@
                             <primitives:InfoCallout Severity="Info" Title="{Binding EmptyStateTitle}" Message="{Binding EmptyStateMessage}" />
                             <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding EmptyStateHint}" TextWrapping="WrapWholeWords" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Click="GoToLibraryButton_Click" Content="{Binding EmptyStateActionText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-                                <Button Click="OpenLogsButton_Click" Content="{Binding EmptyStateSecondaryActionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                <Button Click="GoToLibraryButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                                    <primitives:IconText Glyph="{StaticResource IconLibrary}" Text="{Binding EmptyStateActionText}" />
+                                </Button>
+                                <Button Click="OpenLogsButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                    <primitives:IconText Glyph="{StaticResource IconDescription}" Text="{Binding EmptyStateSecondaryActionText}" />
+                                </Button>
                             </StackPanel>
                             <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SystemStatus}" TextWrapping="WrapWholeWords" />
                         </StackPanel>
@@ -216,9 +228,10 @@
                 </StackPanel>
 
                 <Button
-                    Content="重试加载"
                     Click="RetryInitialization_Click"
-                    Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                    Style="{StaticResource PrimaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="重试加载" />
+                </Button>
             </StackPanel>
         </Border>
     </Grid>

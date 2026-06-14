@@ -50,6 +50,12 @@ public sealed partial class Badge : UserControl
         var accentBrush = (Brush)Application.Current.Resources[brushKey];
         BadgeText.Foreground = accentBrush;
 
+        if (BadgeIcon is not null)
+        {
+            BadgeIcon.Glyph = BadgePalette.ResolveGlyph(Variant);
+            BadgeIcon.Foreground = accentBrush;
+        }
+
         if (string.IsNullOrWhiteSpace(Text))
         {
             Text = Variant ?? "Ready";

@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Reflection;
 using System.Text.Json;
 using GSYNC.Data.Services;
@@ -349,11 +349,22 @@ public sealed partial class ResizableTableView : UserControl
         {
             var handle = new Border
             {
-                Width = 12,
-                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(12, 255, 255, 255)),
+                Width = 16,
+                // Fully transparent fill keeps the 16px strip hit-testable for the
+                // resize drag while the drag_indicator glyph signals the affordance.
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
                 HorizontalAlignment = HorizontalAlignment.Right,
                 Tag = index,
+                Child = new FontIcon
+                {
+                    FontFamily = (FontFamily)Application.Current.Resources["MaterialSymbolsFont"],
+                    Glyph = char.ConvertFromUtf32(0xE945), // drag_indicator
+                    FontSize = 14,
+                    Foreground = (Brush)Application.Current.Resources["AppTextDimBrush"],
+                    IsHitTestVisible = false,
+                },
             };
+            ToolTipService.SetToolTip(handle, "鎷栧姩璋冩暣鍒楀 / Drag to resize");
             handle.PointerPressed += Handle_PointerPressed;
             handle.PointerMoved += Handle_PointerMoved;
             handle.PointerReleased += Handle_PointerReleased;

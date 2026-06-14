@@ -389,6 +389,12 @@ public partial class SyncTargetsPageViewModel : ObservableObject
             config.Id == SelectedTargetId)
         {
             TargetId = config.Id,
+            // Material Symbols glyph for the storage kind: cloud (0xF15C) for WebDAV,
+            // folder (0xE2C7) for local. Built via ConvertFromUtf32 so no raw glyph
+            // characters live in source.
+            ProviderGlyph = config.ProviderId == "webdav"
+                ? char.ConvertFromUtf32(0xF15C)
+                : char.ConvertFromUtf32(0xE2C7),
         };
     }
 
@@ -514,4 +520,6 @@ public sealed record SyncTargetRow(
     bool IsSelected)
 {
     public Guid TargetId { get; init; }
+
+    public string ProviderGlyph { get; init; } = string.Empty;
 }

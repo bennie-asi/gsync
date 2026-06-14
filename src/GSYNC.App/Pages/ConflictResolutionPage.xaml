@@ -41,7 +41,9 @@
                     <primitives:PropertySheet.PanelContent>
                         <StackPanel Spacing="12">
                             <primitives:KeyValueList ContentMaxHeight="220" ItemsSource="{Binding LocalVersion}" />
-                            <Button Click="UseLocalButton_Click" Content="{Binding UseLocalText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                            <Button Click="UseLocalButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                <primitives:IconText Glyph="{StaticResource IconUpload}" GlyphSize="16" Text="{Binding UseLocalText}" />
+                            </Button>
                         </StackPanel>
                     </primitives:PropertySheet.PanelContent>
                 </primitives:PropertySheet>
@@ -50,7 +52,9 @@
                     <primitives:PropertySheet.PanelContent>
                         <StackPanel Spacing="12">
                             <primitives:KeyValueList ContentMaxHeight="220" ItemsSource="{Binding RemoteVersion}" />
-                            <Button Click="UseRemoteButton_Click" Content="{Binding UseRemoteText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                            <Button Click="UseRemoteButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                <primitives:IconText Glyph="{StaticResource IconCloudDone}" GlyphSize="16" Text="{Binding UseRemoteText}" />
+                            </Button>
                         </StackPanel>
                     </primitives:PropertySheet.PanelContent>
                 </primitives:PropertySheet>
@@ -79,9 +83,15 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="1" Click="KeepBothButton_Click" Content="{Binding KeepBothText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-            <Button Grid.Column="2" Click="ApplyRemoteDecisionsButton_Click" Content="{Binding BackupRestoreText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-            <Button Grid.Column="3" Click="CancelButton_Click" Content="{Binding CancelText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+            <Button Grid.Column="1" Click="KeepBothButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                <primitives:IconText Glyph="{StaticResource IconFileCopy}" Text="{Binding KeepBothText}" />
+            </Button>
+            <Button Grid.Column="2" Click="ApplyRemoteDecisionsButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                <primitives:IconText Glyph="{StaticResource IconCheckCircle}" Text="{Binding BackupRestoreText}" />
+            </Button>
+            <Button Grid.Column="3" Click="CancelButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                <primitives:IconText Glyph="{StaticResource IconClose}" Text="{Binding CancelText}" />
+            </Button>
         </Grid>
     </Grid>
 </Page>

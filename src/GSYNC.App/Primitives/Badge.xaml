@@ -6,10 +6,19 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     HorizontalAlignment="Left"
     VerticalAlignment="Center">
-    <TextBlock
-        x:Name="BadgeText"
-        FontSize="12"
-        FontWeight="SemiBold"
-        Text="{Binding Text, ElementName=Root}"
-        HorizontalAlignment="Left" />
+    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left" VerticalAlignment="Center">
+        <FontIcon
+            x:Name="BadgeIcon"
+            FontFamily="{StaticResource MaterialSymbolsFont}"
+            FontSize="13"
+            VerticalAlignment="Center"
+            IsTextScaleFactorEnabled="False" />
+        <TextBlock
+            x:Name="BadgeText"
+            FontSize="12"
+            FontWeight="SemiBold"
+            Text="{Binding Text, ElementName=Root}"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Left" />
+    </StackPanel>
 </UserControl>

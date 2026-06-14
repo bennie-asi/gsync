@@ -47,7 +47,7 @@
                 <Button x:Name="LibraryButton" Tag="library" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
                     <StackPanel HorizontalAlignment="Center" Spacing="5">
                         <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                            <SymbolIcon Symbol="Library" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconLibrary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Grid>
                         <TextBlock
                             x:Name="LibraryTextBlock"
@@ -63,7 +63,7 @@
                 <Button x:Name="TargetsButton" Tag="targets" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
                     <StackPanel HorizontalAlignment="Center" Spacing="5">
                         <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                            <SymbolIcon Symbol="Globe" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconTargets}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Grid>
                         <TextBlock
                             x:Name="TargetsTextBlock"
@@ -79,7 +79,7 @@
                 <Button x:Name="VariablesButton" Tag="variables" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
                     <StackPanel HorizontalAlignment="Center" Spacing="5">
                         <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                            <SymbolIcon Symbol="Map" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconVariables}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Grid>
                         <TextBlock
                             x:Name="VariablesTextBlock"
@@ -95,7 +95,7 @@
                 <Button x:Name="HistoryButton" Tag="history" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
                     <StackPanel HorizontalAlignment="Center" Spacing="5">
                         <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                            <SymbolIcon Symbol="Document" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconHistory}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Grid>
                         <TextBlock
                             x:Name="HistoryTextBlock"
@@ -112,7 +112,7 @@
                     <Grid>
                         <StackPanel HorizontalAlignment="Center" Spacing="5">
                             <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                                <SymbolIcon Symbol="List" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconQueue}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
                             <TextBlock
                                 x:Name="QueueTextBlock"
@@ -147,7 +147,7 @@
             <Button Grid.Row="2" x:Name="SettingsButton" Tag="settings" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
                 <StackPanel HorizontalAlignment="Center" Spacing="5">
                     <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                        <SymbolIcon Symbol="Setting" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconSettings}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
                     <TextBlock
                         x:Name="SettingsTextBlock"

@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Material Symbols (Outlined) icon set, sourced from the Stitch design system.
+        The bundled variable font (Assets/Fonts/MaterialSymbolsOutlined.ttf, Apache-2.0)
+        exposes every Material Symbol, so adding a new icon only needs a new glyph key
+        below. Look up the codepoint in Assets/Fonts/MaterialSymbolsOutlined.codepoints
+        (format: "<name> <hex>") and add a <x:String> entry as &#x<HEX>;.
+
+        Usage:
+            <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconLibrary}" />
+    -->
+
+    <FontFamily x:Key="MaterialSymbolsFont">ms-appx:///Assets/Fonts/MaterialSymbolsOutlined.ttf#Material Symbols Outlined</FontFamily>
+
+    <!-- Foreground is intentionally left unset so icons inherit the surrounding
+         text color (e.g. nav-rail selection state). Override Foreground per-icon
+         for status colors like warning/danger. -->
+    <Style x:Key="AppIcon" TargetType="FontIcon">
+        <Setter Property="FontFamily" Value="{StaticResource MaterialSymbolsFont}" />
+        <Setter Property="FontSize" Value="20" />
+    </Style>
+
+    <!-- Navigation -->
+    <x:String x:Key="IconLibrary">&#xE02F;</x:String>
+    <x:String x:Key="IconTargets">&#xEA18;</x:String>
+    <x:String x:Key="IconVariables">&#xEAD3;</x:String>
+    <x:String x:Key="IconHistory">&#xE8B3;</x:String>
+    <x:String x:Key="IconQueue">&#xE03C;</x:String>
+    <x:String x:Key="IconSettings">&#xE8B8;</x:String>
+    <x:String x:Key="IconHome">&#xE9B2;</x:String>
+    <x:String x:Key="IconDashboard">&#xE871;</x:String>
+
+    <!-- Toolbar / common UI -->
+    <x:String x:Key="IconSearch">&#xEF7A;</x:String>
+    <x:String x:Key="IconNotifications">&#xE7F5;</x:String>
+    <x:String x:Key="IconNotificationsActive">&#xE7F7;</x:String>
+    <x:String x:Key="IconFilter">&#xE152;</x:String>
+    <x:String x:Key="IconViewList">&#xE8EF;</x:String>
+    <x:String x:Key="IconList">&#xE896;</x:String>
+    <x:String x:Key="IconMore">&#xE5D4;</x:String>
+    <x:String x:Key="IconMoreHoriz">&#xE5D3;</x:String>
+    <x:String x:Key="IconAdd">&#xE145;</x:String>
+    <x:String x:Key="IconAddCircle">&#xE990;</x:String>
+    <x:String x:Key="IconRemove">&#xE15B;</x:String>
+    <x:String x:Key="IconClose">&#xE5CD;</x:String>
+    <x:String x:Key="IconCancel">&#xE888;</x:String>
+    <x:String x:Key="IconTune">&#xE429;</x:String>
+    <x:String x:Key="IconPalette">&#xE40A;</x:String>
+
+    <!-- Status -->
+    <x:String x:Key="IconCheck">&#xE668;</x:String>
+    <x:String x:Key="IconCheckCircle">&#xF0BE;</x:String>
+    <x:String x:Key="IconDone">&#xE876;</x:String>
+    <x:String x:Key="IconDoneAll">&#xE877;</x:String>
+    <x:String x:Key="IconTaskAlt">&#xE2E6;</x:String>
+    <x:String x:Key="IconWarning">&#xF083;</x:String>
+    <x:String x:Key="IconError">&#xF8B6;</x:String>
+    <x:String x:Key="IconInfo">&#xE88E;</x:String>
+    <x:String x:Key="IconPriorityHigh">&#xE645;</x:String>
+    <x:String x:Key="IconHelp">&#xE8FD;</x:String>
+    <x:String x:Key="IconHourglass">&#xE88B;</x:String>
+
+    <!-- Sync / cloud -->
+    <x:String x:Key="IconSync">&#xE627;</x:String>
+    <x:String x:Key="IconSyncAlt">&#xEA18;</x:String>
+    <x:String x:Key="IconSyncProblem">&#xE629;</x:String>
+    <x:String x:Key="IconCloudDone">&#xE2BF;</x:String>
+    <x:String x:Key="IconCloudOff">&#xE2C1;</x:String>
+    <x:String x:Key="IconCloudSync">&#xEB5A;</x:String>
+    <x:String x:Key="IconCloudUpload">&#xE2C3;</x:String>
+    <x:String x:Key="IconCloudDownload">&#xE2C0;</x:String>
+    <x:String x:Key="IconUpload">&#xF09B;</x:String>
+    <x:String x:Key="IconDownload">&#xF090;</x:String>
+    <x:String x:Key="IconCompareArrows">&#xE915;</x:String>
+    <x:String x:Key="IconRefresh">&#xE5D5;</x:String>
+    <x:String x:Key="IconSchedule">&#xEFD6;</x:String>
+    <x:String x:Key="IconRestore">&#xE8B3;</x:String>
+
+    <!-- Files / storage / targets -->
+    <x:String x:Key="IconFolder">&#xE2C7;</x:String>
+    <x:String x:Key="IconFolderOpen">&#xE2C8;</x:String>
+    <x:String x:Key="IconDescription">&#xE873;</x:String>
+    <x:String x:Key="IconFileCopy">&#xE173;</x:String>
+    <x:String x:Key="IconSnippetFolder">&#xF1C7;</x:String>
+    <x:String x:Key="IconInventory">&#xE1A1;</x:String>
+    <x:String x:Key="IconStorage">&#xE1DB;</x:String>
+    <x:String x:Key="IconDatabase">&#xF20E;</x:String>
+    <x:String x:Key="IconDns">&#xE875;</x:String>
+    <x:String x:Key="IconPublic">&#xE80B;</x:String>
+    <x:String x:Key="IconHub">&#xE9F4;</x:String>
+    <x:String x:Key="IconLink">&#xE250;</x:String>
+    <x:String x:Key="IconKey">&#xE73C;</x:String>
+    <x:String x:Key="IconLock">&#xE899;</x:String>
+    <x:String x:Key="IconSave">&#xE161;</x:String>
+
+    <!-- Actions -->
+    <x:String x:Key="IconEdit">&#xF097;</x:String>
+    <x:String x:Key="IconRename">&#xE9A2;</x:String>
+    <x:String x:Key="IconDelete">&#xE92E;</x:String>
+    <x:String x:Key="IconCopy">&#xE14D;</x:String>
+    <x:String x:Key="IconOpenInNew">&#xE89E;</x:String>
+    <x:String x:Key="IconVisibility">&#xE8F4;</x:String>
+    <x:String x:Key="IconPlay">&#xE037;</x:String>
+    <x:String x:Key="IconPause">&#xE034;</x:String>
+    <x:String x:Key="IconChevronRight">&#xE5CC;</x:String>
+    <x:String x:Key="IconExpandMore">&#xE5CF;</x:String>
+    <x:String x:Key="IconArrowBack">&#xE5C4;</x:String>
+
+    <!-- Game / content categories -->
+    <x:String x:Key="IconGameEsports">&#xEA28;</x:String>
+    <x:String x:Key="IconGameAgriculture">&#xEA79;</x:String>
+    <x:String x:Key="IconGameSwords">&#xF889;</x:String>
+    <x:String x:Key="IconGameFire">&#xEF55;</x:String>
+    <x:String x:Key="IconCategory">&#xE72C;</x:String>
+    <x:String x:Key="IconExtension">&#xE87B;</x:String>
+
+    <!-- Misc -->
+    <x:String x:Key="IconBolt">&#xEA0B;</x:String>
+    <x:String x:Key="IconShield">&#xE9E0;</x:String>
+    <x:String x:Key="IconVerified">&#xEF76;</x:String>
+    <x:String x:Key="IconCode">&#xE86F;</x:String>
+    <x:String x:Key="IconTerminal">&#xEB8E;</x:String>
+    <x:String x:Key="IconBugReport">&#xE868;</x:String>
+</ResourceDictionary>

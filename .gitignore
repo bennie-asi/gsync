@@ -8,8 +8,9 @@
 **/bin/**
 **/obj/**
 *.log
+*.binlog
 
 .vs
 .codegraph
 .idea
-.publish
+publish

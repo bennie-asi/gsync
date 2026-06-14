@@ -25,9 +25,9 @@
                 Height="14"
                 VerticalAlignment="Center"
                 Foreground="{StaticResource AppTextDimBrush}"
-                FontFamily="Segoe Fluent Icons"
-                FontSize="14"
-                Glyph="&#xE721;"
+                FontFamily="{StaticResource MaterialSymbolsFont}"
+                FontSize="16"
+                Glyph="{StaticResource IconSearch}"
                 IsTextScaleFactorEnabled="False" />
 
             <TextBox

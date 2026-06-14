@@ -32,9 +32,10 @@
                     <Button
                         Grid.Column="2"
                         Click="GameEditButton_Click"
-                        Content="{x:Bind EditButtonText}"
                         Style="{StaticResource SecondaryToolbarButtonStyle}"
-                        VerticalAlignment="Center" />
+                        VerticalAlignment="Center">
+                        <primitives:IconText Glyph="{StaticResource IconEdit}" GlyphSize="16" Text="{x:Bind EditButtonText}" />
+                    </Button>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -184,7 +185,9 @@
                                     <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding LogLevelLabel}" />
                                     <ComboBox ItemsSource="{Binding LogLevelOptions}" SelectedItem="{Binding SelectedLogLevel, Mode=TwoWay}" />
                                 </StackPanel>
-                                <Button x:Name="OpenLogsDirButton" Click="OpenLogsDirButton_Click" Content="{Binding OpenLogsDirText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                <Button x:Name="OpenLogsDirButton" Click="OpenLogsDirButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                    <primitives:IconText Glyph="{StaticResource IconFolderOpen}" GlyphSize="16" Text="{Binding OpenLogsDirText}" />
+                                </Button>
                             </StackPanel>
                         </primitives:PropertySheet.PanelContent>
                     </primitives:PropertySheet>
@@ -194,7 +197,9 @@
                             <StackPanel Spacing="10">
                                 <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding DiagnosticsSubtitle}" TextWrapping="WrapWholeWords" />
                                 <ItemsControl ItemTemplate="{StaticResource SettingsPropertyTemplate}" ItemsSource="{Binding Diagnostics}" />
-                                <Button x:Name="OpenDataDirButton" Click="OpenDataDirButton_Click" Content="{Binding OpenDataDirText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                <Button x:Name="OpenDataDirButton" Click="OpenDataDirButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                    <primitives:IconText Glyph="{StaticResource IconFolderOpen}" GlyphSize="16" Text="{Binding OpenDataDirText}" />
+                                </Button>
                             </StackPanel>
                         </primitives:PropertySheet.PanelContent>
                     </primitives:PropertySheet>
@@ -214,8 +219,12 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Button x:Name="RestoreDefaultsButton" Click="RestoreDefaultsButton_Click" Content="Restore Defaults" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                        <Button x:Name="SaveSettingsButton" Grid.Column="2" Click="SaveSettingsButton_Click" Content="Save Settings" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                        <Button x:Name="RestoreDefaultsButton" Click="RestoreDefaultsButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                            <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="Restore Defaults" />
+                        </Button>
+                        <Button x:Name="SaveSettingsButton" Grid.Column="2" Click="SaveSettingsButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                            <primitives:IconText Glyph="{StaticResource IconSave}" Text="Save Settings" />
+                        </Button>
                     </Grid>
                 </StackPanel>
             </ScrollViewer>
@@ -252,8 +261,12 @@
                                                                         <ColumnDefinition Width="Auto" />
                                                                         <ColumnDefinition Width="*" />
                                                                     </Grid.ColumnDefinitions>
-                                                                    <Button Click="PreviewPrimaryActionButton_Click" Content="{x:Bind PrimaryActionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                                                    <Button Grid.Column="1" Margin="8,0,0,0" Click="PreviewSecondaryActionButton_Click" Content="{x:Bind SecondaryActionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                                                    <Button Click="PreviewPrimaryActionButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                                                        <primitives:IconText Glyph="{StaticResource IconFolderOpen}" GlyphSize="16" Text="{x:Bind PrimaryActionText}" />
+                                                                    </Button>
+                                                                    <Button Grid.Column="1" Margin="8,0,0,0" Click="PreviewSecondaryActionButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                                                        <primitives:IconText Glyph="{StaticResource IconTune}" GlyphSize="16" Text="{x:Bind SecondaryActionText}" />
+                                                                    </Button>
                                                                 </Grid>
                                                             </StackPanel>
                                                         </Border>
@@ -267,7 +280,9 @@
                         </primitives:InspectorPanel.PanelContent>
                     </primitives:InspectorPanel>
 
-                    <Button x:Name="AddNewTargetButton" Click="AddNewTargetButton_Click" Content="Add New Target" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    <Button x:Name="AddNewTargetButton" Click="AddNewTargetButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                        <primitives:IconText Glyph="{StaticResource IconAdd}" Text="Add New Target" />
+                    </Button>
                 </StackPanel>
             </ScrollViewer>
         </Grid>
@@ -302,9 +317,10 @@
                 </StackPanel>
 
                 <Button
-                    Content="重试加载"
                     Click="RetryInitialization_Click"
-                    Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                    Style="{StaticResource PrimaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="重试加载" />
+                </Button>
             </StackPanel>
         </Border>
     </Grid>

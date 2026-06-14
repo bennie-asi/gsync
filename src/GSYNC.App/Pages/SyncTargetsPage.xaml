@@ -15,7 +15,7 @@
                     </Grid.ColumnDefinitions>
 
                     <Border Width="24" Height="24" Background="{StaticResource AppSurfaceRaisedBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="6" VerticalAlignment="Top">
-                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Text="{x:Bind DefinitionLabel}" />
+                        <FontIcon FontFamily="{StaticResource MaterialSymbolsFont}" FontSize="14" Foreground="{StaticResource AppTextSecondaryBrush}" Glyph="{x:Bind ProviderGlyph}" />
                     </Border>
 
                     <StackPanel Grid.Column="1" Spacing="6">
@@ -85,10 +85,18 @@
                     <primitives:FilterDropdown Width="150" ItemsSource="{Binding Filters}" Placeholder="{Binding FilterPlaceholder}" SelectedItem="{Binding SelectedTargetFilter, Mode=TwoWay}" />
                 </StackPanel>
 
-                <Button Grid.Column="1" Click="RefreshButton_Click" Content="{Binding RefreshText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="2" Click="TestSelectedButton_Click" Content="{Binding TestSelectedText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="3" Click="AddTargetButton_Click" Content="{Binding AddTargetText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
-                <Button Grid.Column="4" Click="OpenHelpButton_Click" Content="{Binding HelpText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="1" Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding RefreshText}" />
+                </Button>
+                <Button Grid.Column="2" Click="TestSelectedButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconTaskAlt}" Text="{Binding TestSelectedText}" />
+                </Button>
+                <Button Grid.Column="3" Click="AddTargetButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconAdd}" Text="{Binding AddTargetText}" />
+                </Button>
+                <Button Grid.Column="4" Click="OpenHelpButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconHelp}" Text="{Binding HelpText}" />
+                </Button>
             </Grid>
 
             <Grid Grid.Row="1" ColumnSpacing="14">
@@ -112,7 +120,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TargetsCountText}" />
                             <Button Grid.Column="1" Click="AddTargetButton_Click" Padding="8,6" Style="{StaticResource SecondaryToolbarButtonStyle}">
-                                <SymbolIcon Symbol="Add" />
+                                <FontIcon Style="{StaticResource AppIcon}" FontSize="18" Glyph="{StaticResource IconAdd}" />
                             </Button>
                         </Grid>
 
@@ -160,7 +168,9 @@
                                     <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource AppDangerBrush}" Text="{Binding FailureCodeText}" />
-                                            <Button Click="CopyCodeButton_Click" Content="Copy Code" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                            <Button Click="CopyCodeButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                                <primitives:IconText Glyph="{StaticResource IconCopy}" GlyphSize="16" Text="Copy Code" />
+                                            </Button>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -204,10 +214,18 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Click="RemoveTargetButton_Click" Content="{Binding RemoveTargetText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="1" Margin="8,0,0,0" Click="OpenRootButton_Click" Content="{Binding OpenRootText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="3" Click="TestSelectedButton_Click" Content="{Binding TestConnectionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="4" Margin="8,0,0,0" Click="EditTargetButton_Click" Content="{Binding SaveChangesText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                                    <Button Click="RemoveTargetButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                        <primitives:IconText Glyph="{StaticResource IconDelete}" Text="{Binding RemoveTargetText}" />
+                                    </Button>
+                                    <Button Grid.Column="1" Margin="8,0,0,0" Click="OpenRootButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                        <primitives:IconText Glyph="{StaticResource IconFolderOpen}" Text="{Binding OpenRootText}" />
+                                    </Button>
+                                    <Button Grid.Column="3" Click="TestSelectedButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                        <primitives:IconText Glyph="{StaticResource IconTaskAlt}" Text="{Binding TestConnectionText}" />
+                                    </Button>
+                                    <Button Grid.Column="4" Margin="8,0,0,0" Click="EditTargetButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                                        <primitives:IconText Glyph="{StaticResource IconSave}" Text="{Binding SaveChangesText}" />
+                                    </Button>
                                 </Grid>
                                 <Grid Visibility="{Binding ShowFailureState, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Grid.ColumnDefinitions>
@@ -217,10 +235,18 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Click="EditTargetButton_Click" Content="{Binding EditCredentialsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="1" Margin="8,0,0,0" Click="OpenLogsButton_Click" Content="{Binding OpenLogsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="3" Click="TestSelectedButton_Click" Content="{Binding RetryConnectionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button Grid.Column="4" Margin="8,0,0,0" Click="EditTargetButton_Click" Content="{Binding SaveChangesText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                                    <Button Click="EditTargetButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                        <primitives:IconText Glyph="{StaticResource IconKey}" Text="{Binding EditCredentialsText}" />
+                                    </Button>
+                                    <Button Grid.Column="1" Margin="8,0,0,0" Click="OpenLogsButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                        <primitives:IconText Glyph="{StaticResource IconDescription}" Text="{Binding OpenLogsText}" />
+                                    </Button>
+                                    <Button Grid.Column="3" Click="TestSelectedButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                        <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding RetryConnectionText}" />
+                                    </Button>
+                                    <Button Grid.Column="4" Margin="8,0,0,0" Click="EditTargetButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                                        <primitives:IconText Glyph="{StaticResource IconSave}" Text="{Binding SaveChangesText}" />
+                                    </Button>
                                 </Grid>
                             </Grid>
                         </Border>
@@ -259,9 +285,10 @@
                 </StackPanel>
 
                 <Button
-                    Content="重试加载"
                     Click="RetryInitialization_Click"
-                    Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                    Style="{StaticResource PrimaryToolbarButtonStyle}">
+                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="重试加载" />
+                </Button>
             </StackPanel>
         </Border>
     </Grid>
