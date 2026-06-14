@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<UiSettingsStore>();
         services.AddSingleton<SyncTargetStore>();
         services.AddSingleton<UserVariablesStore>();
+        services.AddSingleton<Microsoft.Extensions.Options.IOptions<GSYNC.Manifest.Options.ManifestOptions>, StoreBackedManifestOptions>();
         services.AddSingleton<Microsoft.Extensions.Options.IOptions<GSYNC.Storage.Options.WebDavOptions>, StoreBackedWebDavOptions>();
         services.AddSingleton<Microsoft.Extensions.Options.IOptions<GSYNC.Storage.Options.LocalFolderOptions>, StoreBackedLocalFolderOptions>();
         services.AddSingleton<ILocalizationService, LocalizationService>();
@@ -82,7 +83,23 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<SyncQueue>();
         services.AddSingleton<ISyncQueue>(sp => sp.GetRequiredService<SyncQueue>());
-        services.AddSingleton<SyncEngine>();
+        services.AddSingleton(sp =>
+        {
+            var uiSettingsStore = sp.GetRequiredService<UiSettingsStore>();
+            return new SyncEngine(
+                sp.GetRequiredService<ISyncQueue>(),
+                sp.GetRequiredService<IGameInstanceRepository>(),
+                sp.GetRequiredService<IStorageBindingRepository>(),
+                sp.GetRequiredService<ISyncHistoryRepository>(),
+                sp.GetRequiredService<IManifestService>(),
+                sp.GetServices<ISourceProvider>(),
+                sp.GetServices<IStorageProvider>(),
+                sp.GetRequiredService<IAppPathService>(),
+                sp.GetRequiredService<PathResolver>(),
+                sp.GetRequiredService<SystemVariableProvider>(),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SyncEngine>>(),
+                () => uiSettingsStore.Load().AutoSnapshotBeforeDownload);
+        });
         services.AddSingleton<ISyncEngine>(sp => sp.GetRequiredService<SyncEngine>());
 
         services.AddTransient<MainWindowViewModel>();
@@ -94,6 +111,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<ConflictResolutionViewModel>();
         services.AddTransient<AddGameWizardViewModel>();
         services.AddTransient<SettingsPageViewModel>();
+        services.AddTransient<QueuePageViewModel>();
 
         services.AddTransient<MainWindow>();
         return services;

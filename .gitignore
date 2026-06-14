@@ -8,3 +8,6 @@
 *.log
 
 .vs
+.codegraph
+.idea
+.publish

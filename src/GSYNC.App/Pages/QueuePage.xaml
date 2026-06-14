@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="GSYNC.App.Pages.QueuePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:primitives="using:GSYNC.App.Primitives"
+    xmlns:vm="using:GSYNC.App.ViewModels">
+    <Page.Resources>
+        <DataTemplate x:Key="QueueStatusTemplate" x:DataType="vm:QueueRow">
+            <primitives:Badge Text="{Binding Status}" Variant="{Binding StatusVariant}" />
+        </DataTemplate>
+        <DataTemplate x:Key="QueueDetailRowTemplate" x:DataType="vm:UiPropertyRow">
+            <Grid Padding="0,4" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Top" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
+                <TextBlock Grid.Column="1" FontFamily="Consolas" HorizontalAlignment="Right" TextAlignment="Right" Text="{x:Bind Value}" TextWrapping="WrapWholeWords" />
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
+
+    <Grid>
+        <Grid x:Name="MainContentRoot" Padding="{StaticResource AppPagePadding}" RowSpacing="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding PageTitle}" />
+                    <TextBlock VerticalAlignment="Bottom" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding PageSubtitle}" TextWrapping="WrapWholeWords" />
+                </StackPanel>
+
+                <Button Grid.Column="1" Click="RefreshButton_Click" Content="{Binding RefreshButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+            </Grid>
+
+            <Grid Grid.Row="1" ColumnSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="720" />
+                    <ColumnDefinition Width="360" MinWidth="320" />
+                </Grid.ColumnDefinitions>
+
+                <Grid>
+                    <primitives:ResizableTableView
+                        x:Name="QueueTable"
+                        FooterText="{Binding SystemStatus}"
+                        ItemsSource="{Binding Jobs}"
+                        PersistedStateKey="queue-main-table"
+                        Subtitle="{Binding TableSubtitle}"
+                        Title="{Binding TableTitle}"
+                        Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}" />
+
+                    <Border
+                        Background="{StaticResource AppSurfaceBrush}"
+                        BorderBrush="{StaticResource AppDividerBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20"
+                        Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Spacing="16">
+                            <primitives:InfoCallout Severity="Info" Title="{Binding EmptyStateTitle}" Message="{Binding EmptyStateMessage}" />
+                            <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding EmptyStateHint}" TextWrapping="WrapWholeWords" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Click="GoToLibraryButton_Click" Content="{Binding EmptyStateActionText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                                <Button Click="RefreshButton_Click" Content="{Binding EmptyStateSecondaryActionText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                            </StackPanel>
+                            <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SystemStatus}" TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Background="{StaticResource AppSurfaceBrush}" Padding="12,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="2">
+                                <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding DetailTitle}" />
+                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding DetailSubtitle}" TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                            <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="6" Padding="8,4" Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding SelectedJobIdText}" />
+                            </Border>
+                        </Grid>
+
+                        <ScrollViewer Grid.Row="1" Padding="12" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                            <Grid>
+                                <StackPanel Spacing="14" Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <primitives:PropertySheet Title="{Binding DetailSummaryTitle}">
+                                        <primitives:PropertySheet.PanelContent>
+                                            <StackPanel Spacing="10">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding SelectedJob.DisplayName}" />
+                                                    <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding SelectedJob.CurrentFile}" TextWrapping="WrapWholeWords" />
+                                                    <primitives:Badge Text="{Binding SelectedJob.Status}" Variant="{Binding SelectedJob.StatusVariant}" />
+                                                </StackPanel>
+                                                <ItemsControl ItemTemplate="{StaticResource QueueDetailRowTemplate}" ItemsSource="{Binding JobDetails}" />
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <Button Click="CancelSelectedButton_Click" Content="{Binding CancelButtonText}" Style="{StaticResource PrimaryToolbarButtonStyle}" Visibility="{Binding SelectedJobIsActive, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                    <Button Click="RemoveSelectedButton_Click" Content="{Binding RemoveButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" Visibility="{Binding SelectedJobIsPending, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </primitives:PropertySheet.PanelContent>
+                                    </primitives:PropertySheet>
+
+                                    <primitives:PropertySheet Title="{Binding ActivityTitle}">
+                                        <primitives:PropertySheet.PanelContent>
+                                            <StackPanel Spacing="10">
+                                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ActivitySubtitle}" TextWrapping="WrapWholeWords" />
+                                                <primitives:ActivityFeed ContentHeight="220" ItemsSource="{Binding JobActivity}" />
+                                            </StackPanel>
+                                        </primitives:PropertySheet.PanelContent>
+                                    </primitives:PropertySheet>
+                                </StackPanel>
+
+                                <StackPanel Spacing="14" Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}">
+                                    <primitives:InfoCallout Severity="Info" Title="{Binding EmptyInspectorTitle}" Message="{Binding EmptyInspectorMessage}" />
+                                </StackPanel>
+                            </Grid>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <Border
+            x:Name="InitializationErrorPanel"
+            MaxWidth="720"
+            Padding="20"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Background="{StaticResource AppSurfaceAltBrush}"
+            BorderBrush="{StaticResource AppDividerBrush}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Visibility="Collapsed">
+            <StackPanel Spacing="16">
+                <primitives:InfoCallout
+                    Title="队列页加载失败"
+                    Message="Queue 页面初始化出现异常，应用仍可继续导航到其他页面。"
+                    Severity="Error" />
+
+                <StackPanel Spacing="6">
+                    <TextBlock
+                        x:Name="InitializationErrorTitle"
+                        FontSize="20"
+                        FontWeight="SemiBold"
+                        Text="Queue 初始化失败" />
+                    <TextBlock
+                        x:Name="InitializationErrorMessage"
+                        Foreground="{StaticResource AppTextSecondaryBrush}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+
+                <Button
+                    Content="重试加载"
+                    Click="RetryInitialization_Click"
+                    Style="{StaticResource PrimaryToolbarButtonStyle}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>

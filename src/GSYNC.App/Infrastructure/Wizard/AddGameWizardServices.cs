@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using GSYNC.Core.Models;
 using GSYNC.Core.Models.Manifest;
 using GSYNC.Core.Utilities;
@@ -99,7 +100,7 @@ public sealed class AddGamePathValidationService
             foreach (var template in item.PathTemplates)
             {
                 var resolved = _pathResolver.Resolve(template, systemVariables, sourceVariables, gameVariables);
-                if (string.IsNullOrWhiteSpace(resolved) || string.Equals(resolved, template, StringComparison.Ordinal))
+                if (string.IsNullOrWhiteSpace(resolved) || Regex.IsMatch(resolved, @"%[A-Z0-9_]+%", RegexOptions.IgnoreCase))
                 {
                     results.Add(new PathValidationResult(
                         item.ContentId,

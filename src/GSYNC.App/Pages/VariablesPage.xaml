@@ -122,19 +122,23 @@
                                         <StackPanel Spacing="12">
                                             <StackPanel Spacing="5">
                                                 <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding InputTemplateText}" />
-                                                <Border BorderBrush="{StaticResource AppDangerBrush}" BorderThickness="2" CornerRadius="8" Padding="10,8" Visibility="{Binding ShowParseError, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <StackPanel Spacing="6">
-                                                        <primitives:TooltipTextBlock Text="{Binding TemplateInput}" />
-                                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                                            <SymbolIcon Foreground="{StaticResource AppDangerBrush}" Symbol="Important" />
-                                                            <TextBlock Foreground="{StaticResource AppDangerBrush}" Text="{Binding ParseErrorMessage}" TextWrapping="WrapWholeWords" />
-                                                        </StackPanel>
-                                                    </StackPanel>
-                                                </Border>
-                                                <Border BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8" Visibility="{Binding ShowParseError, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}">
-                                                    <primitives:TooltipTextBlock Text="{Binding TemplateInput}" />
-                                                </Border>
+                                                <TextBox
+                                                    AcceptsReturn="True"
+                                                    MinHeight="76"
+                                                    PlaceholderText="%APPDATA%/MyGame/Saves"
+                                                    Text="{Binding TemplateInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    TextWrapping="Wrap" />
                                             </StackPanel>
+
+                                            <Grid ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Button Click="TestTemplateInlineButton_Click" Content="{Binding TestTemplateText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                                                <Button Grid.Column="1" Click="ClearTesterButton_Click" Content="{Binding ResetText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                            </Grid>
 
                                             <StackPanel Spacing="5">
                                                 <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ResolvedOutputText}" />

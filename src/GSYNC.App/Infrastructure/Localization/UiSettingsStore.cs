@@ -20,21 +20,7 @@ public sealed class UiSettingsStore
 
     public AppUiSettings Load()
     {
-        try
-        {
-            var path = _appPathService.GetUiSettingsPath();
-            if (!File.Exists(path))
-            {
-                return new AppUiSettings();
-            }
-
-            var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<AppUiSettings>(json, JsonOptions) ?? new AppUiSettings();
-        }
-        catch
-        {
-            return new AppUiSettings();
-        }
+        return LoadSettings(_appPathService.GetUiSettingsPath());
     }
 
     public void Save(AppUiSettings settings)
@@ -46,19 +32,29 @@ public sealed class UiSettingsStore
 
     public static string LoadStartupLanguageTag(string settingsPath)
     {
+        return LoadSettings(settingsPath).LanguageTag;
+    }
+
+    public static AppUiSettings LoadStartupSettings(string settingsPath)
+    {
+        return LoadSettings(settingsPath);
+    }
+
+    private static AppUiSettings LoadSettings(string settingsPath)
+    {
         try
         {
             if (!File.Exists(settingsPath))
             {
-                return AppUiSettings.DefaultLanguageTag;
+                return new AppUiSettings();
             }
 
             var json = File.ReadAllText(settingsPath);
-            return JsonSerializer.Deserialize<AppUiSettings>(json, JsonOptions)?.LanguageTag ?? AppUiSettings.DefaultLanguageTag;
+            return JsonSerializer.Deserialize<AppUiSettings>(json, JsonOptions) ?? new AppUiSettings();
         }
         catch
         {
-            return AppUiSettings.DefaultLanguageTag;
+            return new AppUiSettings();
         }
     }
 }
@@ -66,6 +62,23 @@ public sealed class UiSettingsStore
 public sealed class AppUiSettings
 {
     public const string DefaultLanguageTag = "zh-CN";
+    public const string ThemeDark = "dark";
+    public const string ThemeLight = "light";
+    public const string DensityCompact = "compact";
+    public const string DensityComfortable = "comfortable";
+    public const string DefaultLogLevel = "Information";
 
     public string LanguageTag { get; set; } = DefaultLanguageTag;
+
+    public string ThemeMode { get; set; } = ThemeDark;
+
+    public string DensityMode { get; set; } = DensityCompact;
+
+    public string LogLevel { get; set; } = DefaultLogLevel;
+
+    public bool AutoSnapshotBeforeDownload { get; set; } = true;
+
+    public bool RefreshManifestOnStartup { get; set; } = true;
+
+    public string? ManifestSourceUrl { get; set; }
 }

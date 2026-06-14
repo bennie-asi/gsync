@@ -26,7 +26,7 @@ public partial class VariablesPageViewModel : ObservableObject
     private bool _showParseError;
 
     [ObservableProperty]
-    private string _selectedScopeFilter;
+    private string _selectedScopeFilter = string.Empty;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -103,7 +103,17 @@ public partial class VariablesPageViewModel : ObservableObject
             Pick("来源", "Source"),
             Pick("自定义", "Custom"),
         ];
-        _selectedScopeFilter = Filters[0];
+        SelectedScopeFilter = Filters[0];
+        SearchText = string.Empty;
+        Variables = [];
+        VariableProperties = [];
+        SelectedVariableName = string.Empty;
+        VariableScopeText = string.Empty;
+        LastModifiedText = string.Empty;
+        TemplateInput = string.Empty;
+        TemplateOutput = string.Empty;
+        ParseErrorMessage = string.Empty;
+        ParseErrorCode = string.Empty;
     }
 
     public string PageTitle { get; }
@@ -265,6 +275,8 @@ public partial class VariablesPageViewModel : ObservableObject
         {
             TemplateOutput = string.Empty;
             ShowParseError = false;
+            ParseErrorMessage = string.Empty;
+            ParseErrorCode = string.Empty;
             return;
         }
 
@@ -293,6 +305,8 @@ public partial class VariablesPageViewModel : ObservableObject
             {
                 TemplateOutput = resolved;
                 ShowParseError = false;
+                ParseErrorMessage = string.Empty;
+                ParseErrorCode = string.Empty;
             }
         }
         catch (Exception exception)
@@ -309,6 +323,8 @@ public partial class VariablesPageViewModel : ObservableObject
         TemplateInput = string.Empty;
         TemplateOutput = string.Empty;
         ShowParseError = false;
+        ParseErrorMessage = string.Empty;
+        ParseErrorCode = string.Empty;
     }
 
     partial void OnSearchTextChanged(string value) => ApplyFilters();

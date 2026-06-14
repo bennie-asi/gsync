@@ -5,7 +5,6 @@ namespace GSYNC.App.Infrastructure.Localization;
 public sealed class LocalizationService : ILocalizationService
 {
     private readonly UiSettingsStore _settingsStore;
-    private readonly AppUiSettings _settings;
     private readonly Dictionary<string, string> _zhCn = new(StringComparer.Ordinal)
     {
         ["App.WindowTitle"] = "GSYNC",
@@ -14,6 +13,7 @@ public sealed class LocalizationService : ILocalizationService
         ["MainWindow.Nav.Targets"] = "同步目标",
         ["MainWindow.Nav.Variables"] = "变量",
         ["MainWindow.Nav.History"] = "历史",
+        ["MainWindow.Nav.Queue"] = "队列",
         ["MainWindow.Nav.Settings"] = "设置",
         ["MainWindow.Subtitle.Library"] = "游戏库总览与快速同步操作",
         ["MainWindow.Subtitle.Wizard"] = "引导式六步添加游戏流程",
@@ -21,6 +21,7 @@ public sealed class LocalizationService : ILocalizationService
         ["MainWindow.Subtitle.Targets"] = "管理本地与远端同步目标绑定",
         ["MainWindow.Subtitle.Variables"] = "检查变量与模板解析结果",
         ["MainWindow.Subtitle.History"] = "查看同步历史与恢复点",
+        ["MainWindow.Subtitle.Queue"] = "查看正在运行与等待中的同步任务",
         ["MainWindow.Subtitle.Settings"] = "外观、行为与保留策略设置",
         ["MainWindow.Subtitle.Default"] = "游戏同步桌面工具",
         ["MainWindow.Status.Ready"] = "就绪 · 当前没有运行中的同步任务",
@@ -29,6 +30,7 @@ public sealed class LocalizationService : ILocalizationService
         ["MainWindow.Status.History"] = "历史已就绪 · 当前没有恢复操作",
         ["MainWindow.Status.Targets"] = "目标已就绪 · 最近一次连通性检查通过",
         ["MainWindow.Status.Variables"] = "变量已就绪 · 模板解析正常",
+        ["MainWindow.Status.Queue"] = "队列已就绪 · 可查看当前同步任务",
         ["StatusBar.WebDavStatus"] = "WebDAV：Online",
         ["StatusBar.LocalStatus"] = "Local：Ready",
         ["StatusBar.TargetName"] = "WebDAV-Main",
@@ -39,10 +41,10 @@ public sealed class LocalizationService : ILocalizationService
         ["StatusBar.Net"] = "网络",
         ["StatusBar.Idle"] = "空闲",
         ["Settings.Title"] = "设置",
-        ["Settings.Subtitle"] = "外观与系统分组始终保持在紧凑桌面布局中可见。",
+        ["Settings.Subtitle"] = "管理语言、主题、同步行为与日志配置",
         ["Settings.AppearanceTitle"] = "外观",
-        ["Settings.AppearanceSubtitle"] = "主题模式、强调色、密度、图标风格与系统行为保持为紧凑工具卡片分组。",
-        ["Settings.ThemeBehaviorTitle"] = "主题与系统行为",
+        ["Settings.AppearanceSubtitle"] = "语言、主题模式与界面密度",
+        ["Settings.ThemeBehaviorTitle"] = "外观与界面",
         ["Settings.Button.RestoreDefaults"] = "恢复默认",
         ["Settings.Button.ApplyTheme"] = "应用主题",
         ["Settings.Button.SaveSettings"] = "保存设置",
@@ -57,6 +59,7 @@ public sealed class LocalizationService : ILocalizationService
         ["MainWindow.Nav.Targets"] = "Targets",
         ["MainWindow.Nav.Variables"] = "Variables",
         ["MainWindow.Nav.History"] = "History",
+        ["MainWindow.Nav.Queue"] = "Queue",
         ["MainWindow.Nav.Settings"] = "Settings",
         ["MainWindow.Subtitle.Library"] = "Library overview and quick sync actions",
         ["MainWindow.Subtitle.Wizard"] = "Guided six-step game onboarding flow",
@@ -64,6 +67,7 @@ public sealed class LocalizationService : ILocalizationService
         ["MainWindow.Subtitle.Targets"] = "Manage local and remote sync target bindings",
         ["MainWindow.Subtitle.Variables"] = "Review variables and template resolution",
         ["MainWindow.Subtitle.History"] = "Inspect sync history and restore points",
+        ["MainWindow.Subtitle.Queue"] = "View active and pending sync jobs",
         ["MainWindow.Subtitle.Settings"] = "Appearance, behavior, and retention settings",
         ["MainWindow.Subtitle.Default"] = "Game synchronization desktop utility",
         ["MainWindow.Status.Ready"] = "Ready · no sync jobs running",
@@ -72,6 +76,7 @@ public sealed class LocalizationService : ILocalizationService
         ["MainWindow.Status.History"] = "History ready · no restore operations running",
         ["MainWindow.Status.Targets"] = "Targets ready · last connectivity check passed",
         ["MainWindow.Status.Variables"] = "Variables ready · template resolution healthy",
+        ["MainWindow.Status.Queue"] = "Queue ready · inspect current sync jobs",
         ["StatusBar.WebDavStatus"] = "WebDAV: Online",
         ["StatusBar.LocalStatus"] = "Local: Ready",
         ["StatusBar.TargetName"] = "WebDAV-Main",
@@ -82,10 +87,10 @@ public sealed class LocalizationService : ILocalizationService
         ["StatusBar.Net"] = "Net",
         ["StatusBar.Idle"] = "Idle",
         ["Settings.Title"] = "Settings",
-        ["Settings.Subtitle"] = "Appearance and system groups remain visible from a compact left navigation rail.",
+        ["Settings.Subtitle"] = "Manage language, theme, sync behavior, and logging",
         ["Settings.AppearanceTitle"] = "Appearance",
-        ["Settings.AppearanceSubtitle"] = "Theme mode, accent color, density, icon style, and system behavior stay grouped as compact utility cards.",
-        ["Settings.ThemeBehaviorTitle"] = "Theme and system behavior",
+        ["Settings.AppearanceSubtitle"] = "Language, theme mode, and interface density",
+        ["Settings.ThemeBehaviorTitle"] = "Appearance and interface",
         ["Settings.Button.RestoreDefaults"] = "Restore Defaults",
         ["Settings.Button.ApplyTheme"] = "Apply Theme",
         ["Settings.Button.SaveSettings"] = "Save Settings",
@@ -95,8 +100,7 @@ public sealed class LocalizationService : ILocalizationService
     public LocalizationService(UiSettingsStore settingsStore)
     {
         _settingsStore = settingsStore;
-        _settings = settingsStore.Load();
-        CurrentLanguageTag = NormalizeLanguageTag(_settings.LanguageTag);
+        CurrentLanguageTag = NormalizeLanguageTag(settingsStore.Load().LanguageTag);
     }
 
     public string CurrentLanguageTag { get; private set; }
@@ -124,8 +128,9 @@ public sealed class LocalizationService : ILocalizationService
         }
 
         CurrentLanguageTag = normalizedLanguageTag;
-        _settings.LanguageTag = normalizedLanguageTag;
-        _settingsStore.Save(_settings);
+        var settings = _settingsStore.Load();
+        settings.LanguageTag = normalizedLanguageTag;
+        _settingsStore.Save(settings);
         ApplicationLanguages.PrimaryLanguageOverride = normalizedLanguageTag;
         LanguageChanged?.Invoke(this, EventArgs.Empty);
         return true;

@@ -46,19 +46,7 @@ public sealed partial class Badge : UserControl
 
     private void ApplyVariantStyling()
     {
-        var normalizedVariant = Variant?.Trim().ToLowerInvariant();
-        var brushKey = normalizedVariant switch
-        {
-            "synced" or "success" => "BadgeSyncedBrush",
-            "local newer" => "BadgeLocalNewerBrush",
-            "remote newer" => "BadgeRemoteNewerBrush",
-            "conflict" => "BadgeConflictBrush",
-            "pending" => "BadgePendingBrush",
-            "missing" => "BadgeMissingBrush",
-            "disabled" => "BadgeDisabledBrush",
-            _ => "BadgeReadyBrush",
-        };
-
+        var brushKey = BadgePalette.ResolveBrushKey(Variant);
         var accentBrush = (Brush)Application.Current.Resources[brushKey];
         BadgeText.Foreground = accentBrush;
 

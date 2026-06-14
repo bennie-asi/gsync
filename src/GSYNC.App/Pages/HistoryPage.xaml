@@ -10,13 +10,13 @@
             <primitives:Badge Text="{x:Bind Result}" Variant="{x:Bind ResultVariant}" />
         </DataTemplate>
         <DataTemplate x:Key="RecordDetailRowTemplate" x:DataType="vm:UiPropertyRow">
-            <Grid Padding="0,4">
+            <Grid Padding="0,4" ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Column="1" FontFamily="Consolas" HorizontalAlignment="Right" Text="{x:Bind Value}" TextWrapping="WrapWholeWords" />
+                <TextBlock VerticalAlignment="Top" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
+                <TextBlock Grid.Column="1" FontFamily="Consolas" HorizontalAlignment="Right" TextAlignment="Right" Text="{x:Bind Value}" TextWrapping="WrapWholeWords" />
             </Grid>
         </DataTemplate>
         <DataTemplate x:Key="EmptyStateRecoveryStepTemplate">
@@ -51,7 +51,7 @@
                 </StackPanel>
 
                 <Button Grid.Column="1" Click="RefreshButton_Click" Content="{Binding RefreshButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="2" Click="RestoreLatestSnapshotButton_Click" Content="{Binding RestoreSnapshotButtonText}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                <Button Grid.Column="2" Click="RestoreLatestSnapshotButton_Click" Content="{Binding RestoreSnapshotButtonText}" IsEnabled="{Binding CanRestore}" Style="{StaticResource PrimaryToolbarButtonStyle}" />
                 <Button Grid.Column="3" Click="OpenLogsButton_Click" Content="{Binding LogsButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                 <Button Grid.Column="4" Click="OpenHelpButton_Click" Content="{Binding HelpButtonText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
             </Grid>
@@ -166,6 +166,24 @@
                     </Grid>
                 </Border>
             </Grid>
+
+            <!-- Blocks interaction while a snapshot restore runs so it stays atomic and double-clicks are ignored. -->
+            <Border
+                Grid.RowSpan="2"
+                Background="#B0000000"
+                Visibility="{Binding IsRestoreInProgress, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="12">
+                    <ProgressRing Width="28" Height="28" IsActive="{Binding IsRestoreInProgress}" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource AppTextPrimaryBrush}"
+                        Text="{Binding RestoringText}" />
+                </StackPanel>
+            </Border>
         </Grid>
 
         <Border

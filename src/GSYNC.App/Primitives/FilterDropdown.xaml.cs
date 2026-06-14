@@ -88,9 +88,18 @@ public sealed partial class FilterDropdown : UserControl
             foreach (var item in ItemsSource)
             {
                 var optionValue = item ?? string.Empty;
+                var optionText = optionValue.ToString() ?? string.Empty;
+
+                // The clear option above already represents the placeholder/"all" choice,
+                // so skip any source item that duplicates it to avoid showing it twice.
+                if (string.Equals(optionText, Placeholder, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 var option = new Button
                 {
-                    Content = optionValue.ToString() ?? string.Empty,
+                    Content = optionText,
                     HorizontalContentAlignment = HorizontalAlignment.Left,
                     Style = (Style)Application.Current.Resources["SecondaryToolbarButtonStyle"],
                     MinWidth = 164,

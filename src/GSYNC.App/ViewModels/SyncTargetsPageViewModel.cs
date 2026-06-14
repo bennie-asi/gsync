@@ -4,6 +4,7 @@ using GSYNC.App.Infrastructure.Configuration;
 using GSYNC.App.Infrastructure.Localization;
 using GSYNC.Core.Abstractions;
 using GSYNC.Core.Abstractions.Data;
+using GSYNC.Storage.Services;
 using Serilog;
 
 namespace GSYNC.App.ViewModels;
@@ -23,7 +24,7 @@ public partial class SyncTargetsPageViewModel : ObservableObject
     private bool _showFailureState;
 
     [ObservableProperty]
-    private string _selectedTargetFilter;
+    private string _selectedTargetFilter = string.Empty;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -50,7 +51,7 @@ public partial class SyncTargetsPageViewModel : ObservableObject
     private string _selectedTargetStatus = string.Empty;
 
     [ObservableProperty]
-    private string _selectedTargetStatusVariant = "ready";
+    private string _selectedTargetStatusVariant = string.Empty;
 
     [ObservableProperty]
     private string _lastCheckedText = string.Empty;
@@ -123,7 +124,23 @@ public partial class SyncTargetsPageViewModel : ObservableObject
             Pick("失败", "Failed"),
             Pick("未测试", "Untested"),
         ];
-        _selectedTargetFilter = Filters[0];
+        SelectedTargetFilter = Filters[0];
+        SearchText = string.Empty;
+        Targets = [];
+        TargetsCountText = string.Empty;
+        TargetsFooterLeftText = string.Empty;
+        TargetsFooterRightText = string.Empty;
+        PaneTitle = string.Empty;
+        SelectedTargetName = string.Empty;
+        SelectedTargetStatus = string.Empty;
+        SelectedTargetStatusVariant = "ready";
+        LastCheckedText = string.Empty;
+        FailureTitle = string.Empty;
+        FailureMessage = string.Empty;
+        FailureCodeText = string.Empty;
+        ConnectionFields = [];
+        ActiveBindings = [];
+        StorageFacts = [];
     }
 
     public string PageTitle { get; }
@@ -263,6 +280,31 @@ public partial class SyncTargetsPageViewModel : ObservableObject
         _syncTargetStore.Upsert(config);
         SelectedTargetId = config.Id;
         await LoadAsync(testConnections: false, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists immediate child folders under <paramref name="relativePath"/> on the WebDAV server
+    /// described by the ad-hoc endpoint/credentials so the target editor can browse remote paths.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> BrowseWebDavFoldersAsync(
+        string baseUrl,
+        string username,
+        string password,
+        string relativePath,
+        CancellationToken cancellationToken = default)
+    {
+        var provider = _storageProviders.OfType<WebDavStorageProvider>().FirstOrDefault()
+            ?? throw new InvalidOperationException(Pick("WebDAV 提供程序未注册。", "The WebDAV provider is not registered."));
+
+        var configuration = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["baseUrl"] = baseUrl,
+            ["username"] = username,
+            ["password"] = password,
+        };
+
+        var entries = await provider.BrowseDirectoriesAsync(configuration, relativePath, cancellationToken);
+        return entries.Select(entry => entry.Path).ToArray();
     }
 
     public string? GetSelectedRootPathOrUrl()

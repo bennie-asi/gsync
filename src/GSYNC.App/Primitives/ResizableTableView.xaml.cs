@@ -44,6 +44,8 @@ public sealed partial class ResizableTableView : UserControl
 
     public event EventHandler<object>? RowInvoked;
 
+    public event EventHandler<object>? RowDoubleInvoked;
+
     public ResizableTableView()
     {
         InitializeComponent();
@@ -175,6 +177,7 @@ public sealed partial class ResizableTableView : UserControl
                     rowBorder.Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(18, 255, 255, 255));
                     RowInvoked?.Invoke(this, capturedItem);
                 };
+                rowBorder.DoubleTapped += (_, _) => RowDoubleInvoked?.Invoke(this, capturedItem);
                 RowsPanel.Children.Add(rowBorder);
             }
         }

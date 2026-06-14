@@ -1,6 +1,7 @@
 using GSYNC.App.Infrastructure.Localization;
 using GSYNC.App.Primitives;
 using GSYNC.App.ViewModels;
+using GSYNC.Core.Abstractions.Sync;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -11,6 +12,7 @@ namespace GSYNC.App;
 public partial class MainWindow : Window
 {
     private readonly ILocalizationService _localizationService;
+    private readonly ISyncQueue _syncQueue;
     private readonly MainWindowViewModel _viewModel;
     private bool _isNavigating;
 
@@ -21,6 +23,7 @@ public partial class MainWindow : Window
         SetTitleBar(AppTitleBarControl);
 
         _localizationService = App.GetService<ILocalizationService>();
+        _syncQueue = App.GetService<ISyncQueue>();
         _viewModel = App.GetService<MainWindowViewModel>();
         RootLayout.DataContext = _viewModel;
 
@@ -28,8 +31,10 @@ public partial class MainWindow : Window
         ContentFrame.Navigated += ContentFrame_OnNavigated;
         ContentFrame.NavigationFailed += ContentFrame_OnNavigationFailed;
         _localizationService.LanguageChanged += LocalizationService_OnLanguageChanged;
+        _syncQueue.QueueChanged += SyncQueue_QueueChanged;
 
         ApplyLocalizedShellText();
+        UpdateQueueBadge();
 
         Activated += MainWindow_Activated;
     }
@@ -88,9 +93,21 @@ public partial class MainWindow : Window
         ApplyLocalizedShellText();
     }
 
+    private void SyncQueue_QueueChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(UpdateQueueBadge);
+    }
+
     private void ApplyLocalizedShellText()
     {
         NavRailControl.ApplyLocalization(_localizationService);
+        UpdateQueueBadge();
+    }
+
+    private void UpdateQueueBadge()
+    {
+        var count = _syncQueue.QueueDepth + (_syncQueue.ActiveJob is null ? 0 : 1);
+        NavRailControl.SetQueueBadge(count);
     }
 
     private void BeginStartupNavigation()
@@ -98,6 +115,7 @@ public partial class MainWindow : Window
         Log.Information("Main window activated; beginning staged startup navigation.");
         NavigateToCurrentPage();
         _ = App.Current.RunDeferredStartupAsync();
+        _ = _viewModel.RefreshTargetStatusAsync();
     }
 
     private void NavigateToCurrentPage()
@@ -132,6 +150,7 @@ public partial class MainWindow : Window
     {
         Log.Warning("Showing page load error for {PageKey} at stage {FailureStage}: {Title}", requestedPageKey, failureStage, title);
         _viewModel.ReportStartupDegraded($"{title} · 已切换到安全降级视图");
+        UpdateQueueBadge();
 
         ContentFrame.Navigate(
             typeof(Pages.PageLoadErrorPage),

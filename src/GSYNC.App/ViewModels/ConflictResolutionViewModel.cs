@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using GSYNC.App.Infrastructure;
 using GSYNC.App.Infrastructure.Localization;
 using GSYNC.Core.Abstractions.Sync;
@@ -46,13 +46,13 @@ public partial class ConflictResolutionViewModel : ObservableObject
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
         _syncEngine = syncEngine;
 
-        _title = Pick("解决冲突", "Resolve Conflict");
+        Title = Pick("解决冲突", "Resolve Conflict");
         PageSubtitle = Pick("安全优先的双栏对比界面，明确保留动作、基线摘要与风险提示。", "Safety-first dual comparison workspace with explicit resolution actions, baseline context, and visible risk guidance.");
-        _warningTitle = Pick("等待比较结果", "Waiting for comparison");
-        _warningMessage = Pick("从游戏详情页执行“比较”后，这里会展示双端差异。", "Run Compare from a game's detail page to populate this view.");
+        WarningTitle = Pick("等待比较结果", "Waiting for comparison");
+        WarningMessage = Pick("从游戏详情页执行”比较”后，这里会展示双端差异。", "Run Compare from a game's detail page to populate this view.");
         RiskHintTitle = Pick("操作前提示", "Before you resolve");
         RiskHintMessage = Pick("先检查基线与受影响文件。下载任何远端版本前都会先创建本地快照。", "Review the baseline and affected files first. A local snapshot is created before any remote overwrite.");
-        _comparisonContext = Pick("对比本地与远端版本，确认基线后再执行保守或覆盖动作。", "Compare local and remote versions, confirm the baseline, then choose a conservative or overwrite action.");
+        ComparisonContext = Pick("对比本地与远端版本，确认基线后再执行保守或覆盖动作。", "Compare local and remote versions, confirm the baseline, then choose a conservative or overwrite action.");
         LocalTitle = Pick("本地版本", "Local Version");
         RemoteTitle = Pick("远端版本", "Remote Version");
         BaselineTitle = Pick("比较摘要", "Comparison summary");
@@ -63,6 +63,11 @@ public partial class ConflictResolutionViewModel : ObservableObject
         KeepBothText = Pick("仅处理已决文件", "Apply Decided Files Only");
         BackupRestoreText = Pick("批量设为远端", "Bulk Remote");
         CancelText = Pick("返回", "Back");
+        TableFooterText = string.Empty;
+        LocalVersion = [];
+        RemoteVersion = [];
+        ConflictFiles = [];
+        SyncBaseline = [];
     }
 
     public string PageSubtitle { get; }
@@ -174,6 +179,7 @@ public partial class ConflictResolutionViewModel : ObservableObject
                 GameInstanceId = _context.InstanceId,
                 Direction = SyncDirection.ResolveConflict,
                 ConflictResolutionPlan = plan,
+                DisplayName = _context.GameName,
             }, cancellationToken);
             return null;
         }

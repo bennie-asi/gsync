@@ -49,6 +49,7 @@ public sealed partial class AppNavRail : UserControl
         TargetsTextBlock.Text = localizationService.GetString("MainWindow.Nav.Targets");
         VariablesTextBlock.Text = localizationService.GetString("MainWindow.Nav.Variables");
         HistoryTextBlock.Text = localizationService.GetString("MainWindow.Nav.History");
+        QueueTextBlock.Text = localizationService.GetString("MainWindow.Nav.Queue");
         SettingsTextBlock.Text = localizationService.GetString("MainWindow.Nav.Settings");
     }
 
@@ -90,7 +91,19 @@ public sealed partial class AppNavRail : UserControl
         ApplyButtonState(TargetsButton, SelectedKey == "targets");
         ApplyButtonState(VariablesButton, SelectedKey == "variables");
         ApplyButtonState(HistoryButton, SelectedKey == "history");
+        ApplyButtonState(QueueButton, SelectedKey == "queue");
         ApplyButtonState(SettingsButton, SelectedKey == "settings");
+    }
+
+    public void SetQueueBadge(int count)
+    {
+        if (QueueBadgeBorder is null || QueueBadgeTextBlock is null)
+        {
+            return;
+        }
+
+        QueueBadgeBorder.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        QueueBadgeTextBlock.Text = count.ToString();
     }
 
     private void ApplyButtonState(Button button, bool isSelected)

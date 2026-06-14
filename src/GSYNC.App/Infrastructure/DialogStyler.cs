@@ -1,3 +1,4 @@
+using GSYNC.App.Infrastructure.Localization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -7,7 +8,10 @@ public static class DialogStyler
 {
     public static ContentDialog Apply(ContentDialog dialog)
     {
-        dialog.RequestedTheme = ElementTheme.Dark;
+        var settings = App.GetService<UiSettingsStore>().Load();
+        dialog.RequestedTheme = settings.ThemeMode == AppUiSettings.ThemeLight
+            ? ElementTheme.Light
+            : ElementTheme.Dark;
 
         if (Application.Current.Resources.TryGetValue("PrimaryToolbarButtonStyle", out var primaryStyle) && primaryStyle is Style primary)
         {

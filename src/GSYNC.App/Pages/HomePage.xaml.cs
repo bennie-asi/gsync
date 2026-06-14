@@ -48,6 +48,8 @@ public sealed partial class HomePage : Page
             RefreshButton.Click += RefreshButton_Click;
             SyncNowButton.Click -= SyncNowButton_Click;
             SyncNowButton.Click += SyncNowButton_Click;
+            LibraryTable.RowDoubleInvoked -= LibraryTable_RowDoubleInvoked;
+            LibraryTable.RowDoubleInvoked += LibraryTable_RowDoubleInvoked;
             _ = _viewModel.LoadAsync();
             Log.Information("HomePage initialized successfully.");
         }
@@ -111,6 +113,14 @@ public sealed partial class HomePage : Page
         Frame?.Navigate(typeof(GameDetailsPage));
     }
 
+    private void LibraryTable_RowDoubleInvoked(object? sender, object item)
+    {
+        if (item is LibraryGameRow row)
+        {
+            Frame?.Navigate(typeof(GameDetailsPage), row.InstanceId.ToString("D"));
+        }
+    }
+
     private void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         _ = _viewModel?.LoadAsync();
@@ -170,7 +180,7 @@ public sealed partial class HomePage : Page
 
         if (result == ContentDialogResult.Secondary)
         {
-            await _viewModel.QueueSyncForGameAsync(row.InstanceId, SyncDirection.Upload);
+            await _viewModel.QueueSyncForGameAsync(row.InstanceId, SyncDirection.Upload, row.Name);
         }
     }
 }

@@ -2,17 +2,43 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Repository state
+## Repository reality check
 
-This repository currently contains planning and design artifacts, not application source code. There are no `.sln`, `.csproj`, `package.json`, `pyproject.toml`, `go.mod`, or similar build manifests in the repo at the moment.
-
-Do not assume the recommended implementation stack from the docs already exists in code.
+- This repo now contains a real .NET solution: `GSYNC.sln`, production code under `src/`, and xUnit test projects under `tests/`.
+- The checked-in desktop app is `src/GSYNC.App`, a **WinUI 3** app targeting `net8.0-windows10.0.19041.0` on **win-x64**.
+- Planning docs still describe the original intended stack (for example Avalonia / cross-platform direction). Use those docs for product intent and UX rationale, but use the current `.csproj` files as the source of truth for build/runtime decisions.
+- OpenSpec is still active for planning and change management under `openspec/` and `.claude/commands/opsx/`.
 
 ## Common commands
 
-### OpenSpec workflow
-The repo is set up around OpenSpec with `openspec/config.yaml` using the `spec-driven` schema.
+### Restore and build
+- Restore solution packages:
+  - `dotnet restore GSYNC.sln`
+- Build everything:
+  - `dotnet build GSYNC.sln`
+- Build the desktop app explicitly:
+  - `dotnet build src/GSYNC.App/GSYNC.App.csproj -p:Platform=x64`
+- Run the desktop app:
+  - `dotnet run --project src/GSYNC.App/GSYNC.App.csproj -p:Platform=x64`
 
+### Tests
+- Run the full test suite without rebuilding:
+  - `dotnet test GSYNC.sln --no-build`
+- Run a single test project:
+  - `dotnet test tests/GSYNC.Core.Tests/GSYNC.Core.Tests.csproj`
+  - `dotnet test tests/GSYNC.Manifest.Tests/GSYNC.Manifest.Tests.csproj`
+  - `dotnet test tests/GSYNC.PathResolver.Tests/GSYNC.PathResolver.Tests.csproj`
+  - `dotnet test tests/GSYNC.Storage.Tests/GSYNC.Storage.Tests.csproj`
+- Run one test class:
+  - `dotnet test tests/GSYNC.Core.Tests/GSYNC.Core.Tests.csproj --filter "FullyQualifiedName~SyncEngineExecutionTests"`
+- Run one test method:
+  - `dotnet test tests/GSYNC.Core.Tests/GSYNC.Core.Tests.csproj --filter "FullyQualifiedName~UploadJob_UploadsFiles_AndWritesSyncRecord"`
+
+### Lint / formatting
+- There is currently **no separate repo-defined lint or formatting command** checked in (no `.editorconfig`, no dedicated formatter script, no CI workflow in `.github/workflows`).
+- Treat `dotnet build` plus the relevant `dotnet test` commands as the verification baseline unless a change adds stricter tooling.
+
+### OpenSpec workflow
 - List active changes:
   - `openspec list --json`
 - Inspect a change:
@@ -24,118 +50,66 @@ The repo is set up around OpenSpec with `openspec/config.yaml` using the `spec-d
 - Get implementation/apply instructions:
   - `openspec instructions apply --change "<name>" --json`
 
-### Build / lint / test
-There are no repo-defined build, lint, or test commands yet because the implementation codebase has not been added.
+## Build configuration
 
-If application code is introduced later, update this file with the actual commands rather than assuming `.NET`, Node, or other tooling from the planning docs.
+- `Directory.Build.props` enables nullable reference types, implicit usings, and C# 12 across the repo.
+- `Directory.Packages.props` uses central package management. Shared versions for MVVM, SQLite, Microsoft.Extensions.*, Serilog, YamlDotNet, Windows App SDK, xUnit, and coverlet are declared there.
+- The app is Windows-specific today because `GSYNC.App.csproj` targets WinUI / Windows App SDK; the backend projects and tests target plain `net8.0`.
 
-## Key files
+## High-level architecture
 
-- `docs/implementation-handoff.md`: primary project-level handoff; best single source for product goals, architecture direction, recommended stack, and UX decisions.
-- `docs/ui/prototype-inventory.md`: Stitch screen inventory, refined screen IDs, state variants, and implementation priority.
-- `docs/ui/implementation-notes.md`: UI shell patterns, shared component candidates, screen-to-feature mapping, and UX cautions.
-- `docs/ui/README.md`: entry point for UI prototype docs.
-- `openspec/config.yaml`: confirms the OpenSpec `spec-driven` workflow.
+### Solution layout
+- `src/GSYNC.App` — WinUI 3 desktop shell, XAML pages, view models, UI primitives, app-side infrastructure, and DI composition root.
+- `src/GSYNC.Core` — domain models, service abstractions, path/variable resolution, sync queueing, and the sync engine itself.
+- `src/GSYNC.Data` — persistence/repository implementations for application state and sync/history data.
+- `src/GSYNC.Manifest` — manifest loading/parsing for known games and content definitions.
+- `src/GSYNC.Storage` — concrete storage providers such as local-folder and WebDAV implementations.
+- `src/GSYNC.Providers` — source-provider integrations and provider-side discovery logic.
 
-## High-level architecture direction
+### Dependency direction
+- `GSYNC.App` is the composition root and references all backend projects directly.
+- Cross-project contracts live in `GSYNC.Core.Abstractions` and related core model namespaces.
+- Concrete implementations live in `Data`, `Manifest`, `Storage`, and `Providers`, then get wired into the app through DI registration in the app layer.
+- Tests are split by backend boundary rather than by end-to-end scenarios: `GSYNC.Core.Tests`, `GSYNC.Manifest.Tests`, `GSYNC.PathResolver.Tests`, and `GSYNC.Storage.Tests`.
 
-The intended product is a cross-platform desktop application for game save synchronization, with the longer-term goal of being a modular game data synchronization platform.
+### Sync architecture
+- Keep synchronization policy inside the core sync pipeline, not inside a storage provider.
+- The important architectural split from both the docs and the code is:
+  1. source/provider discovery,
+  2. game/content definition,
+  3. storage read/write implementation,
+  4. sync orchestration and history/snapshot behavior.
+- In practice, UI actions eventually flow into core abstractions and `GSYNC.Core.Services.Sync.SyncEngine`; storage providers should stay focused on IO capabilities, while conflict handling, records, and snapshot behavior stay in core/data layers.
 
-### Core architectural rule
-Keep these concerns separate:
-1. Game source provider
-2. Game content definition
-3. Storage provider
-4. Theme / appearance
+### UI architecture
+- The app follows a page + view model structure by feature area. Current screens/pages line up with the planned product areas: Library, Game Details, Add Game wizard, Conflict Resolution, Sync Targets, Variables, History, and Settings.
+- Reusable desktop controls live under `src/GSYNC.App/Primitives/`; view models and page code-behind stay feature-oriented under `ViewModels/` and `Pages/`.
+- The current UI work is heavily driven by Stitch mockups. For UI implementation, keep using the refined/normalized Stitch screens and the desktop-utility interaction model from `docs/ui/` rather than redesigning flows ad hoc.
 
-The sync engine owns synchronization behavior such as conflict handling and snapshots. Storage providers are only responsible for remote/local read-write capabilities; they should not own sync policy.
+### Cross-layer changes
+- Many non-trivial features span more than one project. Typical examples:
+  - sync/history work touches `GSYNC.App` view models, `GSYNC.Core` abstractions/services, and `GSYNC.Data` repositories;
+  - game discovery or Add Game work often touches app wizard/view model code plus manifest/provider layers;
+  - storage-target work usually crosses app settings pages, core abstractions, and concrete storage providers.
+- When behavior changes feel “UI-only”, verify whether the corresponding repository, provider, or core service contract also needs updating.
 
-### Planned modular areas
-- Source providers: Steam, Epic, Custom, Emulator
-- Storage providers: WebDAV, local folder, future cloud/storage backends
-- Content definitions: save data, config, extra files, optional advanced items
-- Theme layer: color, density, icon style, appearance tokens
+## Key reference docs
 
-### Domain model direction
-The handoff documents organize the future app around these concepts:
-- `GameDefinition`: what the game is
-- `GameInstance`: the user-managed machine-specific instance
-- `ContentItem`: an individual syncable item for a game
-- `StorageBinding`: how an instance is bound to a sync target
-- Snapshot / SyncRecord / Conflict: operational history, safety, and restore/conflict metadata
+- `docs/implementation-handoff.md` — product goals, domain vocabulary, and long-range architectural intent.
+- `docs/ui/prototype-inventory.md` — Stitch screen inventory and state coverage.
+- `docs/ui/implementation-notes.md` — shared UI patterns, screen mapping, and UX cautions.
+- `docs/ui/README.md` and `docs/README.md` — entry points into the planning/design documentation.
 
-### Path and portability model
-Path handling is a major part of the design:
-- Store logical path templates, not raw OS-specific paths
-- Prefer forward-slash-style templates in configuration
-- Resolve templates to platform paths at runtime
-- Support layered variables with precedence:
-  - `system < source < game instance < user override`
+## OpenSpec conventions already in the repo
 
-Important built-in variables discussed in the docs include `%HOME%`, `%DOCUMENTS%`, `%APPDATA%`, `%LOCALAPPDATA%`, `%USERDATA%`, `%GAME_INSTALL_DIR%`, and `%STEAM_LIBRARY%`.
-
-### MVP sync behavior
-The planned MVP is safety-first and explicit:
-- prefer manual, explicit sync actions over aggressive automation
-- support upload, download, compare/inspect, and manual conflict resolution
-- back up before destructive replacement
-- keep sync history and snapshot/restore entry points
-
-## UI architecture and implementation guidance
-
-The design direction is a native-feeling desktop utility, not a web dashboard or WebView-style admin shell.
-
-### Preferred UI patterns
-- compact left navigation rail
-- restrained top title/toolbar area
-- split panes and master-detail layouts
-- dense tables and property sheets
-- explicit wizard shell for Add Game
-- focused conflict-resolution dialog
-- optional bottom status bar on operational screens
-
-### Important UI constraints
-- Prefer the refined / normalized Stitch screens over first-pass screens.
-- Reuse the same shell across normal, empty, and error states.
-- Do not redesign empty states as landing pages or marketing-style layouts.
-- Keep management screens compact and information-dense.
-- Keep destructive actions visually separated.
-
-### Shared component direction
-The docs consistently point toward a reusable shell and primitives first, especially:
-- app navigation rail / title bar / status bar
-- dense data grid + property sheet + inspector panel
-- wizard shell and step rail
-- conflict comparison panel
-- path template tester
-- normalized status badge semantics
-
-## Recommended implementation stack (planned, not yet present)
-
-The project-level handoff recommends:
-- C# on .NET 8
-- Avalonia UI
-- MVVM
-- SQLite
-- Serilog
-- ZIP for archive/snapshot handling
-- system credential storage where possible
-
-Treat this as the intended direction, not as proof that these dependencies already exist in the repo.
-
-## Project workflow conventions already present
-
-The repository includes project-specific OpenSpec command/skill docs under `.claude/commands/opsx/` and `.claude/skills/openspec-*`.
-
-Important expectations from those docs:
-- planning is centered on OpenSpec changes and artifacts
-- `/opsx:explore` is for investigation only, not implementation
-- `/opsx:apply` implements from artifact context and updates task checkboxes as work is completed
-- `/opsx:sync` merges delta specs into `openspec/specs/...`
-- `/opsx:archive` archives completed changes
+The checked-in experimental OPSX command docs under `.claude/commands/opsx/` establish these expectations:
+- `/opsx:explore` is for investigation/thinking only, not application-code implementation.
+- `/opsx:apply` implements from artifact context and updates task checkboxes as work completes.
+- `/opsx:sync` merges delta specs from a change into `openspec/specs/...`.
+- `/opsx:archive` archives completed changes and should prompt instead of guessing when the target change is ambiguous.
 
 ## UI reference metadata
 
-If UI work comes up, the docs reference these Stitch assets:
+If UI work needs Stitch references, the planning docs currently point to:
 - Stitch project ID: `13407775155513183369`
 - Design system: `assets/3772949807639653402` (`GSYNC Desktop Dark`)

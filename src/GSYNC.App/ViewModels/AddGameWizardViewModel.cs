@@ -39,7 +39,7 @@ public partial class AddGameWizardViewModel : ObservableObject
     private readonly HashSet<string> _selectedContentIds = new(StringComparer.OrdinalIgnoreCase);
 
     [ObservableProperty]
-    private int _currentStep = 1;
+    private int _currentStep;
 
     [ObservableProperty]
     private bool _showNoResultsState;
@@ -136,6 +136,7 @@ public partial class AddGameWizardViewModel : ObservableObject
 
         BuildSources();
         SelectedSourceKey = null;
+        CurrentStep = 1;
     }
 
     public string PageTitle { get; }
@@ -464,6 +465,7 @@ public partial class AddGameWizardViewModel : ObservableObject
                 {
                     GameInstanceId = instance.Id,
                     Direction = SyncDirection.Upload,
+                    DisplayName = instance.DisplayName,
                 }, cancellationToken);
             }
 

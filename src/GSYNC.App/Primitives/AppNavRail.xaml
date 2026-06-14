@@ -107,6 +107,41 @@
                             TextWrapping="NoWrap" />
                     </StackPanel>
                 </Button>
+
+                <Button x:Name="QueueButton" Tag="queue" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
+                    <Grid>
+                        <StackPanel HorizontalAlignment="Center" Spacing="5">
+                            <Grid Width="20" Height="20" HorizontalAlignment="Center">
+                                <SymbolIcon Symbol="List" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
+                            <TextBlock
+                                x:Name="QueueTextBlock"
+                                Width="72"
+                                FontSize="10"
+                                Text="Queue"
+                                TextAlignment="Center"
+                                TextTrimming="CharacterEllipsis"
+                                TextWrapping="NoWrap" />
+                        </StackPanel>
+
+                        <Border
+                            x:Name="QueueBadgeBorder"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="0,-4,-4,0"
+                            Padding="5,1"
+                            Background="{StaticResource AppPrimaryBrush}"
+                            CornerRadius="8"
+                            Visibility="Collapsed">
+                            <TextBlock
+                                x:Name="QueueBadgeTextBlock"
+                                FontSize="9"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource AppBackgroundBrush}"
+                                Text="0" />
+                        </Border>
+                    </Grid>
+                </Button>
             </StackPanel>
 
             <Button Grid.Row="2" x:Name="SettingsButton" Tag="settings" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">

@@ -72,6 +72,11 @@ public sealed partial class VariablesPage : Page
         _viewModel?.ClearTester();
     }
 
+    private void TestTemplateInlineButton_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel?.TestTemplate(_viewModel.TemplateInput);
+    }
+
     private async void AddVariableButton_Click(object sender, RoutedEventArgs e)
     {
         await ShowVariableEditorAsync(isEdit: false);

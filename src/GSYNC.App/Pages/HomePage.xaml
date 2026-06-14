@@ -22,8 +22,8 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Button Padding="8,4" MinHeight="28" Content="{Binding ElementName=RootPage, Path=ViewModel.OpenButtonText}" Click="OpenGameDetails_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                <Button Grid.Column="1" Padding="8,4" MinHeight="28" Content="{Binding ElementName=RootPage, Path=ViewModel.MoreButtonText}" Click="ShowRowActions_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Padding="8,4" MinHeight="28" Content="{x:Bind OpenLabel}" ToolTipService.ToolTip="{x:Bind OpenLabel}" Click="OpenGameDetails_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                <Button Grid.Column="1" Padding="8,4" MinHeight="28" Content="{x:Bind MoreLabel}" ToolTipService.ToolTip="{x:Bind MoreLabel}" Click="ShowRowActions_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
             </Grid>
         </DataTemplate>
         <DataTemplate x:Key="LibraryPropertyRowTemplate">

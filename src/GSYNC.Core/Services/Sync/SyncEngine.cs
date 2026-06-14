@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.IO.Enumeration;
 using System.Security.Cryptography;
+using System.Text.Json;
 using GSYNC.Core.Abstractions;
 using GSYNC.Core.Abstractions.Data;
 using GSYNC.Core.Abstractions.Manifest;
@@ -25,6 +26,7 @@ public sealed class SyncEngine : ISyncEngine
     private readonly PathResolver _pathResolver;
     private readonly SystemVariableProvider _systemVariableProvider;
     private readonly ILogger<SyncEngine> _logger;
+    private readonly Func<bool> _autoSnapshotBeforeDownloadEnabled;
 
     public SyncEngine(
         ISyncQueue syncQueue,
@@ -37,7 +39,8 @@ public sealed class SyncEngine : ISyncEngine
         IAppPathService appPathService,
         PathResolver pathResolver,
         SystemVariableProvider systemVariableProvider,
-        ILogger<SyncEngine> logger)
+        ILogger<SyncEngine> logger,
+        Func<bool>? autoSnapshotBeforeDownloadEnabled = null)
     {
         _syncQueue = syncQueue;
         _gameInstanceRepository = gameInstanceRepository;
@@ -50,6 +53,7 @@ public sealed class SyncEngine : ISyncEngine
         _pathResolver = pathResolver;
         _systemVariableProvider = systemVariableProvider;
         _logger = logger;
+        _autoSnapshotBeforeDownloadEnabled = autoSnapshotBeforeDownloadEnabled ?? (() => true);
     }
 
     public Task QueueAsync(SyncJob syncJob, CancellationToken cancellationToken)
@@ -80,8 +84,14 @@ public sealed class SyncEngine : ISyncEngine
     {
         await foreach (var job in _syncQueue.ReadAllAsync(cancellationToken))
         {
-            _syncQueue.Start(job);
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.CancellationToken);
+            if (!_syncQueue.TryBeginJob(job))
+            {
+                // Job was removed from the queue before it started; skip without executing.
+                continue;
+            }
+
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, job.CancellationToken, job.QueueCancellationToken);
             var jobToken = linked.Token;
 
             try
@@ -101,6 +111,24 @@ public sealed class SyncEngine : ISyncEngine
                         await ExecuteResolveConflictAsync(job, jobToken);
                         break;
                 }
+
+                job.Status = SyncJobStatus.Completed;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // The application is shutting down; stop processing the queue.
+                job.Status = SyncJobStatus.Cancelled;
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                // A single job was cancelled via the queue; keep processing remaining jobs.
+                job.Status = SyncJobStatus.Cancelled;
+            }
+            catch (Exception)
+            {
+                // The job already logged and wrote a terminal record; keep the queue alive.
+                job.Status = SyncJobStatus.Failed;
             }
             finally
             {
@@ -164,10 +192,11 @@ public sealed class SyncEngine : ISyncEngine
                 remoteFiles.TryGetValue(relativePath, out var remoteFile);
 
                 var localHash = localFile is not null ? await ComputeFileHashAsync(localFile.AbsolutePath, cancellationToken) : null;
+                long? localSize = localFile is not null ? new FileInfo(localFile.AbsolutePath).Length : null;
                 entries.Add(new SyncDiffEntry
                 {
                     RelativePath = BuildRemotePath(context.Binding.RemoteNamespace, root.ContentItem.ContentId, relativePath),
-                    ChangeKind = DetermineChangeKind(localFile, remoteFile, localHash),
+                    ChangeKind = DetermineChangeKind(localFile, remoteFile, localHash, localSize),
                     LocalHash = localHash,
                     RemoteHash = remoteFile?.Hash,
                     LocalModifiedAtUtc = localFile?.LastModifiedUtc,
@@ -198,7 +227,7 @@ public sealed class SyncEngine : ISyncEngine
                 var remotePath = BuildRemotePath(context.Binding.RemoteNamespace, file.ContentItem.ContentId, file.RelativePath);
                 await context.StorageProvider.UploadAsync(remotePath, stream, cancellationToken);
                 processed++;
-                job.Progress?.Report(new SyncProgress
+                ReportProgress(job, new SyncProgress
                 {
                     CurrentFileName = file.RelativePath,
                     ProcessedFiles = processed,
@@ -248,7 +277,9 @@ public sealed class SyncEngine : ISyncEngine
             remoteFileSets[root] = await ListRemoteFilesAsync(context, root, cancellationToken);
         }
 
-        var snapshot = CreateSnapshot(context, remoteFileSets);
+        var snapshot = _autoSnapshotBeforeDownloadEnabled()
+            ? CreateSnapshot(context, remoteFileSets)
+            : null;
         var total = remoteFileSets.Values.Sum(set => set.Count);
         var processed = 0;
         var tempFiles = new List<string>();
@@ -279,7 +310,7 @@ public sealed class SyncEngine : ISyncEngine
 
                     File.Copy(tempFile, targetPath, overwrite: true);
                     processed++;
-                    job.Progress?.Report(new SyncProgress
+                    ReportProgress(job, new SyncProgress
                     {
                         CurrentFileName = remoteFile.RelativePath,
                         ProcessedFiles = processed,
@@ -289,13 +320,16 @@ public sealed class SyncEngine : ISyncEngine
                 }
             }
 
-            await _syncHistoryRepository.AddSnapshotAsync(snapshot, cancellationToken);
+            if (snapshot is not null)
+            {
+                await _syncHistoryRepository.AddSnapshotAsync(snapshot, cancellationToken);
+            }
             await WriteTerminalRecordAsync(
                 job.GameInstanceId,
                 SyncDirection.Download,
                 SyncJobStatus.Completed,
                 cancellationToken,
-                snapshotId: snapshot.Id,
+                snapshotId: snapshot?.Id,
                 processedFiles: processed,
                 totalFiles: total,
                 summary: $"Downloaded {processed} files.");
@@ -307,7 +341,7 @@ public sealed class SyncEngine : ISyncEngine
                 SyncDirection.Download,
                 SyncJobStatus.Cancelled,
                 CancellationToken.None,
-                snapshotId: snapshot.Id,
+                snapshotId: snapshot?.Id,
                 processedFiles: processed,
                 totalFiles: total,
                 summary: "Download cancelled.");
@@ -321,7 +355,7 @@ public sealed class SyncEngine : ISyncEngine
                 SyncDirection.Download,
                 SyncJobStatus.Failed,
                 CancellationToken.None,
-                snapshotId: snapshot.Id,
+                snapshotId: snapshot?.Id,
                 processedFiles: processed,
                 totalFiles: total,
                 errorMessage: exception.Message);
@@ -758,23 +792,27 @@ public sealed class SyncEngine : ISyncEngine
         return Path.Combine(root.LocalRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
     }
 
-    private static SyncChangeKind DetermineChangeKind(ResolvedLocalFile? localFile, RemoteFileEntry? remoteFile, string? localHash)
+    private static SyncChangeKind DetermineChangeKind(ResolvedLocalFile? localFile, RemoteFileEntry? remoteFile, string? localHash, long? localSize)
     {
         if (localFile is not null && remoteFile is not null)
         {
-            if (!string.IsNullOrWhiteSpace(remoteFile.Hash) && string.Equals(localHash, remoteFile.Hash, StringComparison.OrdinalIgnoreCase))
+            // Preferred signal: a content hash supplied by the storage provider.
+            if (!string.IsNullOrWhiteSpace(remoteFile.Hash))
             {
-                return SyncChangeKind.Unchanged;
+                return string.Equals(localHash, remoteFile.Hash, StringComparison.OrdinalIgnoreCase)
+                    ? SyncChangeKind.Unchanged
+                    : SyncChangeKind.Conflict;
             }
 
-            if (remoteFile.Hash is null && remoteFile.LastModifiedUtc is not null)
+            // No remote hash (e.g. WebDAV exposes only size + last-modified). The remote
+            // "last modified" is the upload time, not the original file's mtime, so comparing it
+            // against the local mtime cannot decide which side is newer — doing so flagged every
+            // already-synced file as a conflict (and the library then rendered it as "remote
+            // newer"). Fall back to size: an equal size is treated as in-sync, a differing size is
+            // a genuine divergence.
+            if (localSize is not null && localSize.Value == remoteFile.Size)
             {
-                var localTime = localFile.LastModifiedUtc;
-                var remoteTime = remoteFile.LastModifiedUtc.Value.UtcDateTime;
-                if (Math.Abs((localTime - remoteTime).TotalSeconds) < 1)
-                {
-                    return SyncChangeKind.Unchanged;
-                }
+                return SyncChangeKind.Unchanged;
             }
 
             return SyncChangeKind.Conflict;
@@ -867,6 +905,12 @@ public sealed class SyncEngine : ISyncEngine
             {
             }
         }
+    }
+
+    private void ReportProgress(SyncJob job, SyncProgress progress)
+    {
+        _syncQueue.ReportProgress(job, progress);
+        job.Progress?.Report(progress);
     }
 
     private Task WriteTerminalRecordAsync(

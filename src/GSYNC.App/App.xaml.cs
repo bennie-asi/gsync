@@ -1,3 +1,4 @@
+using GSYNC.App.Infrastructure.Localization;
 using GSYNC.App.Infrastructure.Logging;
 using GSYNC.Core.Abstractions.Data;
 using GSYNC.Core.Abstractions.Manifest;
@@ -20,7 +21,12 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
-        RequestedTheme = ApplicationTheme.Dark;
+
+        var startupSettings = UiSettingsStore.LoadStartupSettings(new GSYNC.Data.Services.AppPathService().GetUiSettingsPath());
+        RequestedTheme = startupSettings.ThemeMode == AppUiSettings.ThemeLight
+            ? ApplicationTheme.Light
+            : ApplicationTheme.Dark;
+        ApplyStartupDensity(startupSettings.DensityMode);
         UnhandledException += OnUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnCurrentDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -41,7 +47,8 @@ public partial class App : Application
     {
         var appPaths = new GSYNC.Data.Services.AppPathService();
         EnsureAppDirectories(appPaths);
-        Log.Logger = SerilogBootstrap.CreateLogger(appPaths.GetLogsDirectory());
+        var startupSettings = UiSettingsStore.LoadStartupSettings(appPaths.GetUiSettingsPath());
+        Log.Logger = SerilogBootstrap.CreateLogger(appPaths.GetLogsDirectory(), startupSettings.LogLevel);
         Log.Information("GSYNC launch requested.");
 
         try
@@ -85,7 +92,16 @@ public partial class App : Application
             StartBackgroundServices(_services);
 
             Log.Information("Refreshing community manifest if configured.");
-            _ = RefreshCommunityManifestIfConfiguredAsync(_services, _lifetimeCts.Token);
+            var settingsStore = _services.GetRequiredService<UiSettingsStore>();
+            var appSettings = settingsStore.Load();
+            if (appSettings.RefreshManifestOnStartup)
+            {
+                _ = RefreshCommunityManifestIfConfiguredAsync(_services, _lifetimeCts.Token);
+            }
+            else
+            {
+                Log.Information("Startup settings disabled remote manifest refresh.");
+            }
             Log.Information("GSYNC deferred startup completed successfully.");
         }
         catch (Exception exception)
@@ -104,6 +120,20 @@ public partial class App : Application
                 Log.Error(reportException, "Failed to report deferred startup degradation to the shell view model.");
             }
         }
+    }
+
+    private void ApplyStartupDensity(string densityMode)
+    {
+        if (!string.Equals(densityMode, AppUiSettings.DensityComfortable, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Resources["AppPagePadding"] = new Thickness(28, 28, 28, 28);
+        Resources["AppInlinePadding"] = new Thickness(12, 10, 12, 10);
+        Resources["AppPanelPadding"] = new Thickness(18, 18, 18, 18);
+        Resources["AppDenseRowHeight"] = 42d;
+        Resources["AppSectionSpacing"] = 18d;
     }
 
     private static void EnsureAppDirectories(IAppPathService appPaths)

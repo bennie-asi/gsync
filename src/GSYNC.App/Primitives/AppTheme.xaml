@@ -85,7 +85,8 @@
 
     <Style TargetType="TextBox">
         <Setter Property="MinHeight" Value="34" />
-        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Background" Value="{StaticResource AppInputBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource AppDividerBrush}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -95,7 +96,8 @@
 
     <Style TargetType="PasswordBox">
         <Setter Property="MinHeight" Value="34" />
-        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Background" Value="{StaticResource AppInputBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource AppDividerBrush}" />
         <Setter Property="BorderThickness" Value="1" />

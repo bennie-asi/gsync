@@ -18,6 +18,9 @@ public sealed class YamlUserDefinitionStore : IUserDefinitionStore
         _logger = logger;
         _deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .WithTypeMapping<IReadOnlyList<ContentItem>, List<ContentItem>>()
+            .WithTypeMapping<IReadOnlyList<string>, List<string>>()
+            .WithTypeMapping<IReadOnlyDictionary<string, string>, Dictionary<string, string>>()
             .IgnoreUnmatchedProperties()
             .Build();
     }

@@ -51,10 +51,10 @@ public partial class GameDetailsViewModel : ObservableObject
     private string _overallStatusText = string.Empty;
 
     [ObservableProperty]
-    private string _overallStatusVariant = "pending";
+    private string _overallStatusVariant = string.Empty;
 
     [ObservableProperty]
-    private string _totalSizeText = "--";
+    private string _totalSizeText = string.Empty;
 
     [ObservableProperty]
     private string _tableFooterText = string.Empty;
@@ -81,7 +81,7 @@ public partial class GameDetailsViewModel : ObservableObject
     private bool _isBusy;
 
     [ObservableProperty]
-    private bool _isInspectorVisible = true;
+    private bool _isInspectorVisible;
 
     public GameDetailsViewModel(
         ILocalizationService localizationService,
@@ -106,7 +106,7 @@ public partial class GameDetailsViewModel : ObservableObject
         _pathResolver = pathResolver;
         _systemVariableProvider = systemVariableProvider;
 
-        _title = Pick("游戏详情", "Game Details");
+        Title = Pick("游戏详情", "Game Details");
         PageSubtitle = Pick("精炼后的详情工作区，固定展示游戏上下文、内容项、历史与右侧检查面板。", "Refined detail workspace with persistent game context, content items, history, and a right-hand inspection pane.");
         PrimaryActionLabel = Pick("快速操作", "Quick Actions");
         UploadText = Pick("上传", "Upload");
@@ -116,7 +116,7 @@ public partial class GameDetailsViewModel : ObservableObject
         TableSectionTitle = Pick("内容项", "Content Items");
         TableSectionSubtitle = Pick("存档、配置与附加内容保持在高密度表格中，右侧检查区负责属性与路径验证。", "Saves, config, and auxiliary content stay in a dense table while the right pane handles inspection and path validation.");
         AddItemText = Pick("添加条目", "Add Item");
-        _propertiesTitle = Pick("检查器", "Inspector");
+        PropertiesTitle = Pick("检查器", "Inspector");
         PropertiesSubtitle = Pick("所选内容项的路径模板、策略与可移植性检查结果。", "Path template, policy, and portability checks for the selected content item.");
         OpenFolderText = Pick("打开目录", "Open Folder");
         TestPathText = Pick("测试路径", "Test Path");
@@ -137,6 +137,19 @@ public partial class GameDetailsViewModel : ObservableObject
         TableSubtitle = string.Empty;
         _overallStatusText = Pick("未同步", "Not synced");
         _activeTarget = Pick("未绑定", "Unbound");
+
+        AppIdText = string.Empty;
+        StudioText = string.Empty;
+        LastPlayedText = string.Empty;
+        OverallStatusVariant = "pending";
+        TotalSizeText = "--";
+        TableFooterText = string.Empty;
+        OverviewMetrics = [];
+        ContentItems = [];
+        SelectedItemProperties = [];
+        RecentActivityItems = [];
+        Snapshots = [];
+        IsInspectorVisible = true;
     }
 
     public string PageSubtitle { get; }
@@ -219,13 +232,14 @@ public partial class GameDetailsViewModel : ObservableObject
 
             BuildContentItems();
 
-            RecentActivityItems = records
-                .Take(8)
-                .Select(record => new UiActivityItem(
+            var activityRecords = records.Take(8).ToArray();
+            RecentActivityItems = activityRecords
+                .Select((record, index) => new UiActivityItem(
                     $"{UiFormat.DirectionText(record.Direction, _isChinese)} · {UiFormat.StatusText(record.Status, _isChinese)}",
                     record.ErrorMessage ?? record.Summary ?? "--",
                     UiFormat.RelativeTime(record.CompletedAtUtc ?? record.StartedAtUtc, _isChinese),
-                    record.Status == SyncJobStatus.Failed))
+                    UiFormat.StatusVariant(record.Status),
+                    index == activityRecords.Length - 1))
                 .ToArray();
 
             var snapshots = await _syncHistoryRepository.ListSnapshotsAsync(instanceId, cancellationToken);
@@ -234,8 +248,9 @@ public partial class GameDetailsViewModel : ObservableObject
                     $"SN-{snapshot.Id.ToString("N")[..8]}",
                     index == 0 ? Pick("最新", "Latest") : string.Empty,
                     UiFormat.TimeOfRecord(snapshot.CreatedAtUtc, _isChinese),
-                    Environment.MachineName,
-                    UiFormat.Bytes(snapshot.TotalBytes))
+                    snapshot.FileCount,
+                    UiFormat.Bytes(snapshot.TotalBytes),
+                    _isChinese)
                 {
                     SnapshotId = snapshot.Id,
                 })
@@ -365,6 +380,7 @@ public partial class GameDetailsViewModel : ObservableObject
             {
                 GameInstanceId = _instance.Id,
                 Direction = direction,
+                DisplayName = _instance.DisplayName,
             }, cancellationToken);
             return null;
         }
@@ -389,6 +405,7 @@ public partial class GameDetailsViewModel : ObservableObject
             {
                 GameInstanceId = _instance.Id,
                 Direction = SyncDirection.Compare,
+                DisplayName = _instance.DisplayName,
             }, cancellationToken);
 
             return (new ConflictNavigationContext(_instance.Id, _instance.DisplayName, comparison), null);

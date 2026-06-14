@@ -62,26 +62,28 @@ public sealed class SyncEngineExecutionTests
     }
 
     [Fact]
-    public async Task CompareJob_WritesCompareRecord()
+    public async Task DownloadJob_WithAutoSnapshotDisabled_DoesNotCreateSnapshot_ButStillWritesRecord()
     {
-        var fixture = new SyncEngineFixture();
-        var localFile = Path.Combine(fixture.RootPath, "game-a", "save1.sav");
-        Directory.CreateDirectory(Path.GetDirectoryName(localFile)!);
-        await File.WriteAllTextAsync(localFile, "same-data");
-        fixture.StorageProvider.RemoteFiles["games/game-a/default/save1.sav"] = "same-data"u8.ToArray();
+        var fixture = new SyncEngineFixture(autoSnapshotBeforeDownloadEnabled: false);
+        var existingLocalFile = Path.Combine(fixture.RootPath, "game-a", "save1.sav");
+        Directory.CreateDirectory(Path.GetDirectoryName(existingLocalFile)!);
+        await File.WriteAllTextAsync(existingLocalFile, "old-save");
+        fixture.StorageProvider.RemoteFiles["games/game-a/default/save1.sav"] = "new-save"u8.ToArray();
 
         var job = new SyncJob
         {
             GameInstanceId = fixture.GameInstance.Id,
-            Direction = SyncDirection.Compare,
+            Direction = SyncDirection.Download,
         };
 
         using var cts = new CancellationTokenSource();
         await RunQueuedJobAsync(fixture, job, cts);
 
+        var downloaded = await File.ReadAllTextAsync(existingLocalFile);
+        Assert.Equal("new-save", downloaded);
+        Assert.Empty(fixture.SyncHistoryRepository.Snapshots);
         Assert.Single(fixture.SyncHistoryRepository.Records);
-        Assert.Equal(SyncDirection.Compare, fixture.SyncHistoryRepository.Records[0].Direction);
-        Assert.Equal(SyncJobStatus.Completed, fixture.SyncHistoryRepository.Records[0].Status);
+        Assert.Null(fixture.SyncHistoryRepository.Records[0].SnapshotId);
     }
 
     [Fact]
@@ -120,6 +122,72 @@ public sealed class SyncEngineExecutionTests
         Assert.Equal(1, fixture.SyncHistoryRepository.Records[0].ProcessedFiles);
     }
 
+    [Fact]
+    public async Task CancelActiveJob_StopsDownload_AndWritesCancelledRecord()
+    {
+        var fixture = new SyncEngineFixture(delayDownloads: true);
+        var existingLocalFile = Path.Combine(fixture.RootPath, "game-a", "save1.sav");
+        Directory.CreateDirectory(Path.GetDirectoryName(existingLocalFile)!);
+        await File.WriteAllTextAsync(existingLocalFile, "old-save");
+        fixture.StorageProvider.RemoteFiles["games/game-a/default/save1.sav"] = "new-save"u8.ToArray();
+        fixture.StorageProvider.RemoteFiles["games/game-a/default/save2.sav"] = "new-save-2"u8.ToArray();
+
+        var job = new SyncJob
+        {
+            GameInstanceId = fixture.GameInstance.Id,
+            Direction = SyncDirection.Download,
+        };
+
+        using var cts = new CancellationTokenSource();
+        var worker = fixture.RunQueueAsync(cts.Token);
+        await fixture.Queue.QueueAsync(job, CancellationToken.None);
+
+        await fixture.WaitForActiveJobAsync();
+        Assert.True(fixture.Queue.CancelActive(job.Id));
+
+        await fixture.WaitForRecordsAsync(1);
+        var record = Assert.Single(fixture.SyncHistoryRepository.Records);
+        Assert.Equal(SyncDirection.Download, record.Direction);
+        Assert.Equal(SyncJobStatus.Cancelled, record.Status);
+
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await worker);
+    }
+
+    [Fact]
+    public async Task RemovedJob_IsSkipped_AndWritesNoRecord()
+    {
+        var fixture = new SyncEngineFixture();
+        var localFile = Path.Combine(fixture.RootPath, "game-a", "save1.sav");
+        Directory.CreateDirectory(Path.GetDirectoryName(localFile)!);
+        await File.WriteAllTextAsync(localFile, "save-data");
+
+        var removed = new SyncJob
+        {
+            GameInstanceId = fixture.GameInstance.Id,
+            Direction = SyncDirection.Upload,
+        };
+        var kept = new SyncJob
+        {
+            GameInstanceId = fixture.GameInstance.Id,
+            Direction = SyncDirection.Compare,
+        };
+
+        // Remove the first job before the worker starts so it can never run.
+        await fixture.Queue.QueueAsync(removed, CancellationToken.None);
+        await fixture.Queue.QueueAsync(kept, CancellationToken.None);
+        Assert.True(fixture.Queue.Remove(removed.Id));
+
+        using var cts = new CancellationTokenSource();
+        var worker = fixture.RunQueueAsync(cts.Token);
+        await fixture.WaitForRecordsAsync(1);
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await worker);
+
+        var record = Assert.Single(fixture.SyncHistoryRepository.Records);
+        Assert.Equal(SyncDirection.Compare, record.Direction);
+    }
+
     private static async Task RunQueuedJobAsync(SyncEngineFixture fixture, SyncJob job, CancellationTokenSource queueCts)
     {
         var worker = fixture.RunQueueAsync(queueCts.Token);
@@ -131,7 +199,7 @@ public sealed class SyncEngineExecutionTests
 
     private sealed class SyncEngineFixture
     {
-        public SyncEngineFixture(bool delayDownloads = false)
+        public SyncEngineFixture(bool delayDownloads = false, bool autoSnapshotBeforeDownloadEnabled = true)
         {
             RootPath = Path.Combine(Path.GetTempPath(), "gsync-sync-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(RootPath);
@@ -165,7 +233,8 @@ public sealed class SyncEngineExecutionTests
                 new FakeAppPathService(RootPath),
                 new PathResolver(),
                 new SystemVariableProvider(),
-                NullLogger<SyncEngine>.Instance);
+                NullLogger<SyncEngine>.Instance,
+                () => autoSnapshotBeforeDownloadEnabled);
         }
 
         public string RootPath { get; }
@@ -197,6 +266,21 @@ public sealed class SyncEngineExecutionTests
             }
 
             throw new TimeoutException("Sync record was not written in time.");
+        }
+
+        public async Task WaitForActiveJobAsync()
+        {
+            for (var i = 0; i < 100; i++)
+            {
+                if (Queue.ActiveJob is not null)
+                {
+                    return;
+                }
+
+                await Task.Delay(20);
+            }
+
+            throw new TimeoutException("No active job started in time.");
         }
     }
 

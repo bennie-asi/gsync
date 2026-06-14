@@ -34,12 +34,14 @@ public sealed partial class HistoryPage : Page
                 new ResizableTableColumn { Key = "direction", Header = _viewModel.IsChinese ? "方向" : "Direction", BindingPath = nameof(HistoryRow.Direction), Width = 110, MinWidth = 96 },
                 new ResizableTableColumn { Key = "result", Header = _viewModel.IsChinese ? "结果" : "Result", BindingPath = nameof(HistoryRow.Result), Width = 110, MinWidth = 90, CellTemplate = (DataTemplate)Resources["HistoryResultTemplate"] },
                 new ResizableTableColumn { Key = "target", Header = _viewModel.IsChinese ? "目标" : "Target", BindingPath = nameof(HistoryRow.Target), Width = 180, MinWidth = 130, IsFillColumn = true },
-                new ResizableTableColumn { Key = "device", Header = _viewModel.IsChinese ? "设备" : "Device", BindingPath = nameof(HistoryRow.Device), Width = 140, MinWidth = 120 },
-                new ResizableTableColumn { Key = "size", Header = _viewModel.IsChinese ? "大小" : "Size", BindingPath = nameof(HistoryRow.Size), Width = 84, MinWidth = 72 },
+                new ResizableTableColumn { Key = "source", Header = _viewModel.IsChinese ? "来源" : "Source", BindingPath = nameof(HistoryRow.Source), Width = 140, MinWidth = 120 },
+                new ResizableTableColumn { Key = "files", Header = _viewModel.IsChinese ? "文件" : "Files", BindingPath = nameof(HistoryRow.Files), Width = 92, MinWidth = 76 },
             ];
 
             HistoryTable.RowInvoked -= HistoryTable_RowInvoked;
             HistoryTable.RowInvoked += HistoryTable_RowInvoked;
+            HistoryTable.RowDoubleInvoked -= HistoryTable_RowDoubleInvoked;
+            HistoryTable.RowDoubleInvoked += HistoryTable_RowDoubleInvoked;
 
             MainContentRoot.Visibility = Visibility.Visible;
             InitializationErrorPanel.Visibility = Visibility.Collapsed;
@@ -77,6 +79,102 @@ public sealed partial class HistoryPage : Page
         }
     }
 
+    private async void HistoryTable_RowDoubleInvoked(object? sender, object item)
+    {
+        if (_viewModel is null || item is not HistoryRow row)
+        {
+            return;
+        }
+
+        await _viewModel.SelectRecordAsync(row);
+        await ShowRecordDetailAsync(row);
+    }
+
+    private async Task ShowRecordDetailAsync(HistoryRow row)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        var isChinese = _viewModel.IsChinese;
+        var files = await _viewModel.GetRecordSnapshotFilesAsync(row);
+
+        var panel = new StackPanel { Spacing = 14, MinWidth = 480 };
+
+        // Record property rows already prepared by SelectRecordAsync.
+        var detailsHeader = new TextBlock
+        {
+            Text = isChinese ? "记录详情" : "Record Details",
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        };
+        var detailsList = new StackPanel { Spacing = 6 };
+        foreach (var detail in _viewModel.RecordDetails)
+        {
+            detailsList.Children.Add(BuildPropertyRow(detail.Label, detail.Value));
+        }
+
+        panel.Children.Add(detailsHeader);
+        panel.Children.Add(detailsList);
+
+        var filesHeader = new TextBlock
+        {
+            Text = isChinese ? $"同步文件（{files.Count}）" : $"Synced Files ({files.Count})",
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        };
+        panel.Children.Add(filesHeader);
+
+        if (files.Count == 0)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = isChinese
+                    ? "该记录未保留逐文件清单（仅在生成快照的操作中可用）。"
+                    : "No per-file list was retained for this record (available only for operations that captured a snapshot).",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.8,
+            });
+        }
+        else
+        {
+            var filesPanel = new StackPanel { Spacing = 4 };
+            foreach (var file in files)
+            {
+                filesPanel.Children.Add(BuildPropertyRow(file.Label, file.Value));
+            }
+
+            panel.Children.Add(new ScrollViewer
+            {
+                Content = filesPanel,
+                MaxHeight = 260,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            });
+        }
+
+        var dialog = DialogStyler.Apply(new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"{row.Game} · {row.Time}",
+            Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
+            CloseButtonText = isChinese ? "关闭" : "Close",
+        });
+        await dialog.ShowAsync();
+    }
+
+    private static Grid BuildPropertyRow(string label, string value)
+    {
+        var grid = new Grid { ColumnSpacing = 12 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var labelText = new TextBlock { Text = label, Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
+        var valueText = new TextBlock { Text = value, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
+        Grid.SetColumn(valueText, 1);
+        grid.Children.Add(labelText);
+        grid.Children.Add(valueText);
+        return grid;
+    }
+
     private void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         _ = _viewModel?.LoadAsync();
@@ -108,7 +206,7 @@ public sealed partial class HistoryPage : Page
 
     private async Task ConfirmAndRestoreAsync(SnapshotRow snapshotRow)
     {
-        if (_viewModel is null)
+        if (_viewModel is null || _viewModel.IsRestoreInProgress)
         {
             return;
         }

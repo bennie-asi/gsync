@@ -26,7 +26,7 @@
                             VerticalAlignment="Top" />
 
                         <Grid Grid.Column="1" Width="16">
-                            <Ellipse Width="7" Height="7" Fill="{StaticResource AppPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,5,0,0" />
+                            <Ellipse Width="7" Height="7" Fill="{Binding StatusVariant, Converter={StaticResource BadgeVariantToBrushConverter}}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,5,0,0" />
                             <Border Width="1" Background="{StaticResource AppDividerBrush}" Opacity="0.5" HorizontalAlignment="Center" Margin="0,15,0,0" Visibility="{Binding IsTerminal, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}" />
                         </Grid>
 

@@ -205,7 +205,9 @@ public sealed partial class SyncTargetsPage : Page
             return null;
         }
 
-        var isChinese = _viewModel.IsChinese;
+        var vm = _viewModel;
+        var isChinese = vm.IsChinese;
+        var secondaryStyle = (Style)Application.Current.Resources["SecondaryToolbarButtonStyle"];
 
         var nameBox = new TextBox
         {
@@ -245,7 +247,7 @@ public sealed partial class SyncTargetsPage : Page
         var browseRootButton = new Button
         {
             Content = isChinese ? "选择文件夹" : "Browse Folder",
-            Style = (Style)Application.Current.Resources["SecondaryToolbarButtonStyle"],
+            Style = secondaryStyle,
         };
         browseRootButton.Click += async (_, _) =>
         {
@@ -256,23 +258,126 @@ public sealed partial class SyncTargetsPage : Page
             }
         };
 
+        // Local-folder fields live in their own panel so the local picker is never shown for a
+        // WebDAV target (previously it stayed visible and only picked a path on this machine).
+        var localPanel = new StackPanel { Spacing = 10 };
+        localPanel.Children.Add(rootPathBox);
+        localPanel.Children.Add(browseRootButton);
+
+        // Remote folder browser for WebDAV: connects with the entered URL + credentials and lists
+        // remote collections so the user can drill into and pick a folder on the server itself.
+        var currentRemotePath = string.Empty;
+        var remotePathText = new TextBlock
+        {
+            Text = "/",
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var remoteUpButton = new Button { Content = isChinese ? "上一级" : "Up", Style = secondaryStyle, IsEnabled = false };
+        var remoteList = new ListView
+        {
+            MaxHeight = 200,
+            SelectionMode = ListViewSelectionMode.Single,
+            IsItemClickEnabled = true,
+        };
+        var remoteStatus = new TextBlock { Visibility = Visibility.Collapsed, TextWrapping = TextWrapping.Wrap, Opacity = 0.8 };
+        var useFolderButton = new Button { Content = isChinese ? "使用此目录" : "Use This Folder", Style = secondaryStyle };
+        var browseRemoteButton = new Button { Content = isChinese ? "浏览远程目录…" : "Browse Remote…", Style = secondaryStyle };
+
+        var browserHeader = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        browserHeader.Children.Add(remoteUpButton);
+        browserHeader.Children.Add(remotePathText);
+        var browserPanel = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
+        browserPanel.Children.Add(browserHeader);
+        browserPanel.Children.Add(remoteList);
+        browserPanel.Children.Add(remoteStatus);
+        browserPanel.Children.Add(useFolderButton);
+
+        async Task LoadRemoteFoldersAsync()
+        {
+            remoteStatus.Visibility = Visibility.Visible;
+            remoteStatus.Text = isChinese ? "正在加载…" : "Loading…";
+            remoteList.Items.Clear();
+            remoteUpButton.IsEnabled = false;
+            try
+            {
+                var folders = await vm.BrowseWebDavFoldersAsync(
+                    urlBox.Text.Trim(), usernameBox.Text.Trim(), passwordBox.Password, currentRemotePath);
+                remotePathText.Text = "/" + currentRemotePath;
+                remoteUpButton.IsEnabled = currentRemotePath.Length > 0;
+                foreach (var folder in folders)
+                {
+                    remoteList.Items.Add(folder);
+                }
+
+                if (folders.Count == 0)
+                {
+                    remoteStatus.Text = isChinese ? "（此目录下没有子文件夹）" : "(No subfolders here)";
+                }
+                else
+                {
+                    remoteStatus.Visibility = Visibility.Collapsed;
+                }
+            }
+            catch (Exception exception)
+            {
+                remoteStatus.Text = (isChinese ? "加载失败：" : "Failed: ") + exception.Message;
+            }
+        }
+
+        browseRemoteButton.Click += async (_, _) =>
+        {
+            browserPanel.Visibility = Visibility.Visible;
+            if (string.IsNullOrWhiteSpace(urlBox.Text))
+            {
+                remoteStatus.Visibility = Visibility.Visible;
+                remoteStatus.Text = isChinese ? "请先填写端点 URL。" : "Enter the endpoint URL first.";
+                return;
+            }
+
+            currentRemotePath = string.Empty;
+            await LoadRemoteFoldersAsync();
+        };
+        remoteList.ItemClick += async (_, args) =>
+        {
+            if (args.ClickedItem is string folder)
+            {
+                currentRemotePath = string.IsNullOrEmpty(currentRemotePath) ? folder : currentRemotePath + "/" + folder;
+                await LoadRemoteFoldersAsync();
+            }
+        };
+        remoteUpButton.Click += async (_, _) =>
+        {
+            var trimmed = currentRemotePath.TrimEnd('/');
+            var slash = trimmed.LastIndexOf('/');
+            currentRemotePath = slash <= 0 ? string.Empty : trimmed[..slash];
+            await LoadRemoteFoldersAsync();
+        };
+        useFolderButton.Click += (_, _) =>
+        {
+            var trimmedBase = urlBox.Text.Trim().TrimEnd('/');
+            urlBox.Text = string.IsNullOrEmpty(currentRemotePath) ? trimmedBase : trimmedBase + "/" + currentRemotePath;
+            browserPanel.Visibility = Visibility.Collapsed;
+        };
+
         var webDavPanel = new StackPanel { Spacing = 10 };
         webDavPanel.Children.Add(urlBox);
         webDavPanel.Children.Add(usernameBox);
         webDavPanel.Children.Add(passwordBox);
+        webDavPanel.Children.Add(browseRemoteButton);
+        webDavPanel.Children.Add(browserPanel);
 
         var panel = new StackPanel { Spacing = 12, MinWidth = 380 };
         panel.Children.Add(nameBox);
         panel.Children.Add(typeBox);
         panel.Children.Add(webDavPanel);
-        panel.Children.Add(rootPathBox);
-        panel.Children.Add(browseRootButton);
+        panel.Children.Add(localPanel);
 
         void UpdateFieldVisibility()
         {
             var isWebDav = typeBox.SelectedIndex == 0;
             webDavPanel.Visibility = isWebDav ? Visibility.Visible : Visibility.Collapsed;
-            rootPathBox.Visibility = isWebDav ? Visibility.Collapsed : Visibility.Visible;
+            localPanel.Visibility = isWebDav ? Visibility.Collapsed : Visibility.Visible;
         }
 
         typeBox.SelectionChanged += (_, _) => UpdateFieldVisibility();
