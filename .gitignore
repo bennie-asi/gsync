@@ -1,7 +1,9 @@
 .claude
 .codex
 .gemini
-.github
+.github/*
+!.github/workflows/
+!.github/workflows/**
 
 **/bin/**
 **/obj/**

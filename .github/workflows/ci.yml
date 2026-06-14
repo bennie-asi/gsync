@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - '**'
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & test (win-x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Build, test and package
+        shell: pwsh
+        run: scripts/build.ps1 -Version "0.0.0-ci.${{ github.run_number }}" -OutputPath publish
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: publish/test-results/**/*.trx
+          if-no-files-found: ignore
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GSYNC-ci-${{ github.run_number }}-win-x64
+          path: publish/GSYNC-*-win-x64.zip
+          if-no-files-found: error
+          retention-days: 7

@@ -35,8 +35,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `dotnet test tests/GSYNC.Core.Tests/GSYNC.Core.Tests.csproj --filter "FullyQualifiedName~UploadJob_UploadsFiles_AndWritesSyncRecord"`
 
 ### Lint / formatting
-- There is currently **no separate repo-defined lint or formatting command** checked in (no `.editorconfig`, no dedicated formatter script, no CI workflow in `.github/workflows`).
+- There is currently **no separate repo-defined lint or formatting command** checked in (no `.editorconfig`, no dedicated formatter script).
 - Treat `dotnet build` plus the relevant `dotnet test` commands as the verification baseline unless a change adds stricter tooling.
+
+### CI / release
+- GitHub Actions workflows live in `.github/workflows/`:
+  - `ci.yml` runs on every branch push and PRs to `master`; it builds, tests, and packages via `scripts/build.ps1` on `windows-latest`.
+  - `release.yml` runs on semver tag pushes (`1.2.3` / `v1.2.3`) or manual `workflow_dispatch` with a `tag` input, then publishes a GitHub Release with the `win-x64` zip.
+- `scripts/build.ps1` is the single source of truth for restore → test → publish → zip; CI and release both call it. Run it locally with `scripts/build.ps1 -Version 0.0.0-local`.
 
 ### OpenSpec workflow
 - List active changes:
