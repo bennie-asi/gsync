@@ -20,6 +20,7 @@ public partial class LibraryPageViewModel : ObservableObject
     private readonly ISyncEngine _syncEngine;
     private readonly ISyncQueue _syncQueue;
     private readonly SyncTargetStore _syncTargetStore;
+    private readonly UiSettingsStore _uiSettingsStore;
 
     private IReadOnlyList<LibraryGameRow> _allGames = [];
     private bool _sortByNameAscending = true;
@@ -57,7 +58,8 @@ public partial class LibraryPageViewModel : ObservableObject
         IManifestService manifestService,
         ISyncEngine syncEngine,
         ISyncQueue syncQueue,
-        SyncTargetStore syncTargetStore)
+        SyncTargetStore syncTargetStore,
+        UiSettingsStore uiSettingsStore)
     {
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
         _gameInstanceRepository = gameInstanceRepository;
@@ -67,6 +69,7 @@ public partial class LibraryPageViewModel : ObservableObject
         _syncEngine = syncEngine;
         _syncQueue = syncQueue;
         _syncTargetStore = syncTargetStore;
+        _uiSettingsStore = uiSettingsStore;
 
         PageTitle = Pick("游戏库", "Game Library");
         PageSubtitle = Pick("密集型多游戏总览，集中展示同步状态、近期活动与快捷恢复操作。", "Dense multi-game overview with explicit sync state, recent activity, and quick recovery actions.");
@@ -199,7 +202,8 @@ public partial class LibraryPageViewModel : ObservableObject
                 new(Pick("主要目标", "Primary target"), defaultTarget?.Name ?? Pick("未配置", "Not configured")),
                 new(Pick("最近同步", "Last sync"), UiFormat.RelativeTime(lastSync?.CompletedAtUtc ?? lastSync?.StartedAtUtc, _isChinese)),
                 new(Pick("冲突策略", "Conflict policy"), Pick("覆盖前提示", "Prompt before overwrite")),
-                new(Pick("下载前快照", "Snapshot before download"), Pick("已启用", "Enabled")),
+                new(Pick("下载前快照", "Snapshot before download"), _uiSettingsStore.Load().AutoSnapshotBeforeDownload
+                    ? Pick("已启用", "Enabled") : Pick("已停用", "Disabled")),
             ];
 
             var activityRecords = recentRecords.Take(12).ToArray();
@@ -433,6 +437,7 @@ public partial class LibraryPageViewModel : ObservableObject
                 {
                     GameInstanceId = instance.Id,
                     Direction = SyncDirection.Upload,
+                    ProtectRemoteChanges = true,
                     DisplayName = instance.DisplayName,
                 }, cancellationToken);
             }
@@ -534,9 +539,12 @@ public partial class LibraryPageViewModel : ObservableObject
         var action = (record.Direction, record.Status) switch
         {
             (_, SyncJobStatus.Failed) => Pick("失败", "failed"),
+            (_, SyncJobStatus.Cancelled) => Pick("已取消", "cancelled"),
+            (SyncDirection.Download, _) when UiFormat.IsSnapshotRestore(record) => Pick("已恢复快照", "restored snapshot"),
             (SyncDirection.Upload, _) => Pick("已上传", "uploaded"),
             (SyncDirection.Download, _) => Pick("已下载", "downloaded"),
             (SyncDirection.Compare, _) => Pick("已比较", "compared"),
+            (SyncDirection.ResolveConflict, _) => Pick("已解决冲突", "resolved conflicts"),
             _ => Pick("已同步", "synced"),
         };
 

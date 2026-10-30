@@ -2,6 +2,7 @@ using GSYNC.App.Infrastructure.Localization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using System.Reflection;
 
 namespace GSYNC.App.Primitives;
 
@@ -17,7 +18,7 @@ public sealed partial class AppNavRail : UserControl
         nameof(AppVersion),
         typeof(string),
         typeof(AppNavRail),
-        new PropertyMetadata("v1.0.2", OnAppVersionChanged));
+        new PropertyMetadata(GetApplicationVersion(), OnAppVersionChanged));
 
     public event EventHandler<NavigationRequestedEventArgs>? NavigationRequested;
 
@@ -29,6 +30,14 @@ public sealed partial class AppNavRail : UserControl
             ApplyAppVersion();
             ApplySelectionState();
         };
+    }
+
+    private static string GetApplicationVersion()
+    {
+        var assembly = typeof(AppNavRail).Assembly;
+        var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString() ?? "unknown";
+        return "v" + version.Split('+', 2)[0];
     }
 
     public string SelectedKey

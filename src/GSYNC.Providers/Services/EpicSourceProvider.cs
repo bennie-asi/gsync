@@ -31,24 +31,32 @@ public sealed class EpicSourceProvider : ISourceProvider
         foreach (var manifestFile in Directory.EnumerateFiles(manifestsDirectory, "*.item", SearchOption.TopDirectoryOnly))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await using var stream = File.OpenRead(manifestFile);
-            var manifest = await JsonSerializer.DeserializeAsync<EpicItemManifest>(stream, cancellationToken: cancellationToken);
-            if (manifest is null || string.IsNullOrWhiteSpace(manifest.DisplayName))
+            EpicItemManifest? manifest;
+            try
+            {
+                await using var stream = File.OpenRead(manifestFile);
+                manifest = await JsonSerializer.DeserializeAsync<EpicItemManifest>(stream, cancellationToken: cancellationToken);
+            }
+            catch (JsonException) { continue; }
+            if (manifest is null || string.IsNullOrWhiteSpace(manifest.DisplayName) || string.IsNullOrWhiteSpace(manifest.InstallLocation) || !Directory.Exists(manifest.InstallLocation))
             {
                 continue;
             }
 
+            var platformId = !string.IsNullOrWhiteSpace(manifest.CatalogItemId) ? manifest.CatalogItemId.Trim()
+                : !string.IsNullOrWhiteSpace(manifest.AppName) ? manifest.AppName.Trim()
+                : null;
             results.Add(new DiscoveredGame
             {
-                GameId = $"epic-{manifest.CatalogItemId ?? manifest.AppName ?? manifest.DisplayName}".ToLowerInvariant(),
+                GameId = $"epic-{platformId ?? manifest.DisplayName}".ToLowerInvariant(),
                 DisplayName = manifest.DisplayName,
                 SourceProviderId = ProviderId,
                 InstallDirectory = manifest.InstallLocation,
-                PlatformGameId = manifest.CatalogItemId ?? manifest.AppName,
+                PlatformGameId = platformId,
                 Variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["GAME_INSTALL_DIR"] = manifest.InstallLocation ?? string.Empty,
-                    ["EPIC_APP_ID"] = manifest.CatalogItemId ?? manifest.AppName ?? string.Empty,
+                    ["EPIC_APP_ID"] = platformId ?? string.Empty,
                 },
             });
         }
@@ -62,13 +70,17 @@ public sealed class EpicSourceProvider : ISourceProvider
         if (!string.IsNullOrWhiteSpace(instance.InstallDirectory))
         {
             variables["GAME_INSTALL_DIR"] = instance.InstallDirectory;
+            variables["GAME_DIR_NAME"] = Path.GetFileName(instance.InstallDirectory.TrimEnd('/', '\\'));
+            variables["STORE_ROOT"] = Path.GetDirectoryName(instance.InstallDirectory)!;
         }
 
         if (!string.IsNullOrWhiteSpace(instance.PlatformInstanceId))
         {
             variables["EPIC_APP_ID"] = instance.PlatformInstanceId;
+            variables["STORE_GAME_ID"] = instance.PlatformInstanceId;
         }
 
+        variables["STORE_USER_ID"] = "*";
         return variables;
     }
 

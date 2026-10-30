@@ -1,6 +1,9 @@
 using System.Threading.Channels;
+using System.Runtime.CompilerServices;
 using GSYNC.Core.Abstractions.Sync;
 using GSYNC.Core.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GSYNC.Core.Services.Sync;
 
@@ -12,6 +15,10 @@ public sealed class SyncQueue : ISyncQueue
     private readonly HashSet<Guid> _removed = new();
     private JobEntry? _active;
     private long _lastProgressRaiseTicks;
+    private bool _readerActive;
+    private readonly ILogger<SyncQueue> _logger;
+
+    public SyncQueue(ILogger<SyncQueue>? logger = null) => _logger = logger ?? NullLogger<SyncQueue>.Instance;
 
     public SyncJob? ActiveJob
     {
@@ -61,24 +68,40 @@ public sealed class SyncQueue : ISyncQueue
 
     public ValueTask QueueAsync(SyncJob syncJob, CancellationToken cancellationToken)
     {
-        var cts = new CancellationTokenSource();
-        syncJob.QueueCancellationToken = cts.Token;
-        syncJob.EnqueuedAtUtc = DateTimeOffset.UtcNow;
-        syncJob.Status = SyncJobStatus.Queued;
-
+        cancellationToken.ThrowIfCancellationRequested();
+        if (syncJob.GameInstanceId == Guid.Empty || !Enum.IsDefined(syncJob.Direction)) throw new ArgumentException("The sync job has an invalid game or direction.");
         lock (_gate)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (syncJob.Status != SyncJobStatus.Queued || _pending.Any(entry => entry.Job.Id == syncJob.Id) || _active?.Job.Id == syncJob.Id)
+                throw new InvalidOperationException("A sync job can only be queued once.");
+            var cts = new CancellationTokenSource();
+            syncJob.QueueCancellationToken = cts.Token;
+            syncJob.EnqueuedAtUtc = DateTimeOffset.UtcNow;
             _pending.Add(new JobEntry(syncJob, cts));
+            if (!_channel.Writer.TryWrite(syncJob))
+            {
+                _pending.RemoveAt(_pending.Count - 1);
+                cts.Dispose();
+                throw new ChannelClosedException();
+            }
         }
-
-        var result = _channel.Writer.WriteAsync(syncJob, cancellationToken);
         RaiseChanged();
-        return result;
+        return ValueTask.CompletedTask;
     }
 
-    public IAsyncEnumerable<SyncJob> ReadAllAsync(CancellationToken cancellationToken)
+    public async IAsyncEnumerable<SyncJob> ReadAllAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        return _channel.Reader.ReadAllAsync(cancellationToken);
+        lock (_gate)
+        {
+            if (_readerActive) throw new InvalidOperationException("Only one sync queue worker may run at a time.");
+            _readerActive = true;
+        }
+        try
+        {
+            await foreach (var job in _channel.Reader.ReadAllAsync(cancellationToken)) yield return job;
+        }
+        finally { lock (_gate) _readerActive = false; }
     }
 
     public bool TryBeginJob(SyncJob syncJob)
@@ -92,20 +115,10 @@ public sealed class SyncQueue : ISyncQueue
             }
 
             var index = _pending.FindIndex(entry => entry.Job.Id == syncJob.Id);
-            JobEntry entry;
-            if (index >= 0)
-            {
-                entry = _pending[index];
-                _pending.RemoveAt(index);
-            }
-            else
-            {
-                // Job was not registered through QueueAsync; create a queue-owned token for it.
-                var cts = new CancellationTokenSource();
-                syncJob.QueueCancellationToken = cts.Token;
-                entry = new JobEntry(syncJob, cts);
-            }
-
+            if (index < 0 || !ReferenceEquals(_pending[index].Job, syncJob)) return false;
+            if (_active is not null) throw new InvalidOperationException("Another sync job is already running.");
+            var entry = _pending[index];
+            _pending.RemoveAt(index);
             _active = entry;
             syncJob.Status = SyncJobStatus.Running;
         }
@@ -193,11 +206,19 @@ public sealed class SyncQueue : ISyncQueue
             return false;
         }
 
-        cts.Cancel();
-        return true;
+        try { cts.Cancel(); return true; }
+        catch (ObjectDisposedException) { return false; }
     }
 
-    private void RaiseChanged() => QueueChanged?.Invoke(this, EventArgs.Empty);
+    private void RaiseChanged()
+    {
+        if (QueueChanged is not { } changed) return;
+        foreach (EventHandler observer in changed.GetInvocationList())
+        {
+            try { observer(this, EventArgs.Empty); }
+            catch (Exception exception) { _logger.LogWarning(exception, "A queue observer failed."); }
+        }
+    }
 
     private sealed class JobEntry
     {

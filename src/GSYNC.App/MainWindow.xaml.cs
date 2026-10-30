@@ -95,7 +95,13 @@ public partial class MainWindow : Window
 
     private void SyncQueue_QueueChanged(object? sender, EventArgs e)
     {
-        DispatcherQueue.TryEnqueue(UpdateQueueBadge);
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            UpdateQueueBadge();
+            if (_syncQueue.ActiveJob is not null || _syncQueue.QueueDepth != 0) return;
+            try { await App.Current.RunApplicationTaskAsync(token => _viewModel.RefreshTargetStatusAsync(token)); }
+            catch (Exception exception) { Log.Warning(exception, "Failed to refresh target status after synchronization."); }
+        });
     }
 
     private void ApplyLocalizedShellText()
@@ -110,16 +116,19 @@ public partial class MainWindow : Window
         NavRailControl.SetQueueBadge(count);
     }
 
-    private void BeginStartupNavigation()
+    private async void BeginStartupNavigation()
     {
         Log.Information("Main window activated; beginning staged startup navigation.");
+        await App.Current.RunDeferredStartupAsync();
+        if (!App.Current.IsReady || App.Current.LifetimeToken.IsCancellationRequested) return;
         NavigateToCurrentPage();
-        _ = App.Current.RunDeferredStartupAsync();
-        _ = _viewModel.RefreshTargetStatusAsync();
+        try { await App.Current.RunApplicationTaskAsync(token => _viewModel.RefreshTargetStatusAsync(token)); }
+        catch (Exception exception) { Log.Warning(exception, "Failed to refresh initial target status."); }
     }
 
     private void NavigateToCurrentPage()
     {
+        if (!App.Current.IsReady || App.Current.LifetimeToken.IsCancellationRequested) return;
         if (_isNavigating)
         {
             return;

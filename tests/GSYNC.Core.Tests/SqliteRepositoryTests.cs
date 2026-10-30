@@ -32,6 +32,98 @@ public sealed class SqliteRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task DatabaseInitializer_UpgradesVersionOneWithoutLosingData_AndIsIdempotent()
+    {
+        var initializer = new DatabaseInitializer(_connectionFactory, _appPaths);
+        await initializer.InitializeAsync(CancellationToken.None);
+        var repository = new GameInstanceRepository(_connectionFactory);
+        var game = new GameInstance { GameId = "existing", DisplayName = "Existing save", SourceProviderId = "custom" };
+        await repository.UpsertAsync(game, CancellationToken.None);
+        await ExecuteSqlAsync("UPDATE Metadata SET Value = '1' WHERE Key = 'schema-version'; DROP INDEX IX_StorageBindings_GameInstanceId; DROP INDEX IX_SyncRecords_GameInstanceId; DROP INDEX IX_SyncRecords_StartedAtUtc; DROP INDEX IX_Snapshots_GameInstanceId;");
+
+        await initializer.InitializeAsync(CancellationToken.None);
+        await initializer.InitializeAsync(CancellationToken.None);
+
+        Assert.Equal("Existing save", (await repository.GetAsync(game.Id, CancellationToken.None))!.DisplayName);
+        Assert.Equal(DatabaseInitializer.CurrentSchemaVersion.ToString(), await ScalarAsync("SELECT Value FROM Metadata WHERE Key = 'schema-version';"));
+        Assert.Equal(4L, await ScalarAsync("SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name LIKE 'IX_%';"));
+    }
+
+    [Theory]
+    [InlineData("999")]
+    [InlineData("broken")]
+    [InlineData("-1")]
+    public async Task DatabaseInitializer_RejectsUnsupportedVersionsWithoutChangingThem(string version)
+    {
+        var initializer = new DatabaseInitializer(_connectionFactory, _appPaths);
+        await initializer.InitializeAsync(CancellationToken.None);
+        await using (var connection = _connectionFactory.CreateConnection())
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE Metadata SET Value = $value WHERE Key = 'schema-version';";
+            command.Parameters.AddWithValue("$value", version);
+            await command.ExecuteNonQueryAsync();
+        }
+        await Assert.ThrowsAsync<InvalidDataException>(() => initializer.InitializeAsync(CancellationToken.None));
+        Assert.Equal(version, await ScalarAsync("SELECT Value FROM Metadata WHERE Key = 'schema-version';"));
+    }
+
+    [Fact]
+    public async Task DatabaseInitializer_FailedMigrationRollsBackBothSchemaAndVersion()
+    {
+        await ExecuteSqlAsync("CREATE TABLE StorageBindings (Id TEXT);");
+        var initializer = new DatabaseInitializer(_connectionFactory, _appPaths);
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => initializer.InitializeAsync(CancellationToken.None));
+        Assert.Equal(0L, await ScalarAsync("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('Metadata', 'GameInstances');"));
+    }
+
+    private async Task ExecuteSqlAsync(string sql)
+    {
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync();
+    }
+
+    [Fact]
+    public async Task GameProfileCreation_RollsBackBothRows_WhenBindingWriteFails()
+    {
+        await new DatabaseInitializer(_connectionFactory, _appPaths).InitializeAsync(CancellationToken.None);
+        await ExecuteSqlAsync("CREATE TRIGGER RejectBindings BEFORE INSERT ON StorageBindings BEGIN SELECT RAISE(ABORT, 'binding rejected'); END;");
+        var game = new GameInstance { GameId = "profile", DisplayName = "Profile", SourceProviderId = "custom" };
+        var binding = new StorageBinding { GameInstanceId = game.Id, StorageProviderId = "local-folder", RemoteNamespace = "profile" };
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => new GameProfileRepository(_connectionFactory).CreateAsync(game, binding, CancellationToken.None));
+        Assert.Empty(await new GameInstanceRepository(_connectionFactory).ListAsync(CancellationToken.None));
+        Assert.Empty(await new StorageBindingRepository(_connectionFactory).ListByGameInstanceAsync(game.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GameProfileCreation_RejectsADuplicate_WithoutReplacingTheExistingBinding()
+    {
+        await new DatabaseInitializer(_connectionFactory, _appPaths).InitializeAsync(CancellationToken.None);
+        var profiles = new GameProfileRepository(_connectionFactory);
+        var first = new GameInstance { GameId = "profile", DisplayName = "Profile", SourceProviderId = "custom" };
+        var binding = new StorageBinding { GameInstanceId = first.Id, StorageProviderId = "local-folder", RemoteNamespace = "original" };
+        await profiles.CreateAsync(first, binding, CancellationToken.None);
+        var duplicate = new GameInstance { GameId = "profile", DisplayName = "Profile", SourceProviderId = "custom" };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => profiles.CreateAsync(duplicate,
+            new StorageBinding { GameInstanceId = duplicate.Id, StorageProviderId = "local-folder", RemoteNamespace = "replacement" }, CancellationToken.None));
+        Assert.Single(await new GameInstanceRepository(_connectionFactory).ListAsync(CancellationToken.None));
+        Assert.Equal("original", Assert.Single(await new StorageBindingRepository(_connectionFactory).ListByGameInstanceAsync(first.Id, CancellationToken.None)).RemoteNamespace);
+    }
+
+    private async Task<object?> ScalarAsync(string sql)
+    {
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return await command.ExecuteScalarAsync();
+    }
+
+    [Fact]
     public async Task GameInstanceAndBindingRepositories_RoundTripEntities()
     {
         var initializer = new DatabaseInitializer(_connectionFactory, _appPaths);
@@ -59,6 +151,7 @@ public sealed class SqliteRepositoryTests : IDisposable
         Assert.NotNull(loadedInstance);
         Assert.Equal("Game A", loadedInstance!.DisplayName);
         Assert.Equal("C:/Games/GameA", loadedInstance.InstallDirectory);
+        Assert.Equal("C:/Games/GameA", loadedInstance.Variables["game_install_dir"]);
 
         var binding = new StorageBinding
         {
@@ -81,6 +174,7 @@ public sealed class SqliteRepositoryTests : IDisposable
         var loadedBinding = Assert.Single(loadedBindings);
         Assert.Equal("local-folder", loadedBinding.StorageProviderId);
         Assert.Equal("games/game-a", loadedBinding.RemoteNamespace);
+        Assert.Equal("D:/SyncRoot", loadedBinding.Settings["ROOTPATH"]);
     }
 
     [Fact]

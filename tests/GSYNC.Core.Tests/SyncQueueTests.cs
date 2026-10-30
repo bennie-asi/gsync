@@ -116,6 +116,49 @@ public sealed class SyncQueueTests
     }
 
     [Fact]
+    public async Task CancelledEnqueue_DoesNotLeaveAPhantomPendingJob()
+    {
+        var queue = new SyncQueue();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var job = new SyncJob { GameInstanceId = Guid.NewGuid(), Direction = SyncDirection.Upload };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await queue.QueueAsync(job, cts.Token));
+        Assert.Empty(queue.PendingJobs);
+        Assert.False(queue.TryBeginJob(job));
+    }
+
+    [Fact]
+    public async Task DuplicateJobsAndMultipleReaders_CannotExecuteConcurrently()
+    {
+        var queue = new SyncQueue();
+        var first = new SyncJob { GameInstanceId = Guid.NewGuid(), Direction = SyncDirection.Upload };
+        var second = new SyncJob { GameInstanceId = Guid.NewGuid(), Direction = SyncDirection.Upload };
+        await queue.QueueAsync(first, CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await queue.QueueAsync(first, CancellationToken.None));
+        await using var reader = queue.ReadAllAsync(CancellationToken.None).GetAsyncEnumerator();
+        Assert.True(await reader.MoveNextAsync());
+        Assert.True(queue.TryBeginJob(reader.Current));
+        await queue.QueueAsync(second, CancellationToken.None);
+        Assert.Throws<InvalidOperationException>(() => queue.TryBeginJob(second));
+        await using var other = queue.ReadAllAsync(CancellationToken.None).GetAsyncEnumerator();
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await other.MoveNextAsync());
+        queue.Complete();
+        Assert.True(queue.TryBeginJob(second));
+    }
+
+    [Fact]
+    public async Task ObserverFailures_DoNotInvalidateAcceptedJobs()
+    {
+        var queue = new SyncQueue();
+        queue.QueueChanged += (_, _) => throw new InvalidOperationException("Observer failed");
+        var job = new SyncJob { GameInstanceId = Guid.NewGuid(), Direction = SyncDirection.Upload };
+        await queue.QueueAsync(job, CancellationToken.None);
+        Assert.True(queue.TryBeginJob(job));
+        queue.Complete();
+        Assert.Null(queue.ActiveJob);
+    }
+
+    [Fact]
     public void CancelActive_WithNoActiveJob_ReturnsFalse()
     {
         var queue = new SyncQueue();

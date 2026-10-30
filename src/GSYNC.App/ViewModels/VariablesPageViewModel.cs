@@ -184,9 +184,10 @@ public partial class VariablesPageViewModel : ObservableObject
             ApplyFilters();
 
             var selected = SelectedVariable is not null
-                ? rows.FirstOrDefault(row => string.Equals(row.Name, SelectedVariable.Name, StringComparison.OrdinalIgnoreCase))
+                ? Variables.FirstOrDefault(row => row.TypeCode == SelectedVariable.TypeCode &&
+                    string.Equals(row.Name, SelectedVariable.Name, StringComparison.OrdinalIgnoreCase))
                 : null;
-            SelectVariable(selected ?? rows.FirstOrDefault());
+            SelectVariable(selected ?? Variables.FirstOrDefault());
         }
         catch (Exception exception)
         {
@@ -201,6 +202,7 @@ public partial class VariablesPageViewModel : ObservableObject
         {
             SelectedVariableName = string.Empty;
             VariableScopeText = string.Empty;
+            LastModifiedText = string.Empty;
             VariableProperties = [];
             return;
         }
@@ -374,6 +376,11 @@ public partial class VariablesPageViewModel : ObservableObject
         }
 
         Variables = filtered.ToArray();
+        if (SelectedVariable is { } selected && !Variables.Any(row => row.TypeCode == selected.TypeCode &&
+            string.Equals(row.Name, selected.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            SelectVariable(null);
+        }
     }
 
     private static string NormalizeName(string name)

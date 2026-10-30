@@ -52,7 +52,13 @@ public sealed class GameInstanceRepository : IGameInstanceRepository
         await using var connection = _connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
+        await WriteAsync(instance, connection, null, cancellationToken);
+    }
+
+    internal static async Task WriteAsync(GameInstance instance, SqliteConnection connection, SqliteTransaction? transaction, CancellationToken cancellationToken)
+    {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = """
             INSERT INTO GameInstances (Id, GameId, DisplayName, SourceProviderId, InstallDirectory, PlatformInstanceId, VariablesJson, CreatedAtUtc, UpdatedAtUtc)
             VALUES ($id, $gameId, $displayName, $sourceProviderId, $installDirectory, $platformInstanceId, $variablesJson, $createdAtUtc, $updatedAtUtc)
@@ -98,7 +104,7 @@ public sealed class GameInstanceRepository : IGameInstanceRepository
             SourceProviderId = reader.GetString(3),
             InstallDirectory = reader.IsDBNull(4) ? null : reader.GetString(4),
             PlatformInstanceId = reader.IsDBNull(5) ? null : reader.GetString(5),
-            Variables = Services.JsonStorage.Deserialize<Dictionary<string, string>>(reader.GetString(6)) ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            Variables = new Dictionary<string, string>(Services.JsonStorage.Deserialize<Dictionary<string, string>>(reader.GetString(6)) ?? new(), StringComparer.OrdinalIgnoreCase),
             CreatedAtUtc = DateTimeOffset.Parse(reader.GetString(7)),
             UpdatedAtUtc = DateTimeOffset.Parse(reader.GetString(8)),
         };

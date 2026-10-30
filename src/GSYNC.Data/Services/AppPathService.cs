@@ -6,10 +6,22 @@ public sealed class AppPathService : IAppPathService
 {
     private readonly string _appDataRoot;
 
-    public AppPathService()
+    public AppPathService() : this(Environment.GetEnvironmentVariable("GSYNC_DATA_ROOT"))
     {
-        var roamingAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        _appDataRoot = Path.Combine(roamingAppData, "GSYNC");
+    }
+
+    public AppPathService(string? dataRoot)
+    {
+        if (!string.IsNullOrWhiteSpace(dataRoot))
+        {
+            if (!Path.IsPathFullyQualified(dataRoot)) throw new ArgumentException("GSYNC_DATA_ROOT must be an absolute path.", nameof(dataRoot));
+            _appDataRoot = Path.GetFullPath(dataRoot);
+        }
+        else
+        {
+            var roamingAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            _appDataRoot = Path.Combine(roamingAppData, "GSYNC");
+        }
     }
 
     public string GetAppDataRoot() => _appDataRoot;

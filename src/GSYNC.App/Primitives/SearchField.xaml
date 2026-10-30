@@ -42,7 +42,7 @@
                 Foreground="{StaticResource AppTextPrimaryBrush}"
                 PlaceholderText="{Binding PlaceholderText, ElementName=Root}"
                 Style="{StaticResource DefaultTextBoxStyle}"
-                Text="{Binding Text, ElementName=Root, Mode=TwoWay}"
+                Text="{Binding Text, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                 VerticalAlignment="Center"
                 VerticalContentAlignment="Center"
                 GotFocus="SearchTextBox_GotFocus"

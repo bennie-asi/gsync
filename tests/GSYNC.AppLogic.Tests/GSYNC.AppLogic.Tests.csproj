@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <ProjectReference Include="../../src/GSYNC.Core/GSYNC.Core.csproj" />
+    <ProjectReference Include="../../src/GSYNC.Data/GSYNC.Data.csproj" />
+    <ProjectReference Include="../../src/GSYNC.Manifest/GSYNC.Manifest.csproj" />
+    <ProjectReference Include="../../src/GSYNC.Storage/GSYNC.Storage.csproj" />
+    <ProjectReference Include="../../src/GSYNC.Providers/GSYNC.Providers.csproj" />
+  </ItemGroup>
+  <!-- Compile the production presentation logic; only the native brush/rendering partial is omitted. -->
+  <ItemGroup>
+    <Compile Include="../../src/GSYNC.App/ViewModels/AddGameWizardViewModel.cs" Link="App/AddGameWizardViewModel.cs" />
+    <Compile Include="../../src/GSYNC.App/ViewModels/GameDetailsViewModel.cs" Link="App/GameDetailsViewModel.cs" />
+    <Compile Include="../../src/GSYNC.App/ViewModels/HistoryPageViewModel.cs" Link="App/HistoryPageViewModel.cs" />
+    <Compile Include="../../src/GSYNC.App/ViewModels/VariablesPageViewModel.cs" Link="App/VariablesPageViewModel.cs" />
+    <Compile Include="../../src/GSYNC.App/ViewModels/SyncTargetsPageViewModel.cs" Link="App/SyncTargetsPageViewModel.cs" />
+    <Compile Include="../../src/GSYNC.App/ViewModels/SettingsPageViewModel.cs" Link="App/SettingsPageViewModel.cs" />
+    <Compile Include="../../src/GSYNC.App/ViewModels/LibraryPageViewModel.cs" Link="App/LibraryPageViewModel.cs" />
+    <Compile Include="../../src/GSYNC.App/ViewModels/UiRecords.cs" Link="App/UiRecords.cs" />
+    <Compile Include="../../src/GSYNC.App/Infrastructure/UiFormat.cs" Link="App/UiFormat.cs" />
+    <Compile Include="../../src/GSYNC.App/Infrastructure/Localization/ILocalizationService.cs" Link="App/ILocalizationService.cs" />
+    <Compile Include="../../src/GSYNC.App/Infrastructure/Localization/LocalizationService.cs" Link="App/LocalizationService.cs" />
+    <Compile Include="../../src/GSYNC.App/Infrastructure/Wizard/*.cs" Link="App/%(Filename)%(Extension)" />
+    <Compile Include="../../src/GSYNC.App/Infrastructure/Configuration/SyncTargetStore.cs" Link="App/SyncTargetStore.cs" />
+    <Compile Include="../../src/GSYNC.App/Infrastructure/Configuration/UserVariablesStore.cs" Link="App/UserVariablesStore.cs" />
+    <Compile Include="../../src/GSYNC.App/Infrastructure/Localization/UiSettingsStore.cs" Link="App/UiSettingsStore.cs" />
+  </ItemGroup>
+</Project>

@@ -1,5 +1,3 @@
-using Windows.Globalization;
-
 namespace GSYNC.App.Infrastructure.Localization;
 
 public sealed class LocalizationService : ILocalizationService
@@ -100,7 +98,7 @@ public sealed class LocalizationService : ILocalizationService
     public LocalizationService(UiSettingsStore settingsStore)
     {
         _settingsStore = settingsStore;
-        CurrentLanguageTag = NormalizeLanguageTag(settingsStore.Load().LanguageTag);
+        CurrentLanguageTag = NormalizeLanguageTag(settingsStore.LoadForStartup().LanguageTag);
     }
 
     public string CurrentLanguageTag { get; private set; }
@@ -127,11 +125,10 @@ public sealed class LocalizationService : ILocalizationService
             return false;
         }
 
-        CurrentLanguageTag = normalizedLanguageTag;
         var settings = _settingsStore.Load();
         settings.LanguageTag = normalizedLanguageTag;
         _settingsStore.Save(settings);
-        ApplicationLanguages.PrimaryLanguageOverride = normalizedLanguageTag;
+        CurrentLanguageTag = normalizedLanguageTag;
         LanguageChanged?.Invoke(this, EventArgs.Empty);
         return true;
     }

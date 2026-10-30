@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GSYNC.Core.Abstractions.Data;
+using GSYNC.Core.Utilities;
 
 namespace GSYNC.App.Infrastructure.Localization;
 
@@ -23,21 +24,27 @@ public sealed class UiSettingsStore
         return LoadSettings(_appPathService.GetUiSettingsPath());
     }
 
+    public AppUiSettings LoadForStartup() => LoadStartupSettings(_appPathService.GetUiSettingsPath());
+
     public void Save(AppUiSettings settings)
     {
+        // Do not silently replace a damaged settings file with defaults.
+        if (File.Exists(_appPathService.GetUiSettingsPath())) _ = Load();
         Directory.CreateDirectory(_appPathService.GetAppDataRoot());
         var json = JsonSerializer.Serialize(settings, JsonOptions);
-        File.WriteAllText(_appPathService.GetUiSettingsPath(), json);
+        AtomicFile.WriteAllText(_appPathService.GetUiSettingsPath(), json);
     }
 
     public static string LoadStartupLanguageTag(string settingsPath)
     {
-        return LoadSettings(settingsPath).LanguageTag;
+        return LoadStartupSettings(settingsPath).LanguageTag;
     }
 
     public static AppUiSettings LoadStartupSettings(string settingsPath)
     {
-        return LoadSettings(settingsPath);
+        try { return LoadSettings(settingsPath); }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
+        { return new AppUiSettings { RefreshManifestOnStartup = false }; }
     }
 
     private static AppUiSettings LoadSettings(string settingsPath)
@@ -49,12 +56,13 @@ public sealed class UiSettingsStore
                 return new AppUiSettings();
             }
 
+            if (new FileInfo(settingsPath).Length > 1024 * 1024) throw new InvalidDataException("The UI settings file is too large.");
             var json = File.ReadAllText(settingsPath);
-            return JsonSerializer.Deserialize<AppUiSettings>(json, JsonOptions) ?? new AppUiSettings();
+            return JsonSerializer.Deserialize<AppUiSettings>(json, JsonOptions) ?? throw new InvalidDataException("The UI settings file is empty.");
         }
-        catch
+        catch (JsonException exception)
         {
-            return new AppUiSettings();
+            throw new InvalidDataException($"Cannot read UI settings from '{settingsPath}'. The original file was preserved.", exception);
         }
     }
 }

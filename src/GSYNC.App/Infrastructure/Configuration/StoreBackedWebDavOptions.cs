@@ -21,11 +21,12 @@ public sealed class StoreBackedWebDavOptions : IOptions<WebDavOptions>
         get
         {
             var target = _store.GetFirstByProvider("webdav");
+            var settings = target is null ? new Dictionary<string, string>() : _store.ResolveSettings(target.Settings);
             return new WebDavOptions
             {
-                BaseUrl = target?.Settings.GetValueOrDefault("baseUrl"),
-                Username = target?.Settings.GetValueOrDefault("username"),
-                Password = target?.Settings.GetValueOrDefault("password"),
+                BaseUrl = settings.GetValueOrDefault("baseUrl"),
+                Username = settings.GetValueOrDefault("username"),
+                Password = settings.GetValueOrDefault("password"),
             };
         }
     }

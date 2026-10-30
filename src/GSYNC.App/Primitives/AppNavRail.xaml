@@ -40,7 +40,7 @@
                     HorizontalAlignment="Center"
                     FontSize="9"
                     Foreground="{StaticResource AppTextDimBrush}"
-                    Text="v1.0.2" />
+                    Text="" />
             </StackPanel>
 
             <StackPanel Grid.Row="1" Margin="0,20,0,0" Spacing="8" VerticalAlignment="Top">

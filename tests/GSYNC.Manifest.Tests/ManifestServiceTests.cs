@@ -9,6 +9,39 @@ namespace GSYNC.Manifest.Tests;
 public sealed class ManifestServiceTests
 {
     [Fact]
+    public async Task LegacyTitleOverride_AppliesOnlyToItsExactCanonicalGame_AndLegacyLookupsStillWork()
+    {
+        var parser = new GSYNC.Manifest.Ludusavi.LudusaviManifestParser(NullLogger<GSYNC.Manifest.Ludusavi.LudusaviManifestParser>.Instance);
+        var community = parser.Parse("AFTERLIFE:\n  files: {}\nAfterlife:\n  files: {}\n");
+        var legacy = new GameContentDefinition { GameId = "AFTERLIFE", DisplayName = "User Recipe" };
+        var service = new ManifestService(new StubUserDefinitionStore(legacy), new StubOverrideStore(),
+            new StubCommunityStore(community.ToArray()), parser, new StubUpdateSource(null), NullLogger<ManifestService>.Instance);
+        var definitions = await service.GetDefinitionsAsync(CancellationToken.None);
+        Assert.Equal(2, definitions.Count);
+        Assert.Equal("User Recipe", definitions.Single(item => item.GameId == community[0].GameId).DisplayName);
+        Assert.Equal("Afterlife", definitions.Single(item => item.GameId == community[1].GameId).DisplayName);
+        Assert.Equal("User Recipe", (await service.GetDefinitionAsync(community[0].GameId, CancellationToken.None))!.DisplayName);
+        Assert.Equal("Afterlife", (await service.GetDefinitionAsync(community[1].GameId, CancellationToken.None))!.DisplayName);
+        Assert.Equal("AFTERLIFE", (await service.GetDefinitionAsync("AFTERLIFE", CancellationToken.None))!.GameId);
+        Assert.Equal("Afterlife", (await service.GetDefinitionAsync("Afterlife", CancellationToken.None))!.DisplayName);
+    }
+
+    [Fact]
+    public async Task OldCacheWithCaseCollisions_RemainsUsableOffline_WithoutMergingGames()
+    {
+        var first = new GameContentDefinition { GameId = "AFTERLIFE", DisplayName = "AFTERLIFE" };
+        var second = new GameContentDefinition { GameId = "Afterlife", DisplayName = "Afterlife" };
+        var user = new GameContentDefinition { GameId = "AFTERLIFE", DisplayName = "User" };
+        var service = new ManifestService(new StubUserDefinitionStore(user), new StubOverrideStore(), new StubCommunityStore(first, second),
+            new StubParser(Array.Empty<GameContentDefinition>()), new StubUpdateSource(null), NullLogger<ManifestService>.Instance);
+        var definitions = await service.GetDefinitionsAsync(CancellationToken.None);
+        Assert.Equal(2, definitions.Count);
+        Assert.Equal(2, definitions.Select(item => item.GameId).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal("User", (await service.GetDefinitionAsync(GSYNC.Core.Utilities.GameIdentity.ForLudusaviTitle("AFTERLIFE"), CancellationToken.None))!.DisplayName);
+        Assert.Equal("Afterlife", (await service.GetDefinitionAsync("Afterlife", CancellationToken.None))!.DisplayName);
+    }
+
+    [Fact]
     public async Task GetDefinitionsAsync_UsesPriority_UserThenOverrideThenCommunity()
     {
         var community = new GameContentDefinition
@@ -76,6 +109,7 @@ public sealed class ManifestServiceTests
 
     private sealed class StubUserDefinitionStore : IUserDefinitionStore
     {
+        public Task SaveDefinitionAsync(GameContentDefinition definition, CancellationToken cancellationToken, bool overwrite = true) => throw new NotSupportedException();
         private readonly IReadOnlyList<GameContentDefinition> _definitions;
 
         public StubUserDefinitionStore(params GameContentDefinition[] definitions)

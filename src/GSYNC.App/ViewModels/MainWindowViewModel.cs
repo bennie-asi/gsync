@@ -104,7 +104,7 @@ public partial class MainWindowViewModel : ObservableObject
                     {
                         using var probeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         probeCts.CancelAfter(TimeSpan.FromSeconds(6));
-                        var result = await provider.TestConnectionAsync(target.Settings, probeCts.Token);
+                        var result = await provider.TestConnectionAsync(_syncTargetStore.ResolveSettings(target.Settings), probeCts.Token);
                         isOnline = result.IsSuccess;
                     }
                     catch

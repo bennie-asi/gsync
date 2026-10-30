@@ -94,6 +94,7 @@ public sealed partial class SettingsPage : Page
 
         var settings = _viewModel.BuildSettings();
         var savedInChinese = _viewModel.IsChinese;
+        var previousLanguage = App.GetService<ILocalizationService>().CurrentLanguageTag;
         _viewModel.SaveSettings();
         SerilogBootstrap.SetMinimumLevel(settings.LogLevel);
         ApplyAppearance(settings);
@@ -101,6 +102,10 @@ public sealed partial class SettingsPage : Page
         await ShowInfoAsync(
             savedInChinese ? "设置已保存" : "Settings saved",
             savedInChinese ? "语言、主题、密度、日志级别与行为控制已保存。" : "Language, theme, density, log level, and behavior settings were saved.");
+        if (!string.Equals(previousLanguage, App.GetService<ILocalizationService>().CurrentLanguageTag, StringComparison.OrdinalIgnoreCase))
+        {
+            Frame?.Navigate(typeof(SettingsPage));
+        }
     }
 
     private void GroupsListView_ItemClick(object sender, ItemClickEventArgs e)
@@ -398,6 +403,7 @@ public sealed partial class SettingsPage : Page
 
     private static void ApplyAppearance(AppUiSettings settings)
     {
+        AppPalette.Apply(Application.Current.Resources, settings.ThemeMode == AppUiSettings.ThemeLight);
         // Application.RequestedTheme can only be set during app construction; assigning it at
         // runtime throws and crashes the app. Switch the theme on the window root element instead.
         if (App.Current.MainWindow.Content is FrameworkElement root)

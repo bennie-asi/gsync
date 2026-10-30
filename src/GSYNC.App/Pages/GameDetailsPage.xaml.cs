@@ -2,6 +2,8 @@ using System.Diagnostics;
 using GSYNC.App.Primitives;
 using GSYNC.App.ViewModels;
 using GSYNC.App.Infrastructure;
+using GSYNC.App.Infrastructure.Localization;
+using GSYNC.Core.Abstractions.Sync;
 using GSYNC.Core.Models;
 using GSYNC.Core.Models.Manifest;
 using Microsoft.UI.Xaml;
@@ -14,11 +16,14 @@ namespace GSYNC.App.Pages;
 public sealed partial class GameDetailsPage : Page
 {
     private readonly GameDetailsViewModel _viewModel;
+    private readonly ISyncQueue _syncQueue;
+    private bool _isCurrentPage;
 
     public GameDetailsPage()
     {
         InitializeComponent();
         _viewModel = App.GetService<GameDetailsViewModel>();
+        _syncQueue = App.GetService<ISyncQueue>();
         DataContext = _viewModel;
 
         ContentItemsTable.Columns =
@@ -38,10 +43,30 @@ public sealed partial class GameDetailsPage : Page
     {
         base.OnNavigatedTo(e);
 
+        _isCurrentPage = true;
+        _syncQueue.QueueChanged += SyncQueue_QueueChanged;
+
         if (e.Parameter is string parameter && Guid.TryParse(parameter, out var instanceId))
         {
             _ = _viewModel.LoadAsync(instanceId);
         }
+    }
+
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        _isCurrentPage = false;
+        _syncQueue.QueueChanged -= SyncQueue_QueueChanged;
+        _viewModel.StopStatusCheck();
+        base.OnNavigatedFrom(e);
+    }
+
+    private void SyncQueue_QueueChanged(object? sender, EventArgs e)
+    {
+        if (_syncQueue.ActiveJob is not null || _syncQueue.QueueDepth != 0) return;
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            if (_isCurrentPage && _viewModel.InstanceId is { } id) await _viewModel.LoadAsync(id);
+        });
     }
 
     private void ContentItemsTable_RowInvoked(object? sender, object item)
@@ -65,11 +90,10 @@ public sealed partial class GameDetailsPage : Page
 
     private async void DownloadButton_Click(object sender, RoutedEventArgs e)
     {
+        var autoSnapshot = App.GetService<UiSettingsStore>().Load().AutoSnapshotBeforeDownload;
         if (!await ConfirmAsync(
             _viewModel.IsChinese ? "下载远端存档" : "Download remote saves",
-            _viewModel.IsChinese
-                ? "远端数据将覆盖本地文件。覆盖前会自动创建本地快照，可随时恢复。是否继续？"
-                : "Remote data will overwrite local files. A local snapshot is created automatically before overwriting. Continue?"))
+            UiFormat.DownloadConfirmationText(autoSnapshot, _viewModel.IsChinese)))
         {
             return;
         }
@@ -79,8 +103,8 @@ public sealed partial class GameDetailsPage : Page
             error,
             _viewModel.IsChinese ? "下载任务已加入队列" : "Download queued",
             _viewModel.IsChinese
-                ? "下载完成后会自动写入同步记录与快照。"
-                : "A sync record and snapshot will be written when the download completes.");
+                ? "任务完成后可在历史记录中查看结果。"
+                : "Review the result in the history after the job finishes.");
     }
 
     private async void OpenConflictResolution_Click(object sender, RoutedEventArgs e)

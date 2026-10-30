@@ -56,9 +56,5 @@ public sealed partial class Badge : UserControl
             BadgeIcon.Foreground = accentBrush;
         }
 
-        if (string.IsNullOrWhiteSpace(Text))
-        {
-            Text = Variant ?? "Ready";
-        }
     }
 }

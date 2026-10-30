@@ -10,6 +10,8 @@ public sealed class StorageDownloadResult : IDisposable
 
     public long? Length { get; init; }
 
+    public string? Revision { get; init; }
+
     public void Dispose()
     {
         Content.Dispose();

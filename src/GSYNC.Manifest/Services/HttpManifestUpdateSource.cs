@@ -7,27 +7,41 @@ namespace GSYNC.Manifest.Services;
 public sealed class HttpManifestUpdateSource : IManifestUpdateSource
 {
     private readonly HttpClient _httpClient;
-    private readonly ManifestOptions _options;
+    private readonly IOptions<ManifestOptions> _options;
 
     public HttpManifestUpdateSource(HttpClient httpClient, IOptions<ManifestOptions> options)
     {
         _httpClient = httpClient;
-        _options = options.Value;
+        _options = options;
     }
 
     public async Task<string?> TryFetchLatestManifestAsync(CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_options.RemoteManifestUrl))
+        var url = _options.Value.RemoteManifestUrl;
+        if (string.IsNullOrWhiteSpace(url))
         {
             return null;
         }
 
-        using var response = await _httpClient.GetAsync(_options.RemoteManifestUrl, cancellationToken);
+        using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return null;
         }
 
-        return await response.Content.ReadAsStringAsync(cancellationToken);
+        const int limit = 32 * 1024 * 1024;
+        if (response.Content.Headers.ContentLength > limit) throw new InvalidDataException("The downloaded manifest is too large.");
+        using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var buffer = new MemoryStream();
+        var bytes = new byte[81920];
+        int count;
+        while ((count = await source.ReadAsync(bytes, cancellationToken)) > 0)
+        {
+            if (buffer.Length + count > limit) throw new InvalidDataException("The downloaded manifest is too large.");
+            await buffer.WriteAsync(bytes.AsMemory(0, count), cancellationToken);
+        }
+        buffer.Position = 0;
+        using var reader = new StreamReader(buffer);
+        return await reader.ReadToEndAsync(cancellationToken);
     }
 }

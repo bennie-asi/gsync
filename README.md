@@ -30,7 +30,7 @@
 - 🌐 **Pluggable storage targets** — Local folder and WebDAV today; OneDrive / Google Drive / SFTP / NAS by design.
 - 🔌 **Source providers** — Discover installed games from **Steam**, **Epic**, or define them **manually**.
 - 🧮 **Portable path variables** — Store logical templates like `%APPDATA%/MyGame/Saves` and resolve them per machine, with a built-in template tester.
-- 🛟 **Safety-first conflicts** — Side-by-side comparison, backup-before-overwrite, and keep-both options. The **core engine** owns policy, not the storage layer.
+- 🛟 **Safety-first conflicts** — Side-by-side comparison, backup-before-overwrite, and per-file choices to keep the local or remote version or leave it unresolved. The **core engine** owns policy, not the storage layer.
 - 🕓 **History & snapshots** — Every sync is recorded and auditable, with restore points to roll a save back in time.
 - 🎨 **Native desktop feel** — A dense, utility-first WinUI 3 shell with split panes, property sheets and status bars — not a web dashboard.
 
@@ -111,7 +111,7 @@ flowchart TD
 
 | Area | Choice |
 |---|---|
-| Language / Runtime | C# 12 · .NET 8 (`net8.0-windows10.0.19041.0`, win-x64) |
+| Language / Runtime | C# 13 · .NET 8 (`net8.0-windows10.0.19041.0`, win-x64); SDK 9.0.3xx pinned by `global.json` |
 | Desktop UI | WinUI 3 / Windows App SDK · MVVM (CommunityToolkit.Mvvm) |
 | Persistence | SQLite (`Microsoft.Data.Sqlite`) |
 | Manifests | YamlDotNet |
@@ -126,7 +126,7 @@ flowchart TD
 
 ### Prerequisites
 - **Windows 10 (1904x) or later**, x64
-- **.NET 8 SDK**
+- **.NET 9.0.3xx SDK** for the C# 13 compiler, plus the **.NET 8 runtime** (or .NET 8 SDK) to run the app and tests
 - Windows App SDK workload (restored automatically as a NuGet dependency)
 
 ### Build & run
@@ -149,6 +149,16 @@ dotnet run --project src/GSYNC.App/GSYNC.App.csproj -p:Platform=x64
 ```powershell
 scripts/build.ps1 -Version 0.0.0-local
 ```
+
+To use an isolated application data directory, set the absolute `GSYNC_DATA_ROOT` environment variable before starting GSYNC. If unset, the app uses `%APPDATA%/GSYNC`.
+
+### Sync format and credential storage
+
+Uploads are stored as immutable generations. A conditional write of `__gsync_meta/current.json` publishes the complete file set; interrupted uploads remain invisible and concurrent writers must compare again. Existing flat saves are imported on the first successful upload. Upgrade GSYNC on **every device** before writing with this format: older clients do not understand the generation manifest. Generations are retained so readers that already opened an older version remain valid.
+
+WebDAV must support strong ETags and conditional PUT (`If-Match` / `If-None-Match`). Authenticated remote endpoints require HTTPS; HTTP is allowed only for localhost development. A server without the required conditional-write support fails safely instead of overwriting a newer save.
+
+On Windows, passwords and tokens are protected with DPAPI for the current account. Target JSON and SQLite bindings contain only credential IDs. Legacy plaintext credentials are migrated before the UI and workers start. Copying the application data to another account or losing its credential files requires re-entering credentials in the target editor. Interrupted local file transactions are recovered before startup; if files changed after an interruption, recovery preserves both the newer file and its backup and reports the conflict instead of overwriting it.
 
 ### Tests
 
@@ -229,7 +239,7 @@ No license has been declared yet. Until one is added, all rights are reserved by
 - 🌐 **可插拔存储目标** —— 现已支持本地文件夹与 WebDAV，架构上预留 OneDrive / Google Drive / SFTP / NAS。
 - 🔌 **来源 Provider** —— 从 **Steam**、**Epic** 自动发现已安装游戏，或**手动**定义任意游戏。
 - 🧮 **可移植路径变量** —— 用 `%APPDATA%/MyGame/Saves` 这类逻辑模板存储路径，在每台机器上分别解析，并内置模板测试器。
-- 🛟 **安全优先的冲突处理** —— 本地/远端并排对比、覆盖前先备份、保留双方。同步策略由**核心引擎**掌控，而非存储层。
+- 🛟 **安全优先的冲突处理** —— 本地/远端并排对比、覆盖前先备份，并可逐文件选择保留本地、保留远端或暂不处理。同步策略由**核心引擎**掌控，而非存储层。
 - 🕓 **历史与快照** —— 每次同步都被记录、可审计，并提供恢复点，把存档回滚到过去某个状态。
 - 🎨 **原生桌面质感** —— 高信息密度、工具优先的 WinUI 3 界面：分栏、属性面板、状态栏，而非网页式后台。
 
@@ -262,7 +272,9 @@ dotnet run --project src/GSYNC.App/GSYNC.App.csproj -p:Platform=x64
 dotnet test GSYNC.sln --no-build
 ```
 
-> 环境要求：Windows 10（1904x）及以上、x64、.NET 8 SDK。完整产品意图与领域模型见 `docs/implementation-handoff.md`。
+> 环境要求：Windows 10（1904x）及以上、x64、.NET 9.0.3xx SDK，以及用于运行和测试的 .NET 8 运行时（或 .NET 8 SDK）。完整产品意图与领域模型见 `docs/implementation-handoff.md`。
+
+> 同步格式已升级为不可变版本与条件提交清单，请先升级所有设备的 GSYNC。WebDAV 需要强 ETag 和条件 PUT 支持，远端账户认证需要 HTTPS。密码按 Windows 当前用户加密，复制数据到其他账户后需在同步目标编辑器重新输入凭据。
 
 ### 🗺 项目状态
 

@@ -21,7 +21,7 @@ public sealed class StoreBackedManifestOptions : IOptions<ManifestOptions>
             return new ManifestOptions
             {
                 RemoteManifestUrl = string.IsNullOrWhiteSpace(settings.ManifestSourceUrl)
-                    ? null
+                    ? ManifestOptions.DefaultRemoteManifestUrl
                     : settings.ManifestSourceUrl.Trim(),
             };
         }

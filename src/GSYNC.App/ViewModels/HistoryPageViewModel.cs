@@ -20,6 +20,8 @@ public partial class HistoryPageViewModel : ObservableObject
     private IReadOnlyList<HistoryRow> _allEntries = [];
     private IReadOnlyDictionary<Guid, string> _instanceNames = new Dictionary<Guid, string>();
     private IReadOnlyDictionary<Guid, GameInstance> _instancesById = new Dictionary<Guid, GameInstance>();
+    private Guid? _selectedRecordId;
+    private long _selectionVersion;
 
     [ObservableProperty]
     private bool _isEmptyState;
@@ -226,17 +228,13 @@ public partial class HistoryPageViewModel : ObservableObject
                 $"共 {records.Count} 条记录 • 今日完成 {completedToday} 次同步",
                 $"{records.Count} records • {completedToday} syncs completed today");
 
-            if (rows.Count > 0)
+            if (Entries.FirstOrDefault() is { } firstVisibleRow)
             {
-                await SelectRecordAsync(rows[0], cancellationToken);
+                await SelectRecordAsync(firstVisibleRow, cancellationToken);
             }
             else
             {
-                RecordDetails = [];
-                Snapshots = [];
-                DetailRecordId = string.Empty;
-                DetailGameName = string.Empty;
-                DetailSummarySubtitle = string.Empty;
+                ClearSelection();
             }
         }
         catch (Exception exception)
@@ -247,14 +245,18 @@ public partial class HistoryPageViewModel : ObservableObject
 
     public async Task SelectRecordAsync(HistoryRow row, CancellationToken cancellationToken = default)
     {
+        var selectionVersion = Interlocked.Increment(ref _selectionVersion);
+        _selectedRecordId = row.Record.Id;
+        RecordDetails = [];
+        Snapshots = [];
         try
         {
             var record = row.Record;
             DetailRecordId = $"REC-{record.Id.ToString("N")[..8]}";
-            DetailStatus = $"{UiFormat.DirectionText(record.Direction, _isChinese)} · {UiFormat.StatusText(record.Status, _isChinese)}";
+            DetailStatus = $"{UiFormat.DirectionText(record, _isChinese)} · {UiFormat.StatusText(record.Status, _isChinese)}";
             DetailStatusVariant = UiFormat.StatusVariant(record.Status);
             DetailGameName = row.Game;
-            DetailSummarySubtitle = $"{UiFormat.TimeOfRecord(record.StartedAtUtc, _isChinese)} · {UiFormat.DirectionText(record.Direction, _isChinese)}";
+            DetailSummarySubtitle = $"{UiFormat.TimeOfRecord(record.StartedAtUtc, _isChinese)} · {UiFormat.DirectionText(record, _isChinese)}";
             SnapshotGameLabel = row.Game;
 
             // The binding lookup and snapshot listing both hit SQLite. They were running on the UI
@@ -266,6 +268,11 @@ public partial class HistoryPageViewModel : ObservableObject
                 var loadedSnapshots = await _syncHistoryRepository.ListSnapshotsAsync(record.GameInstanceId, cancellationToken);
                 return (resolvedBinding, loadedSnapshots);
             }, cancellationToken);
+
+            if (selectionVersion != Interlocked.Read(ref _selectionVersion))
+            {
+                return;
+            }
 
             var duration = record.CompletedAtUtc is not null
                 ? (record.CompletedAtUtc.Value - record.StartedAtUtc).TotalSeconds.ToString("0") + "s"
@@ -311,6 +318,8 @@ public partial class HistoryPageViewModel : ObservableObject
         }
     }
 
+    public bool IsRecordSelected(HistoryRow row) => _selectedRecordId == row.Record.Id;
+
     /// <summary>
     /// Returns the file-level contents recorded for a sync record. The only persisted per-file
     /// artifact is the snapshot archive captured for the operation, so we enumerate that zip when
@@ -337,7 +346,7 @@ public partial class HistoryPageViewModel : ObservableObject
             {
                 using var archive = ZipFile.OpenRead(snapshot.ArchivePath);
                 return archive.Entries
-                    .Where(entry => !string.IsNullOrEmpty(entry.Name))
+                    .Where(entry => !string.IsNullOrEmpty(entry.Name) && entry.FullName != Snapshot.MetadataEntryName)
                     .Select(entry => new UiPropertyRow(entry.FullName, UiFormat.Bytes(entry.Length)))
                     .OrderBy(item => item.Label, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
@@ -422,7 +431,25 @@ public partial class HistoryPageViewModel : ObservableObject
         }
 
         Entries = filtered.ToArray();
+        if (_selectedRecordId is { } selectedId && !Entries.Any(row => row.Record.Id == selectedId))
+        {
+            ClearSelection();
+        }
         IsEmptyState = _allEntries.Count == 0;
+    }
+
+    private void ClearSelection()
+    {
+        Interlocked.Increment(ref _selectionVersion);
+        _selectedRecordId = null;
+        RecordDetails = [];
+        Snapshots = [];
+        DetailRecordId = string.Empty;
+        DetailStatus = string.Empty;
+        DetailStatusVariant = "ready";
+        DetailGameName = string.Empty;
+        DetailSummarySubtitle = string.Empty;
+        SnapshotGameLabel = string.Empty;
     }
 
     private HistoryRow CreateRow(SyncRecord record, string targetName)
@@ -432,7 +459,7 @@ public partial class HistoryPageViewModel : ObservableObject
         return new HistoryRow(
             UiFormat.TimeOfRecord(record.CompletedAtUtc ?? record.StartedAtUtc, _isChinese),
             gameName,
-            UiFormat.DirectionText(record.Direction, _isChinese),
+            UiFormat.DirectionText(record, _isChinese),
             UiFormat.StatusText(record.Status, _isChinese),
             UiFormat.StatusVariant(record.Status),
             targetName,

@@ -91,7 +91,7 @@ public sealed partial class SyncTargetsPage : Page
 
     private async void EditTargetButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_viewModel?.GetSelectedConfig() is not { } existing)
+        if (_viewModel?.GetSelectedConfig(includeCredentials: true) is not { } existing)
         {
             return;
         }
@@ -235,7 +235,7 @@ public sealed partial class SyncTargetsPage : Page
         };
         var passwordBox = new PasswordBox
         {
-            Header = isChinese ? "密码" : "Password",
+            Header = existing?.CredentialsUnavailable == true ? (isChinese ? "密码（请重新输入凭据）" : "Password (re-enter credentials)") : (isChinese ? "密码" : "Password"),
             Password = existing?.Settings.GetValueOrDefault("password") ?? string.Empty,
         };
         var rootPathBox = new TextBox
@@ -356,7 +356,8 @@ public sealed partial class SyncTargetsPage : Page
         useFolderButton.Click += (_, _) =>
         {
             var trimmedBase = urlBox.Text.Trim().TrimEnd('/');
-            urlBox.Text = string.IsNullOrEmpty(currentRemotePath) ? trimmedBase : trimmedBase + "/" + currentRemotePath;
+            urlBox.Text = string.IsNullOrEmpty(currentRemotePath) ? trimmedBase
+                : trimmedBase + "/" + string.Join('/', currentRemotePath.Split('/').Select(Uri.EscapeDataString));
             browserPanel.Visibility = Visibility.Collapsed;
         };
 

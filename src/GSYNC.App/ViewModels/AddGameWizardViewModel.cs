@@ -1,4 +1,3 @@
-using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using GSYNC.App.Infrastructure.Configuration;
 using GSYNC.App.Infrastructure.Localization;
@@ -29,7 +28,8 @@ public partial class AddGameWizardViewModel : ObservableObject
     private readonly PathResolver _pathResolver;
     private readonly SystemVariableProvider _systemVariableProvider;
     private readonly ISyncEngine _syncEngine;
-    private readonly IAppPathService _appPathService;
+    private readonly IUserDefinitionStore _userDefinitionStore;
+    private readonly IGameProfileRepository _profiles;
 
     private IReadOnlyList<DiscoveredGame> _discoveredGames = [];
     private IReadOnlyList<GameContentDefinition> _definitions = [];
@@ -83,7 +83,8 @@ public partial class AddGameWizardViewModel : ObservableObject
         PathResolver pathResolver,
         SystemVariableProvider systemVariableProvider,
         ISyncEngine syncEngine,
-        IAppPathService appPathService)
+        IUserDefinitionStore userDefinitionStore,
+        IGameProfileRepository profiles)
     {
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
         _sourceProviders = sourceProviders;
@@ -96,7 +97,8 @@ public partial class AddGameWizardViewModel : ObservableObject
         _pathResolver = pathResolver;
         _systemVariableProvider = systemVariableProvider;
         _syncEngine = syncEngine;
-        _appPathService = appPathService;
+        _userDefinitionStore = userDefinitionStore;
+        _profiles = profiles;
 
         PageTitle = Pick("添加游戏", "Add Game");
         PageSubtitle = Pick("六步向导：选择来源、确认游戏、勾选内容、检查路径、绑定目标并创建配置。", "Six-step wizard: choose a source, confirm the game, pick content, review paths, bind a target, and create the profile.");
@@ -270,6 +272,7 @@ public partial class AddGameWizardViewModel : ObservableObject
         {
             1 when SelectedSourceKey is null => Pick("请先选择一个来源。", "Choose a source first."),
             2 when _selectedGame is null || _selectedMatch is null => Pick("请先选择一个游戏。", "Choose a game first."),
+            3 when _selectedMatch?.Definition.ContentItems.Count == 0 => Pick("未找到可靠的存档路径，请返回并使用手动配置指定存档位置。", "No reliable save paths were found. Go back and use manual setup to specify the save location."),
             3 when _selectedContentIds.Count == 0 => Pick("至少保留一个启用的内容项。", "Keep at least one content item enabled."),
             4 when _pathValidationResults.Any(result => result.Severity == PathValidationSeverity.Blocking) => Pick("仍存在阻断性路径错误，请先修复后再继续。", "Blocking path validation errors remain. Fix them before continuing."),
             5 when SelectedTargetId is null => Pick("请先选择一个同步目标。", "Choose a sync target first."),
@@ -351,7 +354,7 @@ public partial class AddGameWizardViewModel : ObservableObject
     {
         var manualGame = new DiscoveredGame
         {
-            GameId = $"custom-{Slugify(displayName)}",
+            GameId = GameIdentity.ForManualName(displayName),
             DisplayName = displayName.Trim(),
             SourceProviderId = "custom",
             InstallDirectory = null,
@@ -393,6 +396,7 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     public async Task<string?> CreateProfileAsync(CancellationToken cancellationToken = default)
     {
+        if (IsBusy) return Pick("正在创建配置，请稍候。", "The profile is being created. Please wait.");
         var validation = ValidateCurrentStep();
         if (validation is not null)
         {
@@ -414,11 +418,19 @@ public partial class AddGameWizardViewModel : ObservableObject
         LastCreatedInstanceId = null;
         try
         {
-            var isUserDefinition = _selectedMatch.Origin != MatchOrigin.ExistingDefinition;
-            if (isUserDefinition)
-            {
-                WriteUserDefinition(_selectedMatch.Definition);
-            }
+            if (_selectedContentIds.Count == 0 || _selectedMatch.Definition.ContentItems.Count == 0)
+                return Pick("请先明确选择存档路径。", "Choose the save paths first.");
+            var pathResults = _pathValidationService.Validate(_selectedMatch,
+                _selectedMatch.Definition.ContentItems.Where(item => _selectedContentIds.Contains(item.ContentId)),
+                BuildSourceVariables(_selectedGame, _selectedMatch.Definition), _selectedGame.Variables);
+            if (pathResults.Any(result => result.Severity == PathValidationSeverity.Blocking))
+                return Pick("存档路径仍有错误，请先修复。", "Fix the save path errors before creating the profile.");
+            var instances = await _gameInstanceRepository.ListAsync(cancellationToken);
+            if (instances.Any(existing => string.Equals(existing.SourceProviderId, _selectedGame.SourceProviderId, StringComparison.OrdinalIgnoreCase) &&
+                (string.Equals(existing.GameId, _selectedMatch.Definition.GameId, StringComparison.OrdinalIgnoreCase) ||
+                 (!string.IsNullOrWhiteSpace(_selectedGame.PlatformGameId) && string.Equals(existing.PlatformInstanceId, _selectedGame.PlatformGameId, StringComparison.OrdinalIgnoreCase)) ||
+                 (_selectedGame.SourceProviderId == "custom" && string.Equals(existing.DisplayName.Trim(), _selectedGame.DisplayName.Trim(), StringComparison.OrdinalIgnoreCase)))))
+                return Pick("该游戏已经在游戏库中，请编辑现有配置。", "This game is already in the library. Edit its existing profile.");
 
             var instance = new GameInstance
             {
@@ -429,7 +441,6 @@ public partial class AddGameWizardViewModel : ObservableObject
                 PlatformInstanceId = _selectedGame.PlatformGameId,
                 Variables = _selectedGame.Variables,
             };
-            await _gameInstanceRepository.UpsertAsync(instance, cancellationToken);
 
             var bindingSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in target.Settings)
@@ -446,7 +457,7 @@ public partial class AddGameWizardViewModel : ObservableObject
             {
                 GameInstanceId = instance.Id,
                 StorageProviderId = target.ProviderId,
-                RemoteNamespace = Slugify(_selectedGame.DisplayName),
+                RemoteNamespace = GameIdentity.StorageNamespace(_selectedMatch.Definition.GameId),
                 Settings = bindingSettings,
                 ContentSelections = _selectedMatch.Definition.ContentItems
                     .Select(item => new ContentSelection
@@ -456,7 +467,11 @@ public partial class AddGameWizardViewModel : ObservableObject
                     })
                     .ToArray(),
             };
-            await _storageBindingRepository.UpsertAsync(binding, cancellationToken);
+            var hasUserDefinition = (await _userDefinitionStore.LoadDefinitionsAsync(cancellationToken))
+                .Any(definition => string.Equals(definition.GameId, instance.GameId, StringComparison.OrdinalIgnoreCase));
+            if (!hasUserDefinition)
+                await _userDefinitionStore.SaveDefinitionAsync(_selectedMatch.Definition, cancellationToken, overwrite: false);
+            await _profiles.CreateAsync(instance, binding, cancellationToken);
             LastCreatedInstanceId = instance.Id;
 
             if (StartFirstSync)
@@ -465,6 +480,7 @@ public partial class AddGameWizardViewModel : ObservableObject
                 {
                     GameInstanceId = instance.Id,
                     Direction = SyncDirection.Upload,
+                    ProtectRemoteChanges = true,
                     DisplayName = instance.DisplayName,
                 }, cancellationToken);
             }
@@ -682,64 +698,19 @@ public partial class AddGameWizardViewModel : ObservableObject
             new(Pick("启用内容项", "Enabled Content"), _selectedContentIds.Count.ToString()),
             new(Pick("路径预检", "Path Validation"), Pick($"{blockingCount} 个阻断 / {warningCount} 个警告", $"{blockingCount} blocking / {warningCount} warnings")),
             new(Pick("目标", "Target"), target?.Name ?? "--"),
-            new(Pick("远端命名空间", "Remote Namespace"), _selectedGame is null ? "--" : Slugify(_selectedGame.DisplayName)),
+            new(Pick("远端命名空间", "Remote Namespace"), _selectedMatch is null ? "--" : GameIdentity.StorageNamespace(_selectedMatch.Definition.GameId)),
         ];
     }
 
     private GameContentDefinition CreateFallbackDefinition(DiscoveredGame game)
     {
-        var pathTemplates = new List<string>();
-        if (!string.IsNullOrWhiteSpace(game.InstallDirectory))
-        {
-            pathTemplates.Add(game.InstallDirectory.Replace('\\', '/'));
-        }
-
         return new GameContentDefinition
         {
-            GameId = $"custom-{Slugify(game.DisplayName)}",
+            GameId = game.GameId,
             DisplayName = game.DisplayName,
             Description = Pick("未匹配社区清单时生成的回退定义。", "Fallback definition generated when no manifest match exists."),
-            ContentItems =
-            [
-                new ContentItem
-                {
-                    ContentId = "saves",
-                    Category = ContentCategory.Save,
-                    PathTemplates = pathTemplates,
-                    DefaultEnabled = true,
-                },
-            ],
+            ContentItems = [],
         };
-    }
-
-    private void WriteUserDefinition(GameContentDefinition definition)
-    {
-        var directory = _appPathService.GetDefinitionsDirectory();
-        Directory.CreateDirectory(directory);
-
-        var builder = new StringBuilder();
-        builder.AppendLine($"gameId: \"{definition.GameId}\"");
-        builder.AppendLine($"displayName: \"{definition.DisplayName}\"");
-        if (!string.IsNullOrWhiteSpace(definition.Description))
-        {
-            builder.AppendLine($"description: \"{definition.Description}\"");
-        }
-
-        builder.AppendLine("contentItems:");
-        foreach (var item in definition.ContentItems)
-        {
-            builder.AppendLine($"  - contentId: \"{item.ContentId}\"");
-            builder.AppendLine($"    category: {item.Category}");
-            builder.AppendLine($"    defaultEnabled: {(item.DefaultEnabled ? "true" : "false")}");
-            builder.AppendLine("    pathTemplates:");
-            foreach (var template in item.PathTemplates)
-            {
-                builder.AppendLine($"      - \"{template.Replace("\\", "/")}\"");
-            }
-        }
-
-        var path = Path.Combine(directory, $"{Slugify(definition.GameId)}.yaml");
-        File.WriteAllText(path, builder.ToString());
     }
 
     private string DescribeSource(string sourceProviderId)
@@ -806,34 +777,9 @@ public partial class AddGameWizardViewModel : ObservableObject
         };
     }
 
-    private static string Slugify(string name)
-    {
-        var builder = new StringBuilder();
-        foreach (var character in name.Trim().ToLowerInvariant())
-        {
-            if (char.IsLetterOrDigit(character))
-            {
-                builder.Append(character);
-            }
-            else if (char.IsWhiteSpace(character) || character is '-' or '_')
-            {
-                if (builder.Length > 0 && builder[^1] != '-')
-                {
-                    builder.Append('-');
-                }
-            }
-        }
-
-        return builder.Length == 0 ? "game" : builder.ToString().TrimEnd('-');
-    }
-
     private string Pick(string zh, string en) => _isChinese ? zh : en;
 }
 
 public sealed record WizardStepItem(int Index, string Title, string Summary);
 
-public sealed record WizardOption(string Key, string Title, string Summary, bool IsSelected = false)
-{
-    public Microsoft.UI.Xaml.Media.Brush BorderBrush =>
-        (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources[IsSelected ? "AppPrimaryBrush" : "AppDividerBrush"];
-}
+public sealed partial record WizardOption(string Key, string Title, string Summary, bool IsSelected = false);

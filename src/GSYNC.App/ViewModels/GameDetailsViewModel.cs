@@ -1,6 +1,7 @@
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using GSYNC.App.Infrastructure;
+using GSYNC.App.Infrastructure.Configuration;
 using GSYNC.App.Infrastructure.Localization;
 using GSYNC.Core.Abstractions;
 using GSYNC.Core.Abstractions.Data;
@@ -24,13 +25,16 @@ public partial class GameDetailsViewModel : ObservableObject
     private readonly IManifestService _manifestService;
     private readonly ISyncEngine _syncEngine;
     private readonly IEnumerable<ISourceProvider> _sourceProviders;
-    private readonly IDefinitionOverrideStore _definitionOverrideStore;
+    private readonly IUserDefinitionStore _userDefinitionStore;
     private readonly PathResolver _pathResolver;
     private readonly SystemVariableProvider _systemVariableProvider;
+    private readonly UserVariablesStore _userVariablesStore;
 
     private GameInstance? _instance;
     private StorageBinding? _binding;
     private GameContentDefinition? _definition;
+    private CancellationTokenSource? _comparisonCancellation;
+    private long _loadVersion;
 
     [ObservableProperty]
     private string _title = string.Empty;
@@ -91,9 +95,10 @@ public partial class GameDetailsViewModel : ObservableObject
         IManifestService manifestService,
         ISyncEngine syncEngine,
         IEnumerable<ISourceProvider> sourceProviders,
-        IDefinitionOverrideStore definitionOverrideStore,
+        IUserDefinitionStore userDefinitionStore,
         PathResolver pathResolver,
-        SystemVariableProvider systemVariableProvider)
+        SystemVariableProvider systemVariableProvider,
+        UserVariablesStore userVariablesStore)
     {
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
         _gameInstanceRepository = gameInstanceRepository;
@@ -102,9 +107,10 @@ public partial class GameDetailsViewModel : ObservableObject
         _manifestService = manifestService;
         _syncEngine = syncEngine;
         _sourceProviders = sourceProviders;
-        _definitionOverrideStore = definitionOverrideStore;
+        _userDefinitionStore = userDefinitionStore;
         _pathResolver = pathResolver;
         _systemVariableProvider = systemVariableProvider;
+        _userVariablesStore = userVariablesStore;
 
         Title = Pick("游戏详情", "Game Details");
         PageSubtitle = Pick("精炼后的详情工作区，固定展示游戏上下文、内容项、历史与右侧检查面板。", "Refined detail workspace with persistent game context, content items, history, and a right-hand inspection pane.");
@@ -186,9 +192,13 @@ public partial class GameDetailsViewModel : ObservableObject
 
     public async Task LoadAsync(Guid instanceId, CancellationToken cancellationToken = default)
     {
+        StopStatusCheck();
+        var loadVersion = Interlocked.Read(ref _loadVersion);
         try
         {
-            _instance = await _gameInstanceRepository.GetAsync(instanceId, cancellationToken);
+            var instance = await _gameInstanceRepository.GetAsync(instanceId, cancellationToken);
+            if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
+            _instance = instance;
             if (_instance is null)
             {
                 Title = Pick("未找到游戏实例", "Game instance not found");
@@ -203,24 +213,22 @@ public partial class GameDetailsViewModel : ObservableObject
                 $"Added {UiFormat.RelativeTime(_instance.CreatedAtUtc, false)}");
 
             var bindings = await _storageBindingRepository.ListByGameInstanceAsync(instanceId, cancellationToken);
+            if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
             _binding = bindings.FirstOrDefault();
             ActiveTarget = _binding is null
                 ? Pick("未绑定", "Unbound")
                 : _binding.Settings.GetValueOrDefault("targetName", _binding.StorageProviderId);
 
-            _definition = await _manifestService.GetDefinitionAsync(_instance.GameId, cancellationToken);
+            var definition = await _manifestService.GetDefinitionAsync(_instance.GameId, cancellationToken);
+            if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
+            _definition = definition;
 
             var records = await _syncHistoryRepository.ListRecordsAsync(instanceId, cancellationToken);
+            if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
             var lastRecord = records.FirstOrDefault();
-            (OverallStatusText, OverallStatusVariant) = lastRecord is null
-                ? (Pick("未同步", "Not synced"), "pending")
-                : lastRecord.Status switch
-                {
-                    SyncJobStatus.Completed => (Pick("已同步", "Synced"), "synced"),
-                    SyncJobStatus.Failed => (Pick("失败", "Failed"), "conflict"),
-                    SyncJobStatus.Cancelled => (Pick("已取消", "Cancelled"), "disabled"),
-                    _ => (Pick("进行中", "In progress"), "pending"),
-                };
+            (OverallStatusText, OverallStatusVariant) = _binding is null
+                ? (Pick("未绑定", "Unbound"), "disabled")
+                : (Pick("检查中…", "Checking…"), "pending");
 
             OverviewMetrics =
             [
@@ -235,7 +243,7 @@ public partial class GameDetailsViewModel : ObservableObject
             var activityRecords = records.Take(8).ToArray();
             RecentActivityItems = activityRecords
                 .Select((record, index) => new UiActivityItem(
-                    $"{UiFormat.DirectionText(record.Direction, _isChinese)} · {UiFormat.StatusText(record.Status, _isChinese)}",
+                    $"{UiFormat.DirectionText(record, _isChinese)} · {UiFormat.StatusText(record.Status, _isChinese)}",
                     record.ErrorMessage ?? record.Summary ?? "--",
                     UiFormat.RelativeTime(record.CompletedAtUtc ?? record.StartedAtUtc, _isChinese),
                     UiFormat.StatusVariant(record.Status),
@@ -243,6 +251,7 @@ public partial class GameDetailsViewModel : ObservableObject
                 .ToArray();
 
             var snapshots = await _syncHistoryRepository.ListSnapshotsAsync(instanceId, cancellationToken);
+            if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
             Snapshots = snapshots
                 .Select((snapshot, index) => new SnapshotRow(
                     $"SN-{snapshot.Id.ToString("N")[..8]}",
@@ -255,10 +264,56 @@ public partial class GameDetailsViewModel : ObservableObject
                     SnapshotId = snapshot.Id,
                 })
                 .ToArray();
+            if (_binding is not null && loadVersion == Interlocked.Read(ref _loadVersion))
+            {
+                var comparisonCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                comparisonCancellation.CancelAfter(TimeSpan.FromSeconds(15));
+                _comparisonCancellation = comparisonCancellation;
+                _ = RefreshSyncStatusAsync(instanceId, loadVersion, comparisonCancellation);
+            }
         }
         catch (Exception exception)
         {
             Log.Error(exception, "Failed to load game details for instance {InstanceId}.", instanceId);
+        }
+    }
+
+    public void StopStatusCheck()
+    {
+        Interlocked.Increment(ref _loadVersion);
+        var cancellation = Interlocked.Exchange(ref _comparisonCancellation, null);
+        try { cancellation?.Cancel(); }
+        catch (ObjectDisposedException) { }
+    }
+
+    private async Task RefreshSyncStatusAsync(Guid instanceId, long loadVersion, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            var comparison = await Task.Run(() => _syncEngine.CompareAsync(new SyncJob
+            {
+                GameInstanceId = instanceId,
+                Direction = SyncDirection.Compare,
+            }, cancellation.Token), cancellation.Token);
+            if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
+            (OverallStatusText, OverallStatusVariant) = comparison.Entries.Count == 0
+                ? (Pick("无文件", "No files"), "missing")
+                : comparison.Entries.Any(entry => entry.ChangeKind != SyncChangeKind.Unchanged)
+                    ? (Pick("存在差异", "Differences"), "conflict")
+                    : (Pick("已同步", "Synced"), "synced");
+        }
+        catch (Exception exception)
+        {
+            if (loadVersion == Interlocked.Read(ref _loadVersion))
+            {
+                (OverallStatusText, OverallStatusVariant) = (Pick("无法比较", "Compare failed"), "disabled");
+                if (exception is not OperationCanceledException) Log.Warning(exception, "Failed to compare game {InstanceId}.", instanceId);
+            }
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _comparisonCancellation, null, cancellation);
+            cancellation.Dispose();
         }
     }
 
@@ -290,32 +345,27 @@ public partial class GameDetailsViewModel : ObservableObject
 
     public async Task<string?> AddCustomContentItemAsync(string name, string pathTemplate, CancellationToken cancellationToken = default)
     {
+        if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is in progress. Please wait.");
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(pathTemplate))
+            return Pick("请填写条目名称和存档路径。", "Enter an item name and save path.");
         if (_definition is null)
         {
             return Pick("当前游戏没有可编辑的内容定义。", "No editable content definition is available for this game.");
         }
 
+        IsBusy = true;
         try
         {
-            var definitions = (await _definitionOverrideStore.GetDefinitionsAsync(cancellationToken)).ToList();
-            var targetDefinition = definitions.FirstOrDefault(definition => string.Equals(definition.GameId, _definition.GameId, StringComparison.OrdinalIgnoreCase));
-            if (targetDefinition is null)
-            {
-                targetDefinition = new GameContentDefinition
-                {
-                    GameId = _definition.GameId,
-                    DisplayName = _definition.DisplayName,
-                    Description = _definition.Description,
-                    SourceHints = _definition.SourceHints,
-                    ContentItems = _definition.ContentItems,
-                };
-                definitions.Add(targetDefinition);
-            }
-
+            var targetDefinition = await _manifestService.GetDefinitionAsync(_definition.GameId, cancellationToken)
+                ?? throw new InvalidOperationException("The game definition no longer exists.");
             var updatedItems = targetDefinition.ContentItems.ToList();
+            var existingIds = updatedItems.Select(item => item.ContentId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var baseId = SlugifyContentId(name);
+            var contentId = baseId;
+            for (var suffix = 2; existingIds.Contains(contentId); suffix++) contentId = baseId + "-" + suffix;
             updatedItems.Add(new ContentItem
             {
-                ContentId = SlugifyContentId(name),
+                ContentId = contentId,
                 Category = ContentCategory.Extra,
                 PathTemplates = [pathTemplate.Trim().Replace('\\', '/')],
                 DefaultEnabled = true,
@@ -331,10 +381,32 @@ public partial class GameDetailsViewModel : ObservableObject
                 ContentItems = updatedItems,
             };
 
-            definitions = definitions
-                .Select(definition => string.Equals(definition.GameId, targetDefinition.GameId, StringComparison.OrdinalIgnoreCase) ? targetDefinition : definition)
-                .ToList();
-            await _definitionOverrideStore.SaveDefinitionsAsync(definitions, cancellationToken);
+            var oldBinding = _binding is null ? null : await _storageBindingRepository.GetAsync(_binding.Id, cancellationToken)
+                ?? throw new InvalidOperationException("The storage binding no longer exists.");
+            StorageBinding? updatedBinding = null;
+            if (oldBinding is not null)
+            {
+                updatedBinding = new StorageBinding
+                {
+                    Id = oldBinding.Id, GameInstanceId = oldBinding.GameInstanceId, StorageProviderId = oldBinding.StorageProviderId,
+                    RemoteNamespace = oldBinding.RemoteNamespace, Settings = oldBinding.Settings, CreatedAtUtc = oldBinding.CreatedAtUtc,
+                    UpdatedAtUtc = DateTimeOffset.UtcNow,
+                    ContentSelections = updatedItems.Select(item => new ContentSelection
+                    {
+                        ContentId = item.ContentId,
+                        IsEnabled = item.ContentId == contentId || (oldBinding.ContentSelections.Count == 0 ? item.DefaultEnabled :
+                            oldBinding.ContentSelections.Any(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase) && selection.IsEnabled)),
+                    }).ToArray(),
+                };
+                await _storageBindingRepository.UpsertAsync(updatedBinding, cancellationToken);
+            }
+            try { await _userDefinitionStore.SaveDefinitionAsync(targetDefinition, cancellationToken); }
+            catch
+            {
+                if (oldBinding is not null) await _storageBindingRepository.UpsertAsync(oldBinding, CancellationToken.None);
+                throw;
+            }
+            _binding = updatedBinding;
             _definition = targetDefinition;
             BuildContentItems();
             return null;
@@ -344,6 +416,7 @@ public partial class GameDetailsViewModel : ObservableObject
             Log.Error(exception, "Failed to add custom content item.");
             return exception.Message;
         }
+        finally { IsBusy = false; }
     }
 
     public (bool Exists, string Message) TestSelectedPath()
@@ -426,7 +499,7 @@ public partial class GameDetailsViewModel : ObservableObject
         var latest = Snapshots.FirstOrDefault();
         if (latest is null)
         {
-            return Pick("还没有可恢复的快照。下载远端数据时会自动创建快照。", "No snapshots to restore yet. Snapshots are created automatically before downloads.");
+            return Pick("还没有可恢复的快照。可以在设置中启用下载前自动快照。", "No snapshots to restore yet. Automatic snapshots before downloads can be enabled in Settings.");
         }
 
         try
@@ -469,7 +542,7 @@ public partial class GameDetailsViewModel : ObservableObject
             var enabled = IsContentEnabled(item);
             foreach (var template in item.PathTemplates)
             {
-                var resolved = _pathResolver.Resolve(template, systemVariables, sourceVariables, _instance.Variables, bindingSettings);
+                var resolved = _pathResolver.Resolve(template, systemVariables, sourceVariables, _instance.Variables, _userVariablesStore.AsDictionary(), bindingSettings);
                 var (statusText, statusVariant, size) = DescribeLocalPath(resolved, enabled);
                 totalBytes += size;
                 rows.Add(new ContentItemRow(
@@ -520,6 +593,14 @@ public partial class GameDetailsViewModel : ObservableObject
 
         try
         {
+            var (searchRoot, pattern) = PathGlob.SplitRoot(resolvedPath);
+            if (pattern is not null && Directory.Exists(searchRoot))
+            {
+                var matches = Directory.EnumerateFiles(searchRoot, "*", SearchOption.AllDirectories)
+                    .Where(file => PathGlob.IsMatch(pattern, Path.GetRelativePath(searchRoot, file), includeDescendants: true)).ToArray();
+                if (matches.Length > 0) return (Pick("就绪", "Ready"), "ready", matches.Sum(file => new FileInfo(file).Length));
+            }
+
             if (File.Exists(resolvedPath))
             {
                 return (Pick("就绪", "Ready"), "ready", new FileInfo(resolvedPath).Length);

@@ -87,7 +87,10 @@ public sealed partial class HistoryPage : Page
         }
 
         await _viewModel.SelectRecordAsync(row);
-        await ShowRecordDetailAsync(row);
+        if (_viewModel.IsRecordSelected(row))
+        {
+            await ShowRecordDetailAsync(row);
+        }
     }
 
     private async Task ShowRecordDetailAsync(HistoryRow row)
@@ -99,6 +102,10 @@ public sealed partial class HistoryPage : Page
 
         var isChinese = _viewModel.IsChinese;
         var files = await _viewModel.GetRecordSnapshotFilesAsync(row);
+        if (!_viewModel.IsRecordSelected(row))
+        {
+            return;
+        }
 
         var panel = new StackPanel { Spacing = 14, MinWidth = 480 };
 

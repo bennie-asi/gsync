@@ -95,9 +95,27 @@ public static class UiFormat
             SyncDirection.Upload => isChinese ? "上传" : "Upload",
             SyncDirection.Download => isChinese ? "下载" : "Download",
             SyncDirection.Compare => isChinese ? "比较" : "Compare",
+            SyncDirection.ResolveConflict => isChinese ? "解决冲突" : "Resolve conflict",
             _ => direction.ToString(),
         };
     }
+
+    public static bool IsSnapshotRestore(SyncRecord record) => record.Direction == SyncDirection.Download &&
+        (record.Summary?.StartsWith("Snapshot restore ", StringComparison.Ordinal) == true ||
+         (record.Summary?.StartsWith("Restored ", StringComparison.Ordinal) == true &&
+          record.Summary.Contains(" paths from snapshot ", StringComparison.Ordinal)));
+
+    public static string DirectionText(SyncRecord record, bool isChinese) => IsSnapshotRestore(record)
+        ? (isChinese ? "恢复快照" : "Restore snapshot")
+        : DirectionText(record.Direction, isChinese);
+
+    public static string DownloadConfirmationText(bool autoSnapshot, bool isChinese) => (autoSnapshot, isChinese) switch
+    {
+        (true, true) => "远端数据将覆盖本地文件。覆盖前会自动创建本地快照。是否继续？",
+        (true, false) => "Remote data will overwrite local files. A local snapshot will be created first. Continue?",
+        (false, true) => "远端数据将覆盖本地文件。自动快照已关闭，覆盖前不会创建快照。是否继续？",
+        _ => "Remote data will overwrite local files. Automatic snapshots are disabled, so no snapshot will be created first. Continue?",
+    };
 
     public static string StatusText(SyncJobStatus status, bool isChinese)
     {

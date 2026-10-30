@@ -16,6 +16,8 @@ public sealed class SyncJob
 
     public ConflictResolutionPlan? ConflictResolutionPlan { get; init; }
 
+    public bool ProtectRemoteChanges { get; init; }
+
     public CancellationToken CancellationToken { get; init; }
 
     public IProgress<SyncProgress>? Progress { get; init; }

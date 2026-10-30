@@ -38,6 +38,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$') {
+    throw "Version must be a semantic version without path separators or shell metacharacters."
+}
 $StartTime = Get-Date
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -79,6 +82,20 @@ $AppOut     = Join-Path $OutRoot "app"
 $ZipName    = "GSYNC-$Version-win-x64.zip"
 $ZipPath    = Join-Path $OutRoot $ZipName
 
+# Validate deletion targets before touching a previous build. A linked app folder must never redirect cleanup.
+$OutRoot = [System.IO.Path]::GetFullPath($OutRoot)
+$AppOut = [System.IO.Path]::GetFullPath((Join-Path $OutRoot "app"))
+$ZipPath = [System.IO.Path]::GetFullPath((Join-Path $OutRoot $ZipName))
+$OutputPrefix = $OutRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+if (-not $AppOut.StartsWith($OutputPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+    -not $ZipPath.StartsWith($OutputPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Build artifacts must remain inside the requested output directory."
+}
+if ((Test-Path -LiteralPath $AppOut) -and
+    (((Get-Item -LiteralPath $AppOut -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) {
+    throw "The app output folder is a symbolic link or junction; choose another output directory."
+}
+
 # ── Version parsing ───────────────────────────────────────────────────────────
 # AssemblyVersion / FileVersion require numeric X.Y.Z.W  (strip pre-release label)
 
@@ -108,18 +125,23 @@ Invoke-Step "Restore packages" {
 
 if (-not $SkipTests) {
     $TestResultsDir = Join-Path $OutRoot "test-results"
-    Invoke-Step "Run tests" {
-        dotnet test $Solution `
-            --no-restore `
-            --configuration $Configuration `
-            --logger "console;verbosity=minimal" `
-            --logger "trx;LogFileName=results.trx" `
-            --results-directory $TestResultsDir
+    $TestProjects = @(Get-ChildItem -LiteralPath (Join-Path $RepoRoot "tests") -Filter "*.Tests.csproj" -File -Recurse | Sort-Object FullName)
+    if ($TestProjects.Count -eq 0) { throw "No test projects were found." }
+    foreach ($TestProject in $TestProjects) {
+        $ProjectResultsDir = Join-Path $TestResultsDir $TestProject.BaseName
+        Invoke-Step "Run tests: $($TestProject.BaseName)" {
+            dotnet test $TestProject.FullName `
+                --no-restore `
+                --configuration $Configuration `
+                --logger "console;verbosity=minimal" `
+                --logger "trx;LogFileName=results.trx" `
+                --results-directory $ProjectResultsDir
+        }
     }
 }
 
-if (Test-Path $AppOut) {
-    Remove-Item $AppOut -Recurse -Force
+if (Test-Path -LiteralPath $AppOut) {
+    Remove-Item -LiteralPath $AppOut -Recurse -Force
 }
 
 Invoke-Step "Publish GSYNC.App  ($Configuration / win-x64)" {
@@ -137,7 +159,7 @@ Invoke-Step "Publish GSYNC.App  ($Configuration / win-x64)" {
 }
 
 Invoke-Step "Package  →  $ZipName" {
-    if (Test-Path $ZipPath) { Remove-Item $ZipPath -Force }
+    if (Test-Path -LiteralPath $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }
     Compress-Archive -Path "$AppOut/*" -DestinationPath $ZipPath
 }
 

@@ -34,10 +34,15 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddHttpClient();
-        services.AddHttpClient<IManifestUpdateSource, HttpManifestUpdateSource>();
-        services.AddHttpClient<WebDavStorageProvider>();
+        services.AddHttpClient<IManifestUpdateSource, HttpManifestUpdateSource>()
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) });
+        services.AddHttpClient<WebDavStorageProvider>()
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5), AllowAutoRedirect = false });
 
         services.AddSingleton<IAppPathService, AppPathService>();
+        services.AddSingleton<ICredentialStore, ProtectedFileCredentialStore>();
+        services.AddSingleton<CredentialSettingsService>();
+        services.AddSingleton<CredentialMigrationService>();
         services.AddSingleton<UiSettingsStore>();
         services.AddSingleton<SyncTargetStore>();
         services.AddSingleton<UserVariablesStore>();
@@ -48,12 +53,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(sp =>
         {
             var appPaths = sp.GetRequiredService<IAppPathService>();
-            var connectionString = $"Data Source={appPaths.GetDatabasePath()}";
+            var connectionString = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder { DataSource = appPaths.GetDatabasePath() }.ToString();
             return new SqliteConnectionFactory(connectionString);
         });
         services.AddSingleton<DatabaseInitializer>();
 
         services.AddSingleton<IGameInstanceRepository, GameInstanceRepository>();
+        services.AddSingleton<IGameProfileRepository, GameProfileRepository>();
         services.AddSingleton<IStorageBindingRepository, StorageBindingRepository>();
         services.AddSingleton<ISyncHistoryRepository, SyncHistoryRepository>();
         services.AddSingleton<ICommunityDefinitionStore, CommunityDefinitionStore>();
@@ -62,7 +68,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<PathResolver>();
         services.AddSingleton<SystemVariableProvider>();
         services.AddSingleton<AddGameMatchService>();
-        services.AddSingleton<AddGamePathValidationService>();
+        services.AddSingleton(sp => new AddGamePathValidationService(
+            sp.GetRequiredService<PathResolver>(), sp.GetRequiredService<SystemVariableProvider>(),
+            () => sp.GetRequiredService<UserVariablesStore>().AsDictionary()));
         services.AddSingleton<EmbeddedManifestReader>();
         services.AddSingleton<ILudusaviManifestParser, LudusaviManifestParser>();
         services.AddSingleton<IUserDefinitionStore>(sp =>
@@ -98,11 +106,29 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<PathResolver>(),
                 sp.GetRequiredService<SystemVariableProvider>(),
                 sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SyncEngine>>(),
-                () => uiSettingsStore.Load().AutoSnapshotBeforeDownload);
+                () => uiSettingsStore.Load().AutoSnapshotBeforeDownload,
+                binding =>
+                {
+                    if (!binding.Settings.TryGetValue("targetId", out var targetId) || !Guid.TryParse(targetId, out var id))
+                    {
+                        return sp.GetRequiredService<CredentialSettingsService>().Resolve(binding.Settings);
+                    }
+
+                    var target = sp.GetRequiredService<SyncTargetStore>().Get(id)
+                        ?? throw new InvalidOperationException($"Sync target '{id}' no longer exists.");
+                    if (!string.Equals(target.ProviderId, binding.StorageProviderId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("The sync target provider no longer matches the game's binding.");
+                    }
+
+                    return new Dictionary<string, string>(sp.GetRequiredService<SyncTargetStore>().ResolveSettings(target.Settings), StringComparer.OrdinalIgnoreCase) { ["targetId"] = id.ToString("D") };
+                },
+                () => sp.GetRequiredService<UserVariablesStore>().AsDictionary(),
+                sp.GetRequiredService<GSYNC.Core.Services.ApplicationTaskHost>());
         });
         services.AddSingleton<ISyncEngine>(sp => sp.GetRequiredService<SyncEngine>());
 
-        services.AddTransient<MainWindowViewModel>();
+        services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<LibraryPageViewModel>();
         services.AddTransient<HistoryPageViewModel>();
         services.AddTransient<SyncTargetsPageViewModel>();

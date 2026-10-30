@@ -172,6 +172,9 @@ public partial class ConflictResolutionViewModel : ObservableObject
                 {
                     RelativePath = row.Filename,
                     Action = row.Action,
+                    VerifyComparedVersions = true,
+                    ExpectedLocalHash = _context.Comparison.Entries.Single(entry => entry.RelativePath == row.Filename).LocalHash,
+                    ExpectedRemoteHash = _context.Comparison.Entries.Single(entry => entry.RelativePath == row.Filename).RemoteHash,
                 }).ToArray(),
             };
             await _syncEngine.QueueAsync(new SyncJob

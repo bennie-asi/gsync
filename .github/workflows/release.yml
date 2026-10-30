@@ -34,18 +34,24 @@ jobs:
       - name: Resolve version
         id: ver
         shell: pwsh
+        env:
+          RELEASE_INPUT_TAG: ${{ github.event.inputs.tag }}
+          RELEASE_REF_TAG: ${{ github.ref_name }}
         run: |
-          $tag = '${{ github.event.inputs.tag }}'.Trim()
-          if ($tag -eq '') { $tag = '${{ github.ref_name }}' }
+          $tag = "$env:RELEASE_INPUT_TAG".Trim()
+          if ($tag -eq '') { $tag = "$env:RELEASE_REF_TAG" }
           $version = $tag -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$') { throw 'Invalid release tag.' }
           Write-Host "Tag: $tag  ->  Version: $version"
           "tag=$tag"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      - name: Setup .NET 8
+      - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: |
+            8.0.x
+            9.0.3xx
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
@@ -57,7 +63,9 @@ jobs:
 
       - name: Build, test and package
         shell: pwsh
-        run: scripts/build.ps1 -Version "${{ steps.ver.outputs.version }}" -OutputPath publish
+        env:
+          RELEASE_VERSION: ${{ steps.ver.outputs.version }}
+        run: scripts/build.ps1 -Version $env:RELEASE_VERSION -OutputPath publish
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

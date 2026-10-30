@@ -19,6 +19,24 @@ public sealed class CommunityDefinitionStore : ICommunityDefinitionStore
         return await ReadDefinitionsAsync("CommunityDefinitions", cancellationToken);
     }
 
+    public async Task<GameContentDefinition?> GetDefinitionAsync(string gameId, CancellationToken cancellationToken)
+    {
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT DefinitionJson FROM CommunityDefinitions WHERE GameId = $gameId;";
+        command.Parameters.AddWithValue("$gameId", gameId);
+        var json = await command.ExecuteScalarAsync(cancellationToken) as string;
+        if (json is not null) return JsonStorage.Deserialize<GameContentDefinition>(json);
+
+        command.CommandText = "SELECT DefinitionJson FROM CommunityDefinitions WHERE GameId = $gameId COLLATE NOCASE LIMIT 2;";
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return null;
+        var definition = JsonStorage.Deserialize<GameContentDefinition>(reader.GetString(0));
+        if (await reader.ReadAsync(cancellationToken)) throw new InvalidDataException($"Ambiguous legacy game ID '{gameId}'.");
+        return definition;
+    }
+
     public async Task SaveDefinitionsAsync(IEnumerable<GameContentDefinition> definitions, CancellationToken cancellationToken)
     {
         await SaveDefinitionsAsync("CommunityDefinitions", definitions, cancellationToken);

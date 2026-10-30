@@ -19,5 +19,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GSYNC.Core\GSYNC.Core.csproj" />
     <ProjectReference Include="..\..\src\GSYNC.Manifest\GSYNC.Manifest.csproj" />
+    <ProjectReference Include="..\..\src\GSYNC.Data\GSYNC.Data.csproj" />
   </ItemGroup>
 </Project>

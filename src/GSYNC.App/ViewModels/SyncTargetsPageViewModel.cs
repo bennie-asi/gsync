@@ -17,6 +17,7 @@ public partial class SyncTargetsPageViewModel : ObservableObject
     private readonly IGameInstanceRepository _gameInstanceRepository;
     private readonly IStorageBindingRepository _storageBindingRepository;
     private readonly Dictionary<Guid, (bool Success, string? Error, DateTimeOffset CheckedAt)> _testResults = [];
+    private long _selectionVersion;
 
     private IReadOnlyList<SyncTargetRow> _allTargets = [];
 
@@ -169,9 +170,9 @@ public partial class SyncTargetsPageViewModel : ObservableObject
 
     public Guid? SelectedTargetId { get; private set; }
 
-    public SyncTargetConfig? GetSelectedConfig()
+    public SyncTargetConfig? GetSelectedConfig(bool includeCredentials = false)
     {
-        return SelectedTargetId is { } id ? _syncTargetStore.Get(id) : null;
+        return SelectedTargetId is { } id ? (includeCredentials ? _syncTargetStore.GetForEditing(id) : _syncTargetStore.Get(id)) : null;
     }
 
     public async Task LoadAsync(bool testConnections = false, CancellationToken cancellationToken = default)
@@ -197,10 +198,14 @@ public partial class SyncTargetsPageViewModel : ObservableObject
                 $"最近检查：{UiFormat.RelativeTime(lastCheck, true)}",
                 $"Last check: {UiFormat.RelativeTime(lastCheck, false)}");
 
-            var selected = _allTargets.FirstOrDefault(row => row.TargetId == SelectedTargetId) ?? _allTargets.FirstOrDefault();
+            var selected = Targets.FirstOrDefault(row => row.TargetId == SelectedTargetId) ?? Targets.FirstOrDefault();
             if (selected is not null)
             {
                 await SelectTargetAsync(selected, cancellationToken);
+            }
+            else
+            {
+                ClearSelection();
             }
         }
         catch (Exception exception)
@@ -217,6 +222,7 @@ public partial class SyncTargetsPageViewModel : ObservableObject
             return;
         }
 
+        var selectionVersion = Interlocked.Increment(ref _selectionVersion);
         SelectedTargetId = config.Id;
         SelectedTargetName = config.Name;
         PaneTitle = Pick($"目标属性：{config.Name}", $"Target Properties: {config.Name}");
@@ -246,7 +252,12 @@ public partial class SyncTargetsPageViewModel : ObservableObject
 
         ConnectionFields = BuildConnectionFields(config);
         StorageFacts = BuildStorageFacts(config);
-        ActiveBindings = await BuildActiveBindingsAsync(config, cancellationToken);
+        ActiveBindings = [];
+        var bindings = await BuildActiveBindingsAsync(config, cancellationToken);
+        if (selectionVersion == Interlocked.Read(ref _selectionVersion))
+        {
+            ActiveBindings = bindings;
+        }
     }
 
     public async Task<bool> TestSelectedAsync(CancellationToken cancellationToken = default)
@@ -271,7 +282,7 @@ public partial class SyncTargetsPageViewModel : ObservableObject
 
         _syncTargetStore.Remove(id);
         _testResults.Remove(id);
-        SelectedTargetId = null;
+        ClearSelection();
         await LoadAsync(testConnections: false, cancellationToken);
     }
 
@@ -339,7 +350,7 @@ public partial class SyncTargetsPageViewModel : ObservableObject
 
         try
         {
-            var result = await provider.TestConnectionAsync(config.Settings, cancellationToken);
+            var result = await provider.TestConnectionAsync(_syncTargetStore.ResolveSettings(config.Settings), cancellationToken);
             _testResults[config.Id] = (result.IsSuccess, result.ErrorMessage, DateTimeOffset.Now);
             return result.IsSuccess;
         }
@@ -368,6 +379,28 @@ public partial class SyncTargetsPageViewModel : ObservableObject
         }
 
         Targets = filtered.ToArray();
+        if (SelectedTargetId is { } selectedId && !Targets.Any(row => row.TargetId == selectedId))
+        {
+            ClearSelection();
+        }
+    }
+
+    private void ClearSelection()
+    {
+        Interlocked.Increment(ref _selectionVersion);
+        SelectedTargetId = null;
+        SelectedTargetName = string.Empty;
+        PaneTitle = string.Empty;
+        SelectedTargetStatus = string.Empty;
+        SelectedTargetStatusVariant = "ready";
+        LastCheckedText = string.Empty;
+        ShowFailureState = false;
+        FailureTitle = string.Empty;
+        FailureMessage = string.Empty;
+        FailureCodeText = string.Empty;
+        ConnectionFields = [];
+        ActiveBindings = [];
+        StorageFacts = [];
     }
 
     private SyncTargetRow CreateRow(SyncTargetConfig config)
@@ -420,9 +453,10 @@ public partial class SyncTargetsPageViewModel : ObservableObject
 
         if (config.ProviderId == "webdav")
         {
+            var connection = _syncTargetStore.GetForEditing(config.Id) ?? config;
             fields.Add(new UiPropertyRow(Pick("端点 URL", "Endpoint URL"), config.Settings.GetValueOrDefault("baseUrl", "--")));
-            fields.Add(new UiPropertyRow(Pick("用户名", "Username"), config.Settings.GetValueOrDefault("username", "--")));
-            fields.Add(new UiPropertyRow(Pick("密码", "Password"), string.IsNullOrEmpty(config.Settings.GetValueOrDefault("password")) ? "--" : "••••••••"));
+            fields.Add(new UiPropertyRow(Pick("用户名", "Username"), connection.Settings.GetValueOrDefault("username", "--")));
+            fields.Add(new UiPropertyRow(Pick("密码", "Password"), connection.CredentialsUnavailable ? Pick("请重新输入凭据", "Re-enter credentials") : string.IsNullOrEmpty(connection.Settings.GetValueOrDefault("password")) ? "--" : "••••••••"));
         }
         else
         {

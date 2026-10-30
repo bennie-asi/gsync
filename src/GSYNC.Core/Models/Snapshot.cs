@@ -2,6 +2,8 @@ namespace GSYNC.Core.Models;
 
 public sealed class Snapshot
 {
+    public const string MetadataEntryName = "__gsync_snapshot.json";
+
     public Guid Id { get; init; } = Guid.NewGuid();
 
     public Guid GameInstanceId { get; init; }

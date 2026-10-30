@@ -12,7 +12,7 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid x:Name="RootLayout">
+    <Grid x:Name="RootLayout" Background="{StaticResource AppBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -34,7 +34,6 @@
 
             <primitives:AppNavRail
                 x:Name="NavRailControl"
-                AppVersion="v1.0.2"
                 SelectedKey="{Binding SelectedPageKey, Mode=OneWay}" />
 
             <Border Grid.Column="1" Background="Transparent">

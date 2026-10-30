@@ -317,9 +317,17 @@ public partial class SettingsPageViewModel : ObservableObject
 
     private void RefreshTargetOptions()
     {
+        var selectedId = SelectedDefaultTarget?.Id ?? _syncTargetStore.GetDefault()?.Id;
+        var existingOptions = AvailableTargets.ToDictionary(option => option.Id);
         AvailableTargets = _syncTargetStore.List()
-            .Select(target => new UiTargetOption(target.Id, $"{target.Name} · {DescribeProvider(target.ProviderId)}"))
+            .Select(target =>
+            {
+                var label = $"{target.Name} · {DescribeProvider(target.ProviderId)}";
+                return existingOptions.TryGetValue(target.Id, out var existing) && existing.Label == label
+                    ? existing : new UiTargetOption(target.Id, label);
+            })
             .ToArray();
+        SelectedDefaultTarget = AvailableTargets.FirstOrDefault(option => option.Id == selectedId) ?? AvailableTargets.FirstOrDefault();
     }
 
     private void RefreshDerivedCollections()

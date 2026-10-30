@@ -9,10 +9,12 @@ namespace GSYNC.Data.Repositories;
 public sealed class StorageBindingRepository : IStorageBindingRepository
 {
     private readonly SqliteConnectionFactory _connectionFactory;
+    private readonly CredentialSettingsService? _credentials;
 
-    public StorageBindingRepository(SqliteConnectionFactory connectionFactory)
+    public StorageBindingRepository(SqliteConnectionFactory connectionFactory, CredentialSettingsService? credentials = null)
     {
         _connectionFactory = connectionFactory;
+        _credentials = credentials;
     }
 
     public async Task<IReadOnlyList<StorageBinding>> ListByGameInstanceAsync(Guid gameInstanceId, CancellationToken cancellationToken)
@@ -51,10 +53,19 @@ public sealed class StorageBindingRepository : IStorageBindingRepository
 
     public async Task UpsertAsync(StorageBinding binding, CancellationToken cancellationToken)
     {
+        var settings = CredentialSettingsService.ContainsSecrets(binding.Settings)
+            ? (_credentials ?? throw new InvalidOperationException("A credential store is required to save credentials.")).Protect(binding.Settings)
+            : binding.Settings;
         await using var connection = _connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
+        await WriteAsync(binding, settings, connection, null, cancellationToken);
+    }
+
+    internal static async Task WriteAsync(StorageBinding binding, IReadOnlyDictionary<string, string> settings, SqliteConnection connection, SqliteTransaction? transaction, CancellationToken cancellationToken)
+    {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = """
             INSERT INTO StorageBindings (Id, GameInstanceId, StorageProviderId, RemoteNamespace, SettingsJson, ContentSelectionsJson, CreatedAtUtc, UpdatedAtUtc)
             VALUES ($id, $gameInstanceId, $storageProviderId, $remoteNamespace, $settingsJson, $contentSelectionsJson, $createdAtUtc, $updatedAtUtc)
@@ -70,7 +81,7 @@ public sealed class StorageBindingRepository : IStorageBindingRepository
         command.Parameters.AddWithValue("$gameInstanceId", binding.GameInstanceId.ToString("D"));
         command.Parameters.AddWithValue("$storageProviderId", binding.StorageProviderId);
         command.Parameters.AddWithValue("$remoteNamespace", binding.RemoteNamespace);
-        command.Parameters.AddWithValue("$settingsJson", Services.JsonStorage.Serialize(binding.Settings));
+        command.Parameters.AddWithValue("$settingsJson", Services.JsonStorage.Serialize(settings));
         command.Parameters.AddWithValue("$contentSelectionsJson", Services.JsonStorage.Serialize(binding.ContentSelections));
         command.Parameters.AddWithValue("$createdAtUtc", binding.CreatedAtUtc.UtcDateTime.ToString("O"));
         command.Parameters.AddWithValue("$updatedAtUtc", binding.UpdatedAtUtc.UtcDateTime.ToString("O"));
@@ -96,7 +107,7 @@ public sealed class StorageBindingRepository : IStorageBindingRepository
             GameInstanceId = Guid.Parse(reader.GetString(1)),
             StorageProviderId = reader.GetString(2),
             RemoteNamespace = reader.GetString(3),
-            Settings = Services.JsonStorage.Deserialize<Dictionary<string, string>>(reader.GetString(4)) ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            Settings = new Dictionary<string, string>(Services.JsonStorage.Deserialize<Dictionary<string, string>>(reader.GetString(4)) ?? new(), StringComparer.OrdinalIgnoreCase),
             ContentSelections = Services.JsonStorage.Deserialize<List<ContentSelection>>(reader.GetString(5)) ?? new List<ContentSelection>(),
             CreatedAtUtc = DateTimeOffset.Parse(reader.GetString(6)),
             UpdatedAtUtc = DateTimeOffset.Parse(reader.GetString(7)),

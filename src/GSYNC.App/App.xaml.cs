@@ -1,8 +1,10 @@
 using GSYNC.App.Infrastructure.Localization;
+using GSYNC.App.Infrastructure;
 using GSYNC.App.Infrastructure.Logging;
 using GSYNC.Core.Abstractions.Data;
 using GSYNC.Core.Abstractions.Manifest;
 using GSYNC.Core.Services.Sync;
+using GSYNC.Core.Services;
 using GSYNC.Manifest.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -13,10 +15,22 @@ namespace GSYNC.App;
 
 public partial class App : Application
 {
-    private readonly CancellationTokenSource _lifetimeCts = new();
+    private readonly ApplicationTaskHost _tasks = new();
     private Window? _window;
     private ServiceProvider? _services;
-    private Task? _syncProcessingTask;
+    private Task? _startupTask;
+    private bool _shutdownComplete;
+    private bool _shutdownStarted;
+    private FileStream? _instanceLease;
+
+    public CancellationToken LifetimeToken => _tasks.Token;
+    public bool IsReady { get; private set; }
+
+    public Task RunApplicationTaskAsync(Func<CancellationToken, Task> operation)
+    {
+        if (_tasks.IsStopping) return Task.CompletedTask;
+        return _tasks.RunAsync(operation);
+    }
 
     public App()
     {
@@ -26,7 +40,6 @@ public partial class App : Application
         RequestedTheme = startupSettings.ThemeMode == AppUiSettings.ThemeLight
             ? ApplicationTheme.Light
             : ApplicationTheme.Dark;
-        ApplyStartupDensity(startupSettings.DensityMode);
         UnhandledException += OnUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnCurrentDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -48,18 +61,23 @@ public partial class App : Application
         var appPaths = new GSYNC.Data.Services.AppPathService();
         EnsureAppDirectories(appPaths);
         var startupSettings = UiSettingsStore.LoadStartupSettings(appPaths.GetUiSettingsPath());
+        AppPalette.Apply(Resources, startupSettings.ThemeMode == AppUiSettings.ThemeLight);
+        ApplyStartupDensity(startupSettings.DensityMode);
         Log.Logger = SerilogBootstrap.CreateLogger(appPaths.GetLogsDirectory(), startupSettings.LogLevel);
         Log.Information("GSYNC launch requested.");
 
         try
         {
+            _instanceLease = new FileStream(Path.Combine(appPaths.GetAppDataRoot(), "app.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             Log.Information("Building application service provider.");
             var serviceCollection = new ServiceCollection();
+            serviceCollection.AddSingleton(_tasks);
             serviceCollection.AddGsyncServices(Log.Logger);
-            _services = serviceCollection.BuildServiceProvider();
+            _services = serviceCollection.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
 
             Log.Information("Creating main window shell.");
             _window = _services.GetRequiredService<MainWindow>();
+            _window.AppWindow.Closing += OnWindowClosing;
             _window.Closed += OnWindowClosed;
             _window.Activate();
         }
@@ -70,7 +88,9 @@ public partial class App : Application
         }
     }
 
-    public async Task RunDeferredStartupAsync()
+    public Task RunDeferredStartupAsync() => _startupTask ??= _tasks.RunAsync(InitializeCoreAsync);
+
+    private async Task InitializeCoreAsync(CancellationToken cancellationToken)
     {
         if (_services is null)
         {
@@ -83,12 +103,17 @@ public partial class App : Application
             Log.Information("Deferred startup phase started.");
             var initializer = _services.GetRequiredService<GSYNC.Data.Services.DatabaseInitializer>();
             Log.Information("Initializing database.");
-            await initializer.InitializeAsync(_lifetimeCts.Token);
+            GSYNC.Core.Utilities.RecoverableFileTransaction.RecoverAll(Path.Combine(_services.GetRequiredService<IAppPathService>().GetAppDataRoot(), "transactions"));
+            await initializer.InitializeAsync(cancellationToken);
+            // Migrate legacy plaintext settings before any page or worker can read them.
+            _ = _services.GetRequiredService<GSYNC.App.Infrastructure.Configuration.SyncTargetStore>().List();
+            await _services.GetRequiredService<GSYNC.Data.Services.CredentialMigrationService>().MigrateBindingsAsync(cancellationToken);
 
             Log.Information("Seeding embedded manifest if needed.");
-            await SeedEmbeddedManifestIfNeededAsync(_services, _lifetimeCts.Token);
+            await SeedEmbeddedManifestIfNeededAsync(_services, cancellationToken);
 
             Log.Information("Starting background services.");
+            cancellationToken.ThrowIfCancellationRequested();
             StartBackgroundServices(_services);
 
             Log.Information("Refreshing community manifest if configured.");
@@ -96,14 +121,16 @@ public partial class App : Application
             var appSettings = settingsStore.Load();
             if (appSettings.RefreshManifestOnStartup)
             {
-                _ = RefreshCommunityManifestIfConfiguredAsync(_services, _lifetimeCts.Token);
+                _ = _tasks.RunAsync(token => Task.Run(() => RefreshCommunityManifestIfConfiguredAsync(_services, token), token));
             }
             else
             {
                 Log.Information("Startup settings disabled remote manifest refresh.");
             }
+            IsReady = true;
             Log.Information("GSYNC deferred startup completed successfully.");
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception)
         {
             Log.Error(exception, "Deferred startup failed after the main window shell was shown.");
@@ -165,7 +192,7 @@ public partial class App : Application
     private void StartBackgroundServices(IServiceProvider services)
     {
         var syncEngine = services.GetRequiredService<SyncEngine>();
-        _syncProcessingTask = Task.Run(() => syncEngine.ProcessQueuedJobsAsync(_lifetimeCts.Token), _lifetimeCts.Token);
+        _ = _tasks.RunAsync(token => Task.Run(() => syncEngine.ProcessQueuedJobsAsync(token), token));
     }
 
     private static async Task RefreshCommunityManifestIfConfiguredAsync(IServiceProvider services, CancellationToken cancellationToken)
@@ -178,14 +205,35 @@ public partial class App : Application
         }
 
         var manifestService = services.GetRequiredService<IManifestService>();
-        await manifestService.RefreshCommunityDefinitionsAsync(cancellationToken);
-        Log.Information("Community manifest refresh completed.");
+        try
+        {
+            await manifestService.RefreshCommunityDefinitionsAsync(cancellationToken);
+            Log.Information("Community manifest refresh completed.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception) { Log.Warning(exception, "Community refresh failed; existing definitions remain available."); }
+    }
+
+    private async void OnWindowClosing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
+    {
+        if (_shutdownComplete) return;
+        args.Cancel = true;
+        if (_shutdownStarted) return;
+        _shutdownStarted = true;
+        IsReady = false;
+        if (_window?.Content is UIElement content) content.IsHitTestVisible = false;
+        try { await _tasks.StopAsync(); }
+        catch (Exception exception) { Log.Error(exception, "Background services failed while shutting down."); }
+        Log.Information("Background services stopped; closing the main window.");
+        _shutdownComplete = true;
+        _window?.Close();
     }
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
-        _lifetimeCts.Cancel();
         _services?.Dispose();
+        _tasks.Dispose();
+        _instanceLease?.Dispose();
         Log.CloseAndFlush();
     }
 
