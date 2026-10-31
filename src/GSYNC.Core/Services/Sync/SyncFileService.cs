@@ -42,7 +42,10 @@ internal sealed class SyncFileService(PathResolver pathResolver, SystemVariableP
                 throw new InvalidDataException("Content IDs must be single, non-reserved path segments.");
         }
 
-        return selectedItems
+        var useRemoteOverrides = binding.Settings.TryGetValue("__gsyncRootMappingTargetId", out var mappingTarget) &&
+            binding.Settings.TryGetValue("targetId", out var currentTarget) &&
+            Guid.TryParse(mappingTarget, out var mappingId) && Guid.TryParse(currentTarget, out var currentId) && mappingId == currentId;
+        var roots = selectedItems
             .SelectMany(item =>
             {
                 var templates = item.PathTemplates.Select(path => path.Replace('\\', '/')).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -60,7 +63,9 @@ internal sealed class SyncFileService(PathResolver pathResolver, SystemVariableP
                     var (rootPath, pattern) = File.Exists(resolved) || Directory.Exists(resolved) ? (resolved, (string?)null) : PathGlob.SplitRoot(resolved);
                     return new ResolvedContentRoot(item, rootPath,
                         pattern is not null || (Directory.Exists(resolved) ? true : File.Exists(resolved) ? false : ShouldTreatAsDirectory(item, effectiveTemplate)),
-                        templates.Length == 1 ? item.ContentId : BuildRemotePath(item.ContentId, "__roots", GetRootId(template)))
+                        useRemoteOverrides && !string.IsNullOrWhiteSpace(selection?.RemoteRoot(template))
+                            ? RemoteContentLayout.ValidateRootKey(selection!.RemoteRoot(template)!)
+                            : RemoteContentLayout.DefaultRootKey(item.ContentId, template, templates.Length))
                     {
                         GlobPattern = pattern,
                     };
@@ -69,6 +74,8 @@ internal sealed class SyncFileService(PathResolver pathResolver, SystemVariableP
             .Where(root => !string.IsNullOrWhiteSpace(root.LocalRootPath))
             .DistinctBy(root => (root.ContentItem.ContentId, root.LocalRootPath), EqualityComparer<(string, string)>.Default)
             .ToArray();
+        RemoteContentLayout.ValidateDistinctRoots(roots.Select(root => root.StorageKey));
+        return roots;
     }
 
     internal static string GetRootId(string template)

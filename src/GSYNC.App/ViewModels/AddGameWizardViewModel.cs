@@ -8,6 +8,7 @@ using GSYNC.Core.Abstractions.Manifest;
 using GSYNC.Core.Abstractions.Sync;
 using GSYNC.Core.Models;
 using GSYNC.Core.Models.Manifest;
+using GSYNC.Core.Services.Sync;
 using GSYNC.Core.Utilities;
 using Serilog;
 
@@ -184,12 +185,44 @@ public partial class AddGameWizardViewModel : ObservableObject
     private string _manualProgramPath = string.Empty;
     private string _manualMatchMessage = string.Empty;
     private string? _namespaceGameId;
+    private Guid? _linkedTargetId;
+    private string? _linkedNamespace;
+    private IReadOnlyList<ContentRootLink>? _remoteLinks;
+    private bool _applyingRemoteLink;
 
     [ObservableProperty]
     private string _remoteNamespaceText = string.Empty;
 
     public string RemoteNamespaceLabel => Pick("远端目录", "Remote directory");
-    public string RemoteNamespaceHelp => Pick("默认使用游戏资料名称；可改为英文目录。多台电脑同步同一存档时，目录必须一致。", "The default uses the game catalog name. You can enter an English directory; use the same directory on each computer.");
+    public string RemoteNamespaceHelp => Pick("在另一台电脑已有存档时，请选择已有远端存档并对应本机内容。", "To use saves from another computer, link an existing remote save and match its content.");
+    public string LinkRemoteText => Pick("关联已有远端存档…", "Link existing remote saves…");
+    public string LinkRemoteStatus => HasRemoteLinks() ? Pick("已关联远端存档，创建后请先比较。", "Remote saves linked. Compare them after creating the profile.") : string.Empty;
+    public IReadOnlyList<LocalContentRoot> GetLinkableRoots() => _selectedMatch is null ? [] :
+        RemoteContentLayout.LocalRoots(_selectedMatch.Definition, BuildBaseContentSelections()).Select(root =>
+        {
+            var reviewed = PathReview.FirstOrDefault(row => string.Equals(row.ContentId, root.ContentId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(row.Template.Replace('\\', '/'), root.Template, StringComparison.OrdinalIgnoreCase));
+            return reviewed is null ? root : root with { LocalPath = reviewed.ResolvedPath };
+        }).ToArray();
+
+    public void LinkExistingRemote(Guid targetId, string remoteNamespace, IReadOnlyList<ContentRootLink> links)
+    {
+        if (_selectedMatch is null || SelectedTargetId != targetId) throw new InvalidOperationException("The selected game or target changed.");
+        _ = RemoteContentLayout.ApplyLinks(_selectedMatch.Definition, BuildBaseContentSelections(), links);
+        _applyingRemoteLink = true;
+        try { RemoteNamespaceText = remoteNamespace; }
+        finally { _applyingRemoteLink = false; }
+        _linkedTargetId = targetId;
+        _linkedNamespace = remoteNamespace;
+        _remoteLinks = links.ToArray();
+        OnPropertyChanged(nameof(LinkRemoteStatus));
+    }
+
+    partial void OnRemoteNamespaceTextChanged(string value)
+    {
+        if (!_applyingRemoteLink) _remoteLinks = null;
+        OnPropertyChanged(nameof(LinkRemoteStatus));
+    }
 
     public string ManualGameName
     {
@@ -326,8 +359,10 @@ public partial class AddGameWizardViewModel : ObservableObject
                 ToggleContentItem(option.Key);
                 break;
             case 5:
+                if (SelectedTargetId?.ToString("D") != option.Key) _remoteLinks = null;
                 SelectedTargetId = Guid.TryParse(option.Key, out var targetId) ? targetId : null;
                 Targets = Targets.Select(candidate => candidate with { IsSelected = candidate.Key == option.Key }).ToArray();
+                OnPropertyChanged(nameof(LinkRemoteStatus));
                 break;
         }
     }
@@ -536,6 +571,7 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     public void SetManualGame(string displayName, string savePath)
     {
+        _remoteLinks = null;
         ManualGameName = displayName.Trim();
         ManualSavePath = savePath.Trim();
         var manualGame = CreateManualDiscoveredGame(displayName);
@@ -651,6 +687,7 @@ public partial class AddGameWizardViewModel : ObservableObject
             bindingSettings["targetName"] = target.Name;
             bindingSettings["matchConfidence"] = _selectedMatch.Confidence.ToString();
             bindingSettings["matchReason"] = _selectedMatch.Reason;
+            if (HasRemoteLinks()) bindingSettings["__gsyncRootMappingTargetId"] = target.Id.ToString("D");
 
             var binding = new StorageBinding
             {
@@ -766,6 +803,8 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     private void SelectGame(string gameId)
     {
+        _remoteLinks = null;
+        OnPropertyChanged(nameof(LinkRemoteStatus));
         var previousId = _selectedMatch?.Definition.GameId;
         if (IsManualSourceSelected && _discoveredGames.Count == 1 && Games.Any(option => option.Key == gameId))
         {
@@ -880,6 +919,8 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     private void ToggleContentItem(string contentId)
     {
+        _remoteLinks = null;
+        OnPropertyChanged(nameof(LinkRemoteStatus));
         if (!_selectedContentIds.Remove(contentId))
         {
             _selectedContentIds.Add(contentId);
@@ -927,7 +968,14 @@ public partial class AddGameWizardViewModel : ObservableObject
         BuildPathReview();
     }
 
-    private IReadOnlyList<ContentSelection> BuildContentSelections() =>
+    private bool HasRemoteLinks() => _remoteLinks is not null && _linkedTargetId == SelectedTargetId &&
+        string.Equals(_linkedNamespace, RemoteNamespaceText.Trim().Replace('\\', '/').TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+
+    private IReadOnlyList<ContentSelection> BuildContentSelections() => HasRemoteLinks() && _selectedMatch is not null
+        ? RemoteContentLayout.ApplyLinks(_selectedMatch.Definition, BuildBaseContentSelections(), _remoteLinks!)
+        : BuildBaseContentSelections();
+
+    private IReadOnlyList<ContentSelection> BuildBaseContentSelections() =>
         _selectedMatch?.Definition.ContentItems.Select(item => new ContentSelection
         {
             ContentId = item.ContentId,
@@ -978,6 +1026,7 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     public void RefreshTargets(Guid? selectedTargetId = null)
     {
+        if (selectedTargetId is { } requested && requested != SelectedTargetId) _remoteLinks = null;
         if (selectedTargetId is { } id && _syncTargetStore.Get(id) is not null) SelectedTargetId = id;
         else if (SelectedTargetId is { } current && _syncTargetStore.Get(current) is null) SelectedTargetId = null;
         BuildTargets();

@@ -175,6 +175,8 @@
                                 <Button Click="ManageTargetsButton_Click" Content="{Binding ManageTargetsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" HorizontalAlignment="Left" />
                                 <TextBox Header="{Binding RemoteNamespaceLabel}" Text="{Binding RemoteNamespaceText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Stretch" />
                                 <TextBlock Text="{Binding RemoteNamespaceHelp}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
+                                <Button Click="LinkRemote_Click" Content="{Binding LinkRemoteText}" Style="{StaticResource SecondaryToolbarButtonStyle}" HorizontalAlignment="Left" />
+                                <TextBlock Text="{Binding LinkRemoteStatus}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
                             </StackPanel>
                         </primitives:DenseDataGrid.GridContent>
                     </primitives:DenseDataGrid>

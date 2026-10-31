@@ -121,6 +121,32 @@ public sealed class RemoteSaveSessionTests : IDisposable
         await Assert.ThrowsAsync<InvalidDataException>(() => OpenAsync());
     }
 
+    [Fact]
+    public async Task ExistingContentDiscoveryReadsLegacyAndCommittedLogicalRoots()
+    {
+        using (var content = new MemoryStream("legacy"u8.ToArray()))
+            await Storage.UploadAsync(Namespace + "/old-content/nested/slot.sav", content, default);
+        using (var content = new MemoryStream("another"u8.ToArray()))
+            await Storage.UploadAsync(Namespace + "/multi/__roots/0123456789ABCDEF/slot.sav", content, default);
+        Assert.Equal(new[] { "multi/__roots/0123456789ABCDEF", "old-content" },
+            await RemoteContentLayout.ListRootsAsync(Storage, Namespace, default));
+        var writer = await OpenAsync();
+        await PutAsync(writer, "new.sav", "new");
+        await writer.CommitAsync(default);
+        Assert.Equal(new[] { "default", "multi/__roots/0123456789ABCDEF", "old-content" },
+            await RemoteContentLayout.ListRootsAsync(Storage, Namespace, default));
+    }
+
+    [Fact]
+    public void RemoteContentMappingsRejectOverlappingOrReservedPaths()
+    {
+        Assert.Throws<InvalidDataException>(() => RemoteContentLayout.ValidateDistinctRoots(["multi", "multi/__roots/0123456789ABCDEF"]));
+        Assert.Throws<InvalidDataException>(() => RemoteContentLayout.ValidateDistinctRoots(["saves", "SAVES"]));
+        Assert.Throws<InvalidDataException>(() => RemoteContentLayout.ValidateRootKey("__gsync_meta"));
+        Assert.Throws<InvalidDataException>(() => RemoteContentLayout.ValidateRootKey("../saves"));
+        Assert.Throws<InvalidDataException>(() => RemoteContentLayout.ValidateRootKey("saves/subfolder"));
+    }
+
     private async Task SeedAsync()
     {
         var writer = await OpenAsync();

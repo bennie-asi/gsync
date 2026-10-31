@@ -27,6 +27,12 @@ Windows 游戏存档同步工具，支持本地文件夹和 WebDAV。GSYNC 使�
 - Windows 凭据使用当前账户的 DPAPI 加密。将数据复制到其他账户后，需要重新输入凭据。
 - 下载前可创建本地快照。恢复、冲突处理和更新失败时保留的备份不会替代用户自行备份。
 
+### 在两台电脑之间同步
+
+1. 在第一台电脑配置 WebDAV 目标，添加游戏并上传存档。
+2. 在第二台电脑配置同一个 WebDAV 目标，添加游戏时选择「关联已有远端存档」，打开第一台电脑使用的游戏目录，并确认本机路径与远端内容的对应关系。已有游戏可在详情页的同步位置编辑区执行相同操作。
+3. 保存配置后选择「比较存档」，确认差异并选择保留的版本，再开始同步。关联不会移动或删除原有远端文件；其他旧目录需自行确认后再处理。
+
 ## 开发
 
 需要 Windows 10 1904x 或更新版本、x64、.NET 9.0.3xx SDK 和 .NET 8 运行时。
@@ -48,6 +54,8 @@ GSYNC is a Windows x64 game-save synchronization app with local-folder and WebDA
 Download the Windows x64 ZIP from [Releases](https://github.com/bennie-asi/gsync/releases), extract it to a separate folder, and run `GSYNC.App.exe`. Data is stored in `%APPDATA%\GSYNC`, unless an absolute `GSYNC_DATA_ROOT` is provided. Closing the window keeps the app running by default; use the tray icon to reopen or exit it.
 
 The app checks for stable releases while running and can install signed updates after sync tasks finish. Checking, installation, background operation, and sign-in startup can be configured in Settings. Older installations without the update helper require one manual upgrade.
+
+To sync between computers, configure the same WebDAV target on both. Upload the game from the first computer, then select “Link existing remote saves” when adding the game on the second computer (or edit its sync location). Choose the first computer's game folder, match each local save to its remote content, and compare the files before syncing.
 
 For development, install the .NET 9.0.3xx SDK and .NET 8 runtime, then run the build and test commands above. See [the documentation index](docs/README.md) for implementation details.
 

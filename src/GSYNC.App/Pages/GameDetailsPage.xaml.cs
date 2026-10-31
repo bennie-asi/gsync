@@ -20,6 +20,7 @@ public sealed partial class GameDetailsPage : Page
     private readonly ISyncQueue _syncQueue;
     private readonly AutoPullCoordinator _autoPull;
     private bool _isCurrentPage;
+    private RemoteLinkResult? _pendingRemoteLink;
 
     public GameDetailsPage()
     {
@@ -378,6 +379,7 @@ public sealed partial class GameDetailsPage : Page
     {
         if (_viewModel.InstanceId is null || GameEditor.Visibility == Visibility.Visible || ContentEditor.Visibility == Visibility.Visible || DestinationEditor.Visibility == Visibility.Visible) return;
         var options = _viewModel.GetTargetOptions();
+        _pendingRemoteLink = null;
         DestinationTargetBox.ItemsSource = options;
         DestinationTargetBox.SelectedItem = options.FirstOrDefault(option => option.Id == (preferredTargetId ?? _viewModel.CurrentTargetId));
         DestinationNamespaceBox.Text = draftNamespace ?? _viewModel.CurrentRemoteNamespace;
@@ -390,6 +392,7 @@ public sealed partial class GameDetailsPage : Page
 
     private void CancelDestination_Click(object sender, RoutedEventArgs e)
     {
+        _pendingRemoteLink = null;
         DestinationEditor.Visibility = Visibility.Collapsed;
         DestinationValidation.Text = string.Empty;
     }
@@ -401,13 +404,19 @@ public sealed partial class GameDetailsPage : Page
             DestinationValidation.Text = _viewModel.IsChinese ? "请选择一个同步目标。" : "Select a sync target.";
             return;
         }
-        var changed = selected.Id != _viewModel.CurrentTargetId || !string.Equals(DestinationNamespaceBox.Text.Trim().Replace('\\', '/').TrimEnd('/'), _viewModel.CurrentRemoteNamespace, StringComparison.Ordinal);
+        var normalizedDraft = DestinationNamespaceBox.Text.Trim().Replace('\\', '/').TrimEnd('/');
+        if (_pendingRemoteLink is { } pending && (pending.TargetId != selected.Id || !string.Equals(pending.RemoteNamespace, normalizedDraft, StringComparison.OrdinalIgnoreCase)))
+        {
+            DestinationValidation.Text = _viewModel.IsChinese ? "目标或目录已更改，请重新关联存档，或取消并重新编辑。" : "The target or folder changed. Link the saves again, or cancel and edit the destination again.";
+            return;
+        }
+        var changed = _pendingRemoteLink is not null || selected.Id != _viewModel.CurrentTargetId || !string.Equals(normalizedDraft, _viewModel.CurrentRemoteNamespace, StringComparison.Ordinal);
         SaveDestinationButton.IsEnabled = false;
         CancelDestinationButton.IsEnabled = false;
         ManageDestinationButton.IsEnabled = false;
         try
         {
-            var error = await _viewModel.UpdateDestinationAsync(selected.Id, DestinationNamespaceBox.Text, App.Current.LifetimeToken);
+            var error = await _viewModel.UpdateDestinationAsync(selected.Id, DestinationNamespaceBox.Text, App.Current.LifetimeToken, _pendingRemoteLink?.Links);
             if (error is not null) { DestinationValidation.Text = error; return; }
             DestinationEditor.Visibility = Visibility.Collapsed;
             if (changed && _viewModel.InstanceId is { } id)
@@ -423,6 +432,27 @@ public sealed partial class GameDetailsPage : Page
             CancelDestinationButton.IsEnabled = true;
             ManageDestinationButton.IsEnabled = true;
         }
+    }
+
+    private async void LinkRemote_Click(object sender, RoutedEventArgs e)
+    {
+        if (DestinationTargetBox.SelectedItem is not GameTargetOption target)
+        {
+            DestinationValidation.Text = _viewModel.IsChinese ? "请先选择同步目标。" : "Choose a sync target first.";
+            return;
+        }
+        LinkRemoteButton.IsEnabled = false;
+        try
+        {
+            var result = await RemoteLinkDialog.ShowAsync(XamlRoot, target.Id, _viewModel.GetLinkableRoots(), _viewModel.IsChinese, App.Current.LifetimeToken);
+            if (result is null) return;
+            _pendingRemoteLink = result;
+            DestinationNamespaceBox.Text = result.RemoteNamespace;
+            DestinationValidation.Text = _viewModel.IsChinese ? "已选择远端存档。保存后请先比较；现有文件不会移动或删除。" : "Remote saves selected. Save and compare; existing files will not be moved or deleted.";
+        }
+        catch (OperationCanceledException) when (App.Current.LifetimeToken.IsCancellationRequested) { }
+        catch (Exception exception) { DestinationValidation.Text = (_viewModel.IsChinese ? "无法关联存档：" : "Cannot link saves: ") + exception.Message; }
+        finally { LinkRemoteButton.IsEnabled = true; }
     }
 
     private void ManageDestination_Click(object sender, RoutedEventArgs e)

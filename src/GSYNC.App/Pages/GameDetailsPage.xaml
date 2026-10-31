@@ -94,6 +94,7 @@
                             <TextBlock Text="{Binding DestinationHelp}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
                             <ComboBox x:Name="DestinationTargetBox" Header="{Binding SelectTargetText}" DisplayMemberPath="Label" HorizontalAlignment="Stretch" />
                             <TextBox x:Name="DestinationNamespaceBox" Header="{Binding RemoteNamespaceText}" HorizontalAlignment="Stretch" />
+                            <Button x:Name="LinkRemoteButton" Click="LinkRemote_Click" Content="{Binding LinkRemoteText}" Style="{StaticResource SecondaryToolbarButtonStyle}" HorizontalAlignment="Left" />
                             <TextBlock x:Name="DestinationValidation" Foreground="{StaticResource AppWarningBrush}" TextWrapping="Wrap" />
                             <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
                                 <StackPanel Orientation="Horizontal" Spacing="8">

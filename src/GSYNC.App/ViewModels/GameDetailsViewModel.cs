@@ -10,6 +10,7 @@ using GSYNC.Core.Abstractions.Manifest;
 using GSYNC.Core.Abstractions.Sync;
 using GSYNC.Core.Models;
 using GSYNC.Core.Models.Manifest;
+using GSYNC.Core.Services.Sync;
 using GSYNC.Core.Utilities;
 using Serilog;
 
@@ -273,9 +274,18 @@ public partial class GameDetailsViewModel : ObservableObject
             target.Settings.GetValueOrDefault("baseUrl", target.Settings.GetValueOrDefault("rootPath", string.Empty))))
         .ToArray();
 
+    public string LinkRemoteText => Pick("关联已有远端存档…", "Link existing remote saves…");
+    public IReadOnlyList<LocalContentRoot> GetLinkableRoots() => _definition is null ? [] :
+        RemoteContentLayout.LocalRoots(_definition, _binding?.ContentSelections ?? Array.Empty<ContentSelection>()).Select(root =>
+        {
+            var row = ContentItems.FirstOrDefault(item => string.Equals(item.Name, root.ContentId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(item.PathTemplate.Replace('\\', '/'), root.Template, StringComparison.OrdinalIgnoreCase));
+            return row is null ? root : root with { LocalPath = row.ResolvedPath };
+        }).ToArray();
+
     public ContentItemRow? SelectedContentItem { get; private set; }
 
-    public async Task<string?> UpdateDestinationAsync(Guid targetId, string remoteNamespace, CancellationToken cancellationToken = default)
+    public async Task<string?> UpdateDestinationAsync(Guid targetId, string remoteNamespace, CancellationToken cancellationToken = default, IReadOnlyList<ContentRootLink>? links = null)
     {
         if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is in progress. Please wait.");
         if (_instance is null) return Pick("游戏实例尚未加载。", "Game instance is not loaded.");
@@ -293,8 +303,9 @@ public partial class GameDetailsViewModel : ObservableObject
         {
             return Pick("远端目录必须是相对路径，不能包含空目录、.. 或保留目录。", "Enter a relative remote directory without empty segments, .., or reserved directories.");
         }
-        if (CurrentTargetId == targetId && string.Equals(CurrentRemoteNamespace, normalized, StringComparison.Ordinal) &&
-            string.Equals(_binding?.StorageProviderId, target.ProviderId, StringComparison.OrdinalIgnoreCase)) return null;
+        var destinationChanged = CurrentTargetId != targetId || !string.Equals(CurrentRemoteNamespace, normalized, StringComparison.Ordinal) ||
+            !string.Equals(_binding?.StorageProviderId, target.ProviderId, StringComparison.OrdinalIgnoreCase);
+        if (!destinationChanged && links is null) return null;
 
         IsBusy = true;
         StopStatusCheck();
@@ -307,12 +318,20 @@ public partial class GameDetailsViewModel : ObservableObject
             settings["targetId"] = target.Id.ToString("D");
             settings["targetName"] = target.Name;
             settings["__gsyncTargetRevision"] = Guid.NewGuid().ToString("N");
+            var selections = existing?.ContentSelections ?? Array.Empty<ContentSelection>();
+            if (links is not null)
+            {
+                if (_definition is null) throw new InvalidOperationException("The game definition is unavailable.");
+                selections = RemoteContentLayout.ApplyLinks(_definition, selections, links);
+                settings["__gsyncRootMappingTargetId"] = target.Id.ToString("D");
+            }
+            else if (destinationChanged) settings.Remove("__gsyncRootMappingTargetId");
             var updatedAt = DateTimeOffset.UtcNow;
             if (existing is not null && updatedAt <= existing.UpdatedAtUtc) updatedAt = existing.UpdatedAtUtc.AddTicks(1);
             var updated = new StorageBinding
             {
                 Id = existing?.Id ?? Guid.NewGuid(), GameInstanceId = _instance.Id, StorageProviderId = target.ProviderId,
-                RemoteNamespace = normalized, Settings = settings, ContentSelections = existing?.ContentSelections ?? Array.Empty<ContentSelection>(),
+                RemoteNamespace = normalized, Settings = settings, ContentSelections = selections,
                 CreatedAtUtc = existing?.CreatedAtUtc ?? updatedAt, UpdatedAtUtc = updatedAt,
             };
             await _bindingUpdater.UpdateBindingAsync(updated, existing?.Id, existing?.UpdatedAtUtc, cancellationToken);
@@ -392,7 +411,7 @@ public partial class GameDetailsViewModel : ObservableObject
                 }
                 return new ContentSelection { ContentId = content.ContentId,
                     IsEnabled = previous.ContentSelections.Count == 0 ? content.DefaultEnabled : old?.IsEnabled ?? false,
-                    PathOverrides = paths, DisabledPathTemplates = old?.DisabledPathTemplates ?? Array.Empty<string>(),
+                    PathOverrides = paths, RemoteRootOverrides = old?.RemoteRootOverrides ?? new Dictionary<string, string>(), DisabledPathTemplates = old?.DisabledPathTemplates ?? Array.Empty<string>(),
                     RemovedPathTemplates = old?.RemovedPathTemplates ?? Array.Empty<string>() };
             }).ToArray();
             var updatedAt = DateTimeOffset.UtcNow;
@@ -448,7 +467,7 @@ public partial class GameDetailsViewModel : ObservableObject
                     }
                 }
                 return new ContentSelection { ContentId = content.ContentId, IsEnabled = groupEnabled,
-                    PathOverrides = old?.PathOverrides ?? new Dictionary<string, string>(), DisabledPathTemplates = disabled.ToArray(), RemovedPathTemplates = removed.ToArray() };
+                    PathOverrides = old?.PathOverrides ?? new Dictionary<string, string>(), RemoteRootOverrides = old?.RemoteRootOverrides ?? new Dictionary<string, string>(), DisabledPathTemplates = disabled.ToArray(), RemovedPathTemplates = removed.ToArray() };
             }).ToArray();
             var updatedAt = DateTimeOffset.UtcNow;
             if (updatedAt <= previous.UpdatedAtUtc) updatedAt = previous.UpdatedAtUtc.AddTicks(1);
@@ -720,6 +739,7 @@ public partial class GameDetailsViewModel : ObservableObject
                             IsEnabled = item.ContentId == contentId || (oldBinding.ContentSelections.Count == 0 ? item.DefaultEnabled :
                                 oldBinding.ContentSelections.Any(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase) && selection.IsEnabled)),
                             PathOverrides = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.PathOverrides ?? new Dictionary<string, string>(),
+                            RemoteRootOverrides = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.RemoteRootOverrides ?? new Dictionary<string, string>(),
                             DisabledPathTemplates = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.DisabledPathTemplates ?? Array.Empty<string>(),
                             RemovedPathTemplates = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.RemovedPathTemplates ?? Array.Empty<string>(),
                         }).ToArray(),

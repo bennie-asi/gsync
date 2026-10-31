@@ -10,6 +10,9 @@ public sealed class ContentSelection
     // change when two computers use different local save locations.
     public IReadOnlyDictionary<string, string> PathOverrides { get; init; } = new Dictionary<string, string>();
 
+    // Explicit links to content roots already stored on the selected target.
+    public IReadOnlyDictionary<string, string> RemoteRootOverrides { get; init; } = new Dictionary<string, string>();
+
     // Path-level choices retain the original template identity and do not modify shared definitions.
     public IReadOnlyList<string> DisabledPathTemplates { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> RemovedPathTemplates { get; init; } = Array.Empty<string>();
@@ -27,4 +30,7 @@ public sealed class ContentSelection
             string.Equals(pair.Key.Replace('\\', '/'), normalized, StringComparison.OrdinalIgnoreCase));
         return match is { Value: { } path } && !string.IsNullOrWhiteSpace(path) ? path : originalTemplate;
     }
+
+    public string? RemoteRoot(string originalTemplate) => RemoteRootOverrides?.FirstOrDefault(pair =>
+        string.Equals(pair.Key.Replace('\\', '/'), originalTemplate.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)).Value;
 }

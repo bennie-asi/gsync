@@ -128,6 +128,24 @@ public sealed partial class AddGameWizardPage : Page
         PathValidationText.Visibility = Visibility.Collapsed;
     }
 
+    private async void LinkRemote_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.SelectedTargetId is not { } targetId)
+        {
+            await ShowInfoAsync(_viewModel.IsChinese ? "请选择同步目标" : "Choose a sync target", _viewModel.IsChinese ? "请先选择用于存档的同步目标。" : "Choose the target containing the saves first.");
+            return;
+        }
+        if (sender is Button button) button.IsEnabled = false;
+        try
+        {
+            var result = await RemoteLinkDialog.ShowAsync(XamlRoot, targetId, _viewModel.GetLinkableRoots(), _viewModel.IsChinese, App.Current.LifetimeToken);
+            if (result is not null) _viewModel.LinkExistingRemote(result.TargetId, result.RemoteNamespace, result.Links);
+        }
+        catch (OperationCanceledException) when (App.Current.LifetimeToken.IsCancellationRequested) { }
+        catch (Exception exception) { await ShowInfoAsync(_viewModel.IsChinese ? "无法关联存档" : "Cannot link saves", exception.Message); }
+        finally { if (sender is Button actionButton) actionButton.IsEnabled = true; }
+    }
+
     private void ResetPath_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: WizardPathReviewRow row }) row.OverridePath = string.Empty;
