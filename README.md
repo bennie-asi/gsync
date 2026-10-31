@@ -1,295 +1,56 @@
-<div align="center">
+# GSYNC
 
-# 🎮 GSYNC
+Windows 游戏存档同步工具，支持本地文件夹和 WebDAV。GSYNC 使用 WinUI 3，运行于 Windows x64。
 
-### A modular, cross-device platform for synchronizing your game saves
-### 模块化的跨设备游戏存档同步平台
+[下载发行版](https://github.com/bennie-asi/gsync/releases) · [English](#english) · [项目文档](docs/README.md)
 
-[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
-[![WinUI 3](https://img.shields.io/badge/WinUI-3-0078D4?logo=windows&logoColor=white)](https://learn.microsoft.com/windows/apps/winui/winui3/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078D4?logo=windows11&logoColor=white)](#-getting-started)
-[![Build](https://github.com/bennie-asi/gsync/actions/workflows/ci.yml/badge.svg)](https://github.com/bennie-asi/gsync/actions/workflows/ci.yml)
-[![Architecture](https://img.shields.io/badge/architecture-MVVM-2ea44f)](#-architecture)
-[![Status](https://img.shields.io/badge/status-active%20development-orange)](#-roadmap--status)
+## 功能
 
-**English** · [简体中文](#-中文说明)
+- 管理游戏及其存档、配置等内容项，支持从 Steam、Epic 导入或手动添加。
+- 在本地目录或 WebDAV 目标之间同步；比较差异后可逐文件选择本地版本、远端版本或暂不处理。
+- 使用路径变量适配不同电脑；查看同步队列、历史记录和本地快照。
+- 支持 Windows 登录时启动、关闭窗口后在后台运行，以及从系统托盘打开或退出。
+- 自动检查 GitHub 正式版，验证发行签名并在同步任务结束后安装；启动检查失败时恢复旧版本。
 
-*Stop losing your progress. Keep every save, config and slot in sync across all your machines — safely.*
-*别再丢档了。把每一份存档、配置和槽位在你所有设备间安全地同步。*
+## 安装和运行
 
-<img src="docs/screenshots/01-library.png" alt="GSYNC Library" width="820" />
+从 [Releases](https://github.com/bennie-asi/gsync/releases) 下载 Windows x64 ZIP，解压到独立目录并运行 `GSYNC.App.exe`。应用数据默认保存在 `%APPDATA%\GSYNC`；可通过绝对路径环境变量 `GSYNC_DATA_ROOT` 指定其他目录。
 
-</div>
+关闭窗口默认会保留后台进程。单击系统托盘图标可重新打开窗口，右键可退出；也可在设置中关闭后台运行。登录自启是独立选项，默认关闭。
 
----
+运行期间最多每天联网检查一次更新。自动检查和自动安装可在设置中分别关闭。安装目录必须可写，且不能与数据目录重叠。没有更新器或受管文件清单的旧版本，需要先手动解压新版。
 
-## ✨ Highlights
+## 同步和数据
 
-- 🗂️ **Multi-game library** — Track every game's local/remote sync status at a glance, with a live activity timeline.
-- 🧩 **Content-item model** — A game isn't just one folder. Sync saves, character slots, user config and extra files independently.
-- 🌐 **Pluggable storage targets** — Local folder and WebDAV today; OneDrive / Google Drive / SFTP / NAS by design.
-- 🔌 **Source providers** — Discover installed games from **Steam**, **Epic**, or define them **manually**.
-- 🧮 **Portable path variables** — Store logical templates like `%APPDATA%/MyGame/Saves` and resolve them per machine, with a built-in template tester.
-- 🛟 **Safety-first conflicts** — Side-by-side comparison, backup-before-overwrite, and per-file choices to keep the local or remote version or leave it unresolved. The **core engine** owns policy, not the storage layer.
-- 🕓 **History & snapshots** — Every sync is recorded and auditable, with restore points to roll a save back in time.
-- 🎨 **Native desktop feel** — A dense, utility-first WinUI 3 shell with split panes, property sheets and status bars — not a web dashboard.
+- 上传使用不可变版本及条件写入发布清单。使用该格式前，请先升级所有设备上的 GSYNC。
+- WebDAV 服务器需要支持强 ETag 和条件 PUT；远程认证要求 HTTPS，本机开发地址除外。
+- Windows 凭据使用当前账户的 DPAPI 加密。将数据复制到其他账户后，需要重新输入凭据。
+- 下载前可创建本地快照。恢复、冲突处理和更新失败时保留的备份不会替代用户自行备份。
 
-> 中文说明见文末 [简体中文](#-中文说明)。
+## 开发
 
----
-
-## 📸 Screenshots
-
-| Library Dashboard | Game Details |
-|:---:|:---:|
-| ![Library](docs/screenshots/01-library.png) | ![Game Details](docs/screenshots/07-game-details.png) |
-| **Sync Targets** | **Variables & Path Tester** |
-| ![Sync Targets](docs/screenshots/02-sync-targets.png) | ![Variables](docs/screenshots/03-variables.png) |
-| **History & Snapshots** | **Add Game Wizard** |
-| ![History](docs/screenshots/04-history.png) | ![Add Game](docs/screenshots/08-add-game-wizard.png) |
-| **Settings** | **Sync Queue** |
-| ![Settings](docs/screenshots/06-settings.png) | ![Queue](docs/screenshots/05-queue.png) |
-
----
-
-## 🏗 Architecture
-
-GSYNC is built around **strong module separation**. The four concerns below never bleed into each other — where a game comes from, what should be synced, where it's stored, and how the app looks are all independent.
-
-```mermaid
-flowchart TD
-    UI["GSYNC.App<br/>WinUI 3 · MVVM · DI composition root"]
-
-    subgraph Core["GSYNC.Core — domain & orchestration"]
-        ENG["SyncEngine<br/>(conflict policy · records · snapshots)"]
-        PATH["Path & Variable Resolver"]
-        QUEUE["Sync Queue"]
-    end
-
-    subgraph Sources["GSYNC.Providers"]
-        STEAM["Steam"]
-        EPIC["Epic"]
-        CUSTOM["Custom / Manual"]
-    end
-
-    subgraph Storage["GSYNC.Storage"]
-        LOCAL["Local Folder"]
-        WEBDAV["WebDAV"]
-    end
-
-    MAN["GSYNC.Manifest<br/>game & content definitions"]
-    DATA["GSYNC.Data<br/>SQLite · history · state"]
-
-    UI --> Core
-    UI --> Sources
-    UI --> Storage
-    UI --> MAN
-    Core --> DATA
-    ENG -->|read/write| Storage
-    Sources -->|discovery| Core
-    MAN -->|recipes| Core
-```
-
-**Key rule:** synchronization behavior lives in the **core sync engine**, never inside a storage provider. WebDAV doesn't decide conflict behavior; Google Drive won't decide snapshot behavior. Storage providers are responsible only for remote read/write.
-
-> **关键原则：** 同步策略（冲突处理、记录、快照）只属于核心同步引擎，存储 Provider 只负责远端读写能力，绝不掺杂同步逻辑。
-
-### Module layout
-
-| Project | Responsibility |
-|---|---|
-| `src/GSYNC.App` | WinUI 3 shell, XAML pages, view models, DI composition root |
-| `src/GSYNC.Core` | Domain models, abstractions, path/variable resolution, sync queue & `SyncEngine` |
-| `src/GSYNC.Data` | SQLite persistence — app state, sync records, history |
-| `src/GSYNC.Manifest` | Manifest loading/parsing for known games & content definitions |
-| `src/GSYNC.Storage` | Storage providers — Local folder, WebDAV |
-| `src/GSYNC.Providers` | Source providers — Steam, Epic, Custom discovery |
-
----
-
-## 🧱 Tech Stack
-
-| Area | Choice |
-|---|---|
-| Language / Runtime | C# 13 · .NET 8 (`net8.0-windows10.0.19041.0`, win-x64); SDK 9.0.3xx pinned by `global.json` |
-| Desktop UI | WinUI 3 / Windows App SDK · MVVM (CommunityToolkit.Mvvm) |
-| Persistence | SQLite (`Microsoft.Data.Sqlite`) |
-| Manifests | YamlDotNet |
-| Archive / snapshots | ZIP (`ICSharpCode.SharpZipLib`) |
-| Logging | Serilog |
-| Composition | `Microsoft.Extensions.DependencyInjection` |
-| Tests | xUnit · coverlet |
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- **Windows 10 (1904x) or later**, x64
-- **.NET 9.0.3xx SDK** for the C# 13 compiler, plus the **.NET 8 runtime** (or .NET 8 SDK) to run the app and tests
-- Windows App SDK workload (restored automatically as a NuGet dependency)
-
-### Build & run
-
-```bash
-# Restore solution packages
-dotnet restore GSYNC.sln
-
-# Build the desktop app
-dotnet build src/GSYNC.App/GSYNC.App.csproj -p:Platform=x64
-
-# Run it
-dotnet run --project src/GSYNC.App/GSYNC.App.csproj -p:Platform=x64
-```
-
-### One-shot packaged build
-
-`scripts/build.ps1` is the single source of truth for **restore → test → publish → zip** (used by both CI and release):
+需要 Windows 10 1904x 或更新版本、x64、.NET 9.0.3xx SDK 和 .NET 8 运行时。
 
 ```powershell
-scripts/build.ps1 -Version 0.0.0-local
-```
-
-To use an isolated application data directory, set the absolute `GSYNC_DATA_ROOT` environment variable before starting GSYNC. If unset, the app uses `%APPDATA%/GSYNC`.
-
-### Application updates and startup
-
-While running, GSYNC checks GitHub Releases at startup and periodically, at most once per day. By default it downloads trusted signed updates and waits for queued and running sync and restore work before restarting to install them; both automatic checking and installation can be disabled in Settings. The independent updater backs up managed program files and rolls them back if the startup check fails. An older installation without the update helper and managed-file list must first be updated manually by extracting a signed release to a new folder; update the sign-in startup location if enabled. Unsigned releases can only be installed manually. GitHub's digest checks integrity; the separate signature authenticates the release.
-
-### Sync format and credential storage
-
-Uploads are stored as immutable generations. A conditional write of `__gsync_meta/current.json` publishes the complete file set; interrupted uploads remain invisible and concurrent writers must compare again. Existing flat saves are imported on the first successful upload. Upgrade GSYNC on **every device** before writing with this format: older clients do not understand the generation manifest. Generations are retained so readers that already opened an older version remain valid.
-
-WebDAV must support strong ETags and conditional PUT (`If-Match` / `If-None-Match`). Authenticated remote endpoints require HTTPS; HTTP is allowed only for localhost development. A server without the required conditional-write support fails safely instead of overwriting a newer save.
-
-On Windows, passwords and tokens are protected with DPAPI for the current account. Target JSON and SQLite bindings contain only credential IDs. Legacy plaintext credentials are migrated before the UI and workers start. Copying the application data to another account or losing its credential files requires re-entering credentials in the target editor. Interrupted local file transactions are recovered before startup; if files changed after an interruption, recovery preserves both the newer file and its backup and reports the conflict instead of overwriting it.
-
-### Tests
-
-```bash
-# Full suite
-dotnet test GSYNC.sln --no-build
-
-# A single project
-dotnet test tests/GSYNC.Core.Tests/GSYNC.Core.Tests.csproj
-
-# A single test
-dotnet test tests/GSYNC.Core.Tests/GSYNC.Core.Tests.csproj \
-  --filter "FullyQualifiedName~UploadJob_UploadsFiles_AndWritesSyncRecord"
-```
-
----
-
-## 📂 Project Structure
-
-```text
-gsync/
-├─ src/
-│  ├─ GSYNC.App/         # WinUI 3 desktop shell (Pages/, ViewModels/, Primitives/)
-│  ├─ GSYNC.Core/        # Domain, abstractions, SyncEngine, path resolver
-│  ├─ GSYNC.Data/        # SQLite repositories (state, history)
-│  ├─ GSYNC.Manifest/    # Game & content manifest parsing
-│  ├─ GSYNC.Storage/     # Local folder & WebDAV storage providers
-│  └─ GSYNC.Providers/   # Steam / Epic / Custom source providers
-├─ tests/                # xUnit suites per backend boundary
-├─ docs/                 # Product, UI & design documentation
-├─ scripts/build.ps1     # restore → test → publish → zip
-└─ .github/workflows/    # CI (ci.yml) + release (release.yml)
-```
-
-See `docs/implementation-handoff.md` for the full product intent, domain model and architectural rationale.
-
----
-
-## 🗺 Roadmap & Status
-
-GSYNC is under **active development**. The desktop shell and all eight primary screens are implemented and runnable; the sync engine, storage providers and history pipeline are wired end-to-end.
-
-- [x] App shell, navigation rail, themed dark UI
-- [x] Library, Game Details, Sync Targets, Variables, History, Queue, Settings
-- [x] 6-step Add Game wizard
-- [x] Local folder + WebDAV storage providers
-- [x] Steam / Epic / Custom source discovery
-- [x] Path-variable resolution + template tester
-- [x] Sync history & snapshot records
-- [ ] Additional cloud targets (OneDrive / Google Drive / SFTP / NAS)
-- [ ] Snapshot restore confirmation & richer conflict diagnostics
-- [ ] Cross-platform desktop (macOS / Linux) — see product intent docs
-
----
-
-## 🤝 Contributing
-
-This is currently a personal project in heavy iteration. Issues and ideas are welcome via the [GitHub repo](https://github.com/bennie-asi/gsync). Please keep changes aligned with the module separation described above, and verify with `dotnet build` + the relevant `dotnet test` projects before opening a PR.
-
-## 📄 License
-
-No license has been declared yet. Until one is added, all rights are reserved by the author.
-
----
-
-<a name="-中文说明"></a>
-
-## 🀄 中文说明
-
-[English](#-gsync) · **简体中文**
-
-**GSYNC** 是一款**模块化的跨设备游戏存档同步平台**。它不只是一个 WebDAV 上传器——它把"游戏从哪来""要同步什么内容""数据存到哪""界面长什么样"这四件事彻底解耦，让你在多台设备之间安全、可追溯地保持每一份存档一致。
-
-### ✨ 核心能力
-
-- 🗂️ **多游戏库** —— 一眼掌握每个游戏的本地/远端同步状态，并附带实时活动时间线。
-- 🧩 **内容项模型** —— 一个游戏不只是一个文件夹。存档、角色槽位、用户配置、附加文件都能独立同步。
-- 🌐 **可插拔存储目标** —— 现已支持本地文件夹与 WebDAV，架构上预留 OneDrive / Google Drive / SFTP / NAS。
-- 🔌 **来源 Provider** —— 从 **Steam**、**Epic** 自动发现已安装游戏，或**手动**定义任意游戏。
-- 🧮 **可移植路径变量** —— 用 `%APPDATA%/MyGame/Saves` 这类逻辑模板存储路径，在每台机器上分别解析，并内置模板测试器。
-- 🛟 **安全优先的冲突处理** —— 本地/远端并排对比、覆盖前先备份，并可逐文件选择保留本地、保留远端或暂不处理。同步策略由**核心引擎**掌控，而非存储层。
-- 🕓 **历史与快照** —— 每次同步都被记录、可审计，并提供恢复点，把存档回滚到过去某个状态。
-- 🎨 **原生桌面质感** —— 高信息密度、工具优先的 WinUI 3 界面：分栏、属性面板、状态栏，而非网页式后台。
-
-### 🏗 架构原则
-
-GSYNC 围绕**强模块分离**构建。最重要的一条规则是：**同步行为（冲突、记录、快照）只属于核心同步引擎，存储 Provider 只负责远端读写能力。** 上方的 [Architecture](#-architecture) 图与模块表对中英文同样适用。
-
-| 模块 | 职责 |
-|---|---|
-| `GSYNC.App` | WinUI 3 外壳、页面、视图模型、DI 组合根 |
-| `GSYNC.Core` | 领域模型、抽象、路径/变量解析、同步队列与 `SyncEngine` |
-| `GSYNC.Data` | SQLite 持久化（应用状态、同步记录、历史） |
-| `GSYNC.Manifest` | 已知游戏与内容定义的清单解析 |
-| `GSYNC.Storage` | 存储 Provider（本地文件夹、WebDAV） |
-| `GSYNC.Providers` | 来源 Provider（Steam、Epic、自定义发现） |
-
-### 🚀 快速开始
-
-```bash
-# 还原依赖
 dotnet restore GSYNC.sln
-
-# 构建桌面应用
 dotnet build src/GSYNC.App/GSYNC.App.csproj -p:Platform=x64
-
-# 运行
-dotnet run --project src/GSYNC.App/GSYNC.App.csproj -p:Platform=x64
-
-# 运行测试
-dotnet test GSYNC.sln --no-build
+dotnet test GSYNC.sln -p:Platform=x64
 ```
 
-> 环境要求：Windows 10（1904x）及以上、x64、.NET 9.0.3xx SDK，以及用于运行和测试的 .NET 8 运行时（或 .NET 8 SDK）。完整产品意图与领域模型见 `docs/implementation-handoff.md`。
+使用 `scripts/build.ps1 -Version 1.0.0` 执行还原、测试、发布和打包。发布工作流还会使用仓库密钥签名更新清单。
 
-> 同步格式已升级为不可变版本与条件提交清单，请先升级所有设备的 GSYNC。WebDAV 需要强 ETag 和条件 PUT 支持，远端账户认证需要 HTTPS。密码按 Windows 当前用户加密，复制数据到其他账户后需在同步目标编辑器重新输入凭据。
+主要项目：`GSYNC.App` 为桌面界面，`GSYNC.Core` 为同步逻辑，`GSYNC.Data` 为 SQLite 持久化，`GSYNC.Manifest`、`GSYNC.Storage` 和 `GSYNC.Providers` 分别负责游戏定义、存储和游戏来源。`GSYNC.Updater` 负责更新与恢复。
 
-程序运行期间会在启动后及之后定期检查 GitHub 发行版，每天最多联网检查一次。默认自动下载可信签名版本，等待运行中及排队的同步、恢复任务结束后重启安装；设置页可分别关闭自动检查和自动安装。独立更新器会备份并替换受管程序文件，启动检查失败时回滚。旧版本如果没有更新器和受管文件清单，需先将签名版本手动解压到新文件夹，若启用了登录自启，再更新自启路径。没有可信签名的发行版只能手动安装。GitHub 摘要检查文件完整性，独立签名用于验证发布者。
+## English
 
-### 🗺 项目状态
+GSYNC is a Windows x64 game-save synchronization app with local-folder and WebDAV targets. It supports game discovery, path variables, file comparison, sync history, snapshots, sign-in startup, and a notification-area icon.
 
-桌面外壳与全部八个主要页面均已实现并可运行，同步引擎、存储 Provider 与历史链路已端到端打通。下一步聚焦更多云端目标、快照恢复确认流程，以及跨平台（macOS / Linux）方向。
+Download the Windows x64 ZIP from [Releases](https://github.com/bennie-asi/gsync/releases), extract it to a separate folder, and run `GSYNC.App.exe`. Data is stored in `%APPDATA%\GSYNC`, unless an absolute `GSYNC_DATA_ROOT` is provided. Closing the window keeps the app running by default; use the tray icon to reopen or exit it.
 
----
+The app checks for stable releases while running and can install signed updates after sync tasks finish. Checking, installation, background operation, and sign-in startup can be configured in Settings. Older installations without the update helper require one manual upgrade.
 
-<div align="center">
+For development, install the .NET 9.0.3xx SDK and .NET 8 runtime, then run the build and test commands above. See [the documentation index](docs/README.md) for implementation details.
 
-*Built with .NET 8 · WinUI 3 · 用 ❤️ 打造*
+## License
 
-</div>
+No license has been declared. All rights are reserved by the author.

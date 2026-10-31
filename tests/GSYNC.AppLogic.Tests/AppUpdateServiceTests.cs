@@ -111,6 +111,25 @@ public sealed class AppUpdateServiceTests
         }
     }
 
+    [Theory]
+    [InlineData(false, "available")]
+    [InlineData(true, "limited")]
+    public async Task RateLimitedApiFallsBackOnlyToTrustedSignedMetadata(bool badSignature, string expected)
+    {
+        using var fixture = new UpdateFixture(signed: true);
+        fixture.Handler.Forbidden = true;
+        fixture.Handler.RateLimited = true;
+        fixture.Handler.RedirectLatest = true;
+        fixture.Handler.BadSignature = badSignature;
+        await fixture.Service.CheckAsync(false, CancellationToken.None);
+        Assert.Equal(expected, fixture.Service.Snapshot.State);
+        if (!badSignature)
+        {
+            await fixture.Service.DownloadAsync(null, CancellationToken.None);
+            Assert.True(fixture.Service.LastDownload?.IsSigned);
+        }
+    }
+
     private sealed class UpdateFixture : IDisposable
     {
         public string Root { get; } = Path.Combine(Path.GetTempPath(), "gsync-update-tests", Guid.NewGuid().ToString("N"));
@@ -139,6 +158,7 @@ public sealed class AppUpdateServiceTests
         public bool Forbidden { get; set; }
         public bool RateLimited { get; set; }
         public bool BadSignature { get; set; }
+        public bool RedirectLatest { get; set; }
         public TaskCompletionSource DownloadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -161,6 +181,12 @@ public sealed class AppUpdateServiceTests
                         assets.Add(new { name = prefix + suffix, browser_download_url = $"https://github.com/bennie-asi/gsync/releases/download/{tag}/{prefix}{suffix}", size });
                 var body = JsonSerializer.Serialize(new { tag_name = tag, draft = false, prerelease = false, body = "Release notes", assets });
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+            }
+            if (RedirectLatest && request.RequestUri.AbsolutePath.EndsWith("/releases/latest", StringComparison.Ordinal))
+            {
+                var redirect = new HttpResponseMessage(HttpStatusCode.Found);
+                redirect.Headers.Location = new Uri($"https://github.com/bennie-asi/gsync/releases/tag/{tag}");
+                return Task.FromResult(redirect);
             }
             if (RedirectOutsideGitHub)
             {

@@ -23,7 +23,9 @@ public partial class App : Application
     private Task? _startupTask;
     private bool _shutdownComplete;
     private bool _shutdownStarted;
+    private bool _windowHidden;
     private FileStream? _instanceLease;
+    private NotificationAreaIcon? _notificationIcon;
 
     public CancellationToken LifetimeToken => _tasks.Token;
     public bool IsReady { get; private set; }
@@ -65,7 +67,13 @@ public partial class App : Application
 
         try
         {
-            _instanceLease = new FileStream(Path.Combine(appPaths.GetAppDataRoot(), "app.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            try { _instanceLease = new FileStream(Path.Combine(appPaths.GetAppDataRoot(), "app.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            catch (IOException exception) when ((exception.HResult & 0xffff) is 32 or 33)
+            {
+                NotificationAreaIcon.ActivateExisting(appPaths.GetAppDataRoot());
+                Exit();
+                return;
+            }
             var recovery = UpdateTransaction.FindPendingRecovery(AppContext.BaseDirectory, appPaths.GetAppDataRoot());
             if (recovery is not null)
             {
@@ -89,9 +97,11 @@ public partial class App : Application
 
             Log.Information("Creating main window shell.");
             _window = _services.GetRequiredService<MainWindow>();
-            _services.GetRequiredService<AppUpdateInstaller>().RestartRequested += () =>
+            var updateInstaller = _services.GetRequiredService<AppUpdateInstaller>();
+            updateInstaller.RestartInBackground = () => Volatile.Read(ref _windowHidden);
+            updateInstaller.RestartRequested += () =>
             {
-                if (!_window.DispatcherQueue.TryEnqueue(() => _window.Close()))
+                if (!_window.DispatcherQueue.TryEnqueue(RequestShutdown))
                     throw new InvalidOperationException("The application window could not be closed for update.");
             };
             if (_window.Content is FrameworkElement root)
@@ -101,7 +111,24 @@ public partial class App : Application
             }
             _window.AppWindow.Closing += OnWindowClosing;
             _window.Closed += OnWindowClosed;
+            if (!Guid.TryParseExact(Environment.GetEnvironmentVariable("GSYNC_UPDATE_PROBE_TOKEN"), "N", out _))
+            {
+                try
+                {
+                    _notificationIcon = new NotificationAreaIcon(WinRT.Interop.WindowNative.GetWindowHandle(_window), appPaths.GetAppDataRoot(),
+                        Path.Combine(AppContext.BaseDirectory, "Assets", "GSYNC.ico"),
+                        () => _services.GetRequiredService<ILocalizationService>().CurrentLanguageTag == "zh-CN",
+                        ShowMainWindow, RequestShutdown);
+                }
+                catch (Exception exception) { Log.Warning(exception, "Notification-area icon is unavailable; closing the window will exit."); }
+            }
             _window.Activate();
+            if (Environment.GetEnvironmentVariable("GSYNC_RESTART_HIDDEN") == "1" && _notificationIcon?.IsRegistered == true)
+            {
+                _window.AppWindow.Hide();
+                Volatile.Write(ref _windowHidden, true);
+            }
+            Environment.SetEnvironmentVariable("GSYNC_RESTART_HIDDEN", null);
         }
         catch (Exception exception)
         {
@@ -151,7 +178,7 @@ public partial class App : Application
             {
                 var probeRoot = _services.GetRequiredService<IAppPathService>().GetAppDataRoot();
                 GSYNC.Core.Utilities.AtomicFile.WriteAllText(Path.Combine(probeRoot, "update-health-" + probeToken), DesktopFeatures.CurrentVersion);
-                _window?.DispatcherQueue.TryEnqueue(() => _window.Close());
+                _window?.DispatcherQueue.TryEnqueue(RequestShutdown);
                 return;
             }
 
@@ -186,7 +213,7 @@ public partial class App : Application
             {
                 if (_services.GetService<GSYNC.App.ViewModels.MainWindowViewModel>() is { } shellViewModel)
                 {
-                    shellViewModel.ReportStartupDegraded("启动后初始化失败 · 壳层已保留");
+                    shellViewModel.ReportStartupDegraded("初始化失败，请查看日志");
                 }
             }
             catch (Exception reportException)
@@ -266,10 +293,22 @@ public partial class App : Application
         catch (Exception exception) { Log.Warning(exception, "Community refresh failed; existing definitions remain available."); }
     }
 
-    private async void OnWindowClosing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
+    private void OnWindowClosing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
     {
         if (_shutdownComplete) return;
         args.Cancel = true;
+        if (_shutdownStarted) return;
+        if (_notificationIcon?.IsRegistered == true && _services?.GetRequiredService<UiSettingsStore>().LoadForStartup().CloseToTray == true)
+        {
+            sender.Hide();
+            Volatile.Write(ref _windowHidden, true);
+            return;
+        }
+        _ = ShutdownAsync();
+    }
+
+    private async Task ShutdownAsync()
+    {
         if (_shutdownStarted) return;
         _shutdownStarted = true;
         IsReady = false;
@@ -277,17 +316,36 @@ public partial class App : Application
         try { await _tasks.StopAsync(); }
         catch (Exception exception) { Log.Error(exception, "Background services failed while shutting down."); }
         Log.Information("Background services stopped; closing the main window.");
+        _notificationIcon?.Dispose();
+        _notificationIcon = null;
         _shutdownComplete = true;
         _window?.Close();
     }
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
+        _notificationIcon?.Dispose();
         _services?.GetService<AppUpdateInstaller>()?.ReleaseLeases();
         _services?.Dispose();
         _tasks.Dispose();
         _instanceLease?.Dispose();
         Log.CloseAndFlush();
+    }
+
+    private void ShowMainWindow()
+    {
+        if (_window is null || _shutdownStarted) return;
+        _window.AppWindow.Show();
+        Volatile.Write(ref _windowHidden, false);
+        if (_window.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter &&
+            presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Minimized) presenter.Restore();
+        _window.Activate();
+    }
+
+    private void RequestShutdown()
+    {
+        if (_window is null || _shutdownStarted) return;
+        _ = ShutdownAsync();
     }
 
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)

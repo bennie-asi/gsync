@@ -92,7 +92,7 @@
         </Grid>
         <Border x:Name="InitializationErrorPanel" MaxWidth="720" Padding="20" HorizontalAlignment="Left" VerticalAlignment="Top" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="12" Visibility="Collapsed">
             <StackPanel Spacing="16">
-                <primitives:InfoCallout Title="首页加载失败" Message="Library 页面初始化出现异常，应用已保留主壳层和导航能力。" Severity="Error" />
+                <primitives:InfoCallout Title="游戏库加载失败" Message="无法加载游戏库，请重试。" Severity="Error" />
                 <StackPanel Spacing="6">
                     <TextBlock x:Name="InitializationErrorTitle" FontSize="20" FontWeight="SemiBold" Text="Library 初始化失败" />
                     <TextBlock x:Name="InitializationErrorMessage" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="WrapWholeWords" />

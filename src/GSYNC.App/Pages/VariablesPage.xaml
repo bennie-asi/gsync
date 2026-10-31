@@ -224,7 +224,7 @@
             <StackPanel Spacing="16">
                 <primitives:InfoCallout
                     Title="变量页加载失败"
-                    Message="Variables 页面初始化出现异常，应用已保留主壳层和导航能力。"
+                    Message="无法加载变量，请重试。"
                     Severity="Error" />
 
                 <StackPanel Spacing="6">

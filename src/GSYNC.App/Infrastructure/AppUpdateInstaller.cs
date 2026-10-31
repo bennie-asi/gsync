@@ -15,6 +15,7 @@ public sealed class AppUpdateInstaller(IAppPathService paths, AppUpdateService u
     private InstallStatus _status = new("idle");
     public event EventHandler? Changed;
     public event Action? RestartRequested;
+    public Func<bool>? RestartInBackground { get; set; }
     public InstallStatus Status => Volatile.Read(ref _status);
 
     public async Task InstallWhenIdleAsync(CancellationToken lifetimeToken)
@@ -55,6 +56,8 @@ public sealed class AppUpdateInstaller(IAppPathService paths, AppUpdateService u
             using var parent = Process.GetCurrentProcess();
             var installRoot = Path.GetFullPath(AppContext.BaseDirectory);
             var start = new ProcessStartInfo(Path.Combine(session, "GSYNC.Updater.exe")) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
+            if (RestartInBackground?.Invoke() == true) start.Environment["GSYNC_RESTART_HIDDEN"] = "1";
+            else start.Environment.Remove("GSYNC_RESTART_HIDDEN");
             foreach (var arg in new[] { "--apply", session, parent.Id.ToString(), parent.StartTime.ToUniversalTime().Ticks.ToString(), installRoot, paths.GetAppDataRoot(), download.Version })
                 start.ArgumentList.Add(arg);
             using var updater = Process.Start(start) ?? throw new IOException("The update helper could not start.");

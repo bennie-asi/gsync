@@ -150,12 +150,12 @@
                         <primitives:PropertySheet.PanelContent>
                             <StackPanel Spacing="10">
                                 <TextBlock x:Name="StartupDescription" TextWrapping="Wrap" />
+                                <ToggleSwitch x:Name="StartupToggle" Toggled="Startup_Toggled" />
                                 <TextBlock x:Name="StartupStatus" TextWrapping="Wrap" Foreground="{StaticResource AppTextSecondaryBrush}" />
-                                <StackPanel Spacing="8" HorizontalAlignment="Left">
-                                    <Button x:Name="EnableStartupButton" Click="EnableStartup_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button x:Name="DisableStartupButton" Click="DisableStartup_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                    <Button x:Name="WindowsStartupButton" Click="WindowsStartup_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
-                                </StackPanel>
+                                <Button x:Name="UpdateStartupPathButton" Click="UpdateStartupPath_Click" Visibility="Collapsed" HorizontalAlignment="Left" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                <HyperlinkButton x:Name="WindowsStartupButton" Click="WindowsStartup_Click" HorizontalAlignment="Left" Padding="0" />
+                                <ToggleSwitch x:Name="CloseToTrayToggle" IsOn="{Binding CloseToTray, Mode=TwoWay}" />
+                                <TextBlock x:Name="TrayDescription" TextWrapping="Wrap" Foreground="{StaticResource AppTextSecondaryBrush}" />
                             </StackPanel>
                         </primitives:PropertySheet.PanelContent>
                     </primitives:PropertySheet>
@@ -288,7 +288,7 @@
             <StackPanel Spacing="16">
                 <primitives:InfoCallout
                     Title="设置页加载失败"
-                    Message="Settings 页面初始化出现异常，应用已保留主壳层和其他导航能力。"
+                    Message="无法加载设置，请重试。"
                     Severity="Error" />
 
                 <StackPanel Spacing="6">

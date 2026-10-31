@@ -603,6 +603,17 @@ public sealed class ProfilePersistenceTests
     }
 
     [Fact]
+    public async Task CloseToTraySetting_DefaultsOnAndPersistsWhenDisabled()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var settings = fixture.Settings();
+        Assert.True(settings.CloseToTray);
+        settings.CloseToTray = false;
+        settings.SaveSettings();
+        Assert.False(fixture.Settings().CloseToTray);
+    }
+
+    [Fact]
     public async Task TwoDeviceProfiles_ShareRemoteAndPullOnlyAfterLocalBaselineConfirmation()
     {
         using var fixture = await Fixture.CreateAsync();

@@ -139,6 +139,7 @@ internal static partial class Updater
         var start = new ProcessStartInfo(Path.Combine(journal.InstallRoot, "GSYNC.App.exe")) { UseShellExecute = false, WorkingDirectory = journal.InstallRoot };
         start.Environment["GSYNC_DATA_ROOT"] = probeRoot;
         start.Environment["GSYNC_UPDATE_PROBE_TOKEN"] = token;
+        start.Environment.Remove("GSYNC_RESTART_HIDDEN");
         start.Environment.Remove("GSYNC_FAIL_PAGE_INIT");
         using var process = Process.Start(start) ?? throw new IOException("Could not start the updated program for verification.");
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));

@@ -12,7 +12,7 @@
 
         <primitives:SectionHeader
             Title="页面暂时不可用"
-            Subtitle="应用壳层仍保持可用，你可以返回 Library 或重试当前页面。" />
+            Subtitle="请返回游戏库或重试。" />
 
         <Border
             Grid.Row="1"
@@ -27,7 +27,7 @@
             <StackPanel Spacing="16">
                 <primitives:InfoCallout
                     Title="页面加载失败"
-                    Message="当前页面初始化出现异常，应用已保留主窗口与导航能力。"
+                    Message="无法加载此页面，请重试。"
                     Severity="Error" />
 
                 <StackPanel Spacing="6">

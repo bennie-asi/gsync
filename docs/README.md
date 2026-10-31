@@ -1,9 +1,9 @@
-# GSYNC Documentation Index
+# GSYNC Documentation
 
-## Core handoff
-- `implementation-handoff.md` — consolidated project decisions, architecture direction, UX baseline, Stitch references, and implementation recommendations
+## Architecture
+- `implementation-handoff.md` — historical architecture and product notes; current behavior is documented in the README and source
 
-## UI prototype docs
-- `ui/README.md` — entry point for UI prototype documentation
-- `ui/prototype-inventory.md` — screen inventory, Stitch IDs, refined/normalized/state variants, and information architecture
-- `ui/implementation-notes.md` — component and implementation guidance for the desktop UI
+## Desktop UI
+- `ui/github-updates-and-startup.md` — startup, notification area and application updates
+- `ui/README.md` — design references and screen inventory
+- `ui/implementation-notes.md` — UI component guidance

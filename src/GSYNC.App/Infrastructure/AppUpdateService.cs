@@ -69,7 +69,7 @@ public sealed class AppUpdateService
                     (response.StatusCode == HttpStatusCode.Forbidden &&
                      (response.Headers.RetryAfter is not null ||
                       (response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining) && remaining.Contains("0")))))
-                    next = new("limited", now, previous.LastSuccess, _currentVersion);
+                    next = await TryCheckSignedLatestAsync(now, checkToken) ?? new("limited", now, previous.LastSuccess, _currentVersion);
                 else
                 {
                     response.EnsureSuccessStatusCode();
@@ -106,6 +106,47 @@ public sealed class AppUpdateService
             }
         }
         finally { _checkGate.Release(); }
+    }
+
+    private async Task<UpdateSnapshot?> TryCheckSignedLatestAsync(DateTimeOffset now, CancellationToken token)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "https://github.com/bennie-asi/gsync/releases/latest");
+            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+            if ((int)response.StatusCode is < 300 or >= 400 || response.Headers.Location is not { } location) return null;
+            var url = location.IsAbsoluteUri ? location : new Uri(request.RequestUri!, location);
+            const string prefix = "/bennie-asi/gsync/releases/tag/";
+            if (url.Scheme != Uri.UriSchemeHttps || !url.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) ||
+                !url.IsDefaultPort || url.UserInfo.Length != 0 || url.Query.Length != 0 || url.Fragment.Length != 0 ||
+                !url.AbsolutePath.StartsWith(prefix, StringComparison.Ordinal)) return null;
+            var tag = Uri.UnescapeDataString(url.AbsolutePath[prefix.Length..]);
+            var version = tag.StartsWith('v') ? tag[1..] : tag;
+            if (!TryStableVersion(version, out _)) return null;
+            var release = new Release(tag, false, false, null, []);
+            var current = ParseRelease(release, _currentVersion, now);
+            if (current.State != "noasset") return current;
+
+            var assetBase = $"https://github.com/bennie-asi/gsync/releases/download/{Uri.EscapeDataString(tag)}/";
+            var assetPrefix = $"GSYNC-{version}-win-x64";
+            var manifestName = assetPrefix + ".manifest.json";
+            var signatureName = assetPrefix + ".manifest.sig";
+            var manifestUrl = assetBase + Uri.EscapeDataString(manifestName);
+            var signatureUrl = assetBase + Uri.EscapeDataString(signatureName);
+            var manifestBytes = await DownloadMetadataAsync(manifestUrl, UpdateManifestVerifier.MaximumManifestBytes, token);
+            var signature = await DownloadMetadataAsync(signatureUrl, 64, token);
+            var manifest = UpdateManifestVerifier.Verify(manifestBytes, signature, version, _trustedPublicKey);
+            var archiveName = assetPrefix + ".zip";
+            release = release with { Assets = [
+                new ReleaseAsset(archiveName, assetBase + Uri.EscapeDataString(archiveName), "sha256:" + manifest.Sha256, manifest.Size),
+                new ReleaseAsset(manifestName, manifestUrl, null, manifestBytes.Length),
+                new ReleaseAsset(signatureName, signatureUrl, null, signature.Length),
+            ] };
+            return ParseRelease(release, _currentVersion, now);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or CryptographicException or UriFormatException or InvalidOperationException)
+        { return null; }
     }
 
     private static UpdateSnapshot ParseRelease(Release release, string current, DateTimeOffset now)

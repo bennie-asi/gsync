@@ -25,6 +25,7 @@ public sealed partial class SettingsPage : Page
     private AutoUpdateCoordinator? _autoUpdate;
     private CancellationTokenSource? _downloadCancellation;
     private string? _downloadedUpdate;
+    private bool _refreshingStartup = true;
 
     public SettingsPage()
     {
@@ -114,10 +115,16 @@ public sealed partial class SettingsPage : Page
     {
         var zh = _viewModel?.IsChinese == true;
         StartupSection.Title = zh ? "启动" : "Startup";
-        StartupDescription.Text = zh ? "登录 Windows 后启动 GSYNC；自动同步仍按独立设置运行。" : "Start GSYNC after signing in to Windows. Automatic sync uses its own setting.";
-        EnableStartupButton.Content = zh ? "启用 / 使用当前位置" : "Enable / use this location";
-        DisableStartupButton.Content = zh ? "关闭自启" : "Disable startup";
-        WindowsStartupButton.Content = zh ? "Windows 启动设置" : "Windows startup settings";
+        StartupDescription.Text = zh ? "登录 Windows 后启动 GSYNC；更改立即生效。" : "Start GSYNC when you sign in to Windows. Changes apply immediately.";
+        StartupToggle.Header = zh ? "登录时启动" : "Start at sign-in";
+        StartupToggle.OnContent = zh ? "开" : "On";
+        StartupToggle.OffContent = zh ? "关" : "Off";
+        UpdateStartupPathButton.Content = zh ? "使用当前程序路径" : "Use current app location";
+        WindowsStartupButton.Content = zh ? "打开 Windows 启动设置" : "Open Windows startup settings";
+        CloseToTrayToggle.Header = zh ? "关闭窗口后在后台运行" : "Keep running when the window is closed";
+        CloseToTrayToggle.OnContent = zh ? "开" : "On";
+        CloseToTrayToggle.OffContent = zh ? "关" : "Off";
+        TrayDescription.Text = zh ? "在系统托盘中单击图标打开窗口，右键选择退出。更改保存后生效。" : "Click the notification-area icon to open the window, or right-click it to exit. Save settings to apply changes.";
         UpdatesSection.Title = zh ? "关于与更新" : "About and updates";
         VersionText.Text = (zh ? "当前版本：" : "Current version: ") + DesktopFeatures.CurrentVersion.Split('+')[0];
         UpdateStatus.Text = zh ? "尚未检查应用更新。" : "Application updates have not been checked.";
@@ -141,18 +148,53 @@ public sealed partial class SettingsPage : Page
     private void RefreshStartupStatus()
     {
         var zh = _viewModel?.IsChinese == true;
+        _refreshingStartup = true;
         try
         {
             var command = DesktopFeatures.StartupCommand();
-            if (command is null) StartupStatus.Text = zh ? "当前用户未登记开机自启。" : "Startup is not registered for this user.";
-            else if (!string.Equals(command, DesktopFeatures.ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase))
-                StartupStatus.Text = (zh ? "启动路径与当前程序不一致：" : "Startup points to a different location: ") + command;
-            else StartupStatus.Text = zh ? "已登记启动项；实际启动状态由 Windows 管理。" : "Startup is registered; Windows controls whether it runs.";
+            var mismatch = command is not null && !string.Equals(command, DesktopFeatures.ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase);
+            StartupToggle.IsEnabled = true;
+            StartupToggle.IsOn = command is not null;
+            UpdateStartupPathButton.Visibility = mismatch ? Visibility.Visible : Visibility.Collapsed;
+            StartupStatus.Visibility = command is null ? Visibility.Collapsed : Visibility.Visible;
+            StartupStatus.Text = command is null ? (zh ? "未启用。" : "Not enabled.") : mismatch
+                ? (zh ? "启动项指向其他位置：" : "Startup points to a different location: ") + command
+                : (zh ? "已登记；Windows 可在启动设置中禁用此项。" : "Registered. Windows can disable this entry in startup settings.");
         }
-        catch (Exception ex) { StartupStatus.Text = (zh ? "无法读取启动状态：" : "Cannot read startup status: ") + ex.Message; }
+        catch (Exception ex)
+        {
+            StartupToggle.IsEnabled = false;
+            UpdateStartupPathButton.Visibility = Visibility.Collapsed;
+            StartupStatus.Visibility = Visibility.Visible;
+            StartupStatus.Text = (zh ? "无法读取启动状态：" : "Cannot read startup status: ") + ex.Message;
+        }
+        finally { _refreshingStartup = false; }
     }
 
-    private async void EnableStartup_Click(object sender, RoutedEventArgs e)
+    private async void Startup_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_refreshingStartup) return;
+        var zh = _viewModel?.IsChinese == true;
+        var enabled = StartupToggle.IsOn;
+        StartupToggle.IsEnabled = false;
+        try
+        {
+            var existing = DesktopFeatures.StartupCommand();
+            if (existing is not null && !string.Equals(existing, DesktopFeatures.ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase))
+            {
+                var dialog = DialogStyler.Apply(new ContentDialog { XamlRoot = XamlRoot, Title = zh ? "更改启动项？" : "Change startup entry?",
+                    Content = (zh ? "当前启动项指向：" : "The current startup entry points to: ") + existing,
+                    PrimaryButtonText = enabled ? (zh ? "使用当前程序" : "Use current app") : (zh ? "关闭启动项" : "Disable startup"),
+                    CloseButtonText = zh ? "取消" : "Cancel", DefaultButton = ContentDialogButton.Close });
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary) { RefreshStartupStatus(); return; }
+            }
+            DesktopFeatures.SetStartup(enabled);
+            RefreshStartupStatus();
+        }
+        catch (Exception ex) { RefreshStartupStatus(); StartupStatus.Visibility = Visibility.Visible; StartupStatus.Text = (zh ? "无法更改启动设置：" : "Cannot change startup settings: ") + ex.Message; }
+    }
+
+    private async void UpdateStartupPath_Click(object sender, RoutedEventArgs e)
     {
         var zh = _viewModel?.IsChinese == true;
         try
@@ -160,34 +202,15 @@ public sealed partial class SettingsPage : Page
             var existing = DesktopFeatures.StartupCommand();
             if (existing is not null && !string.Equals(existing, DesktopFeatures.ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase))
             {
-                var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = zh ? "更新启动路径？" : "Update startup location?",
-                    Content = (zh ? "当前登记：" : "Registered: ") + existing + Environment.NewLine + (zh ? "使用当前程序位置替换它？" : "Replace it with the current location?"),
-                    PrimaryButtonText = zh ? "使用当前位置" : "Use current location", CloseButtonText = zh ? "取消" : "Cancel", DefaultButton = ContentDialogButton.Close };
+                var dialog = DialogStyler.Apply(new ContentDialog { XamlRoot = XamlRoot, Title = zh ? "更新启动路径？" : "Update startup location?",
+                    Content = (zh ? "当前启动项：" : "Current entry: ") + existing + Environment.NewLine + (zh ? "改为使用当前程序？" : "Use the current app instead?"),
+                    PrimaryButtonText = zh ? "使用当前程序" : "Use current app", CloseButtonText = zh ? "取消" : "Cancel", DefaultButton = ContentDialogButton.Close });
                 if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+                DesktopFeatures.SetStartup(true);
             }
-            DesktopFeatures.SetStartup(true);
             RefreshStartupStatus();
         }
-        catch (Exception ex) { StartupStatus.Text = (zh ? "无法设置自启：" : "Cannot configure startup: ") + ex.Message; }
-    }
-
-    private async void DisableStartup_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var existing = DesktopFeatures.StartupCommand();
-            if (existing is not null && !string.Equals(existing, DesktopFeatures.ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase))
-            {
-                var zh = _viewModel?.IsChinese == true;
-                var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = zh ? "移除此启动项？" : "Remove this startup entry?",
-                    Content = (zh ? "该启动项指向其他位置：" : "This entry points to another location: ") + existing,
-                    PrimaryButtonText = zh ? "移除" : "Remove", CloseButtonText = zh ? "取消" : "Cancel", DefaultButton = ContentDialogButton.Close };
-                if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-            }
-            DesktopFeatures.SetStartup(false);
-            RefreshStartupStatus();
-        }
-        catch (Exception ex) { StartupStatus.Text = (_viewModel?.IsChinese == true ? "无法关闭自启：" : "Cannot disable startup: ") + ex.Message; }
+        catch (Exception ex) { StartupStatus.Text = (zh ? "无法更新启动路径：" : "Cannot update startup location: ") + ex.Message; }
     }
 
     private async void WindowsStartup_Click(object sender, RoutedEventArgs e)

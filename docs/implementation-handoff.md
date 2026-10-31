@@ -1,24 +1,17 @@
-# GSYNC Implementation Handoff
+# GSYNC Architecture Notes
 
-> This document summarizes the key product, architecture, UI, and implementation decisions established during early planning and prototype work. It is intended to let future implementation work start directly from an agreed baseline.
+These notes record early architecture and product decisions. The README and source describe current behavior.
 
 ## 1. Project context
 
-- **Project path:** `C:\dev\projects\other\gsync`
 - **Product name:** GSYNC
-- **Product type:** Cross-platform desktop application for game save synchronization
-- **Target platforms:** Windows / macOS / Linux
-- **Primary UX direction:** Native-feeling desktop utility, not a web admin dashboard and not a WebView-style app shell
+- **Current platform:** Windows x64
+- **Potential future platforms:** macOS and Linux
+- **Interface:** WinUI desktop application
 
 ## 2. Product goal
 
-GSYNC is intended to help users synchronize game-related data across devices.
-
-The product is broader than a simple WebDAV uploader. The long-term product direction is:
-
-> A modular game data synchronization platform
-
-The platform should support:
+GSYNC synchronizes game-related data across devices. The planned scope includes:
 - Multiple games
 - Multiple sync targets
 - Multiple game sources

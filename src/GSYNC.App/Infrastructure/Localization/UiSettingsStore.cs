@@ -97,5 +97,7 @@ public sealed class AppUiSettings
 
     public bool AutoInstallUpdates { get; set; } = true;
 
+    public bool CloseToTray { get; set; } = true;
+
     public string? ManifestSourceUrl { get; set; }
 }

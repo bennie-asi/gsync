@@ -276,7 +276,7 @@
             <StackPanel Spacing="16">
                 <primitives:InfoCallout
                     Title="同步目标页加载失败"
-                    Message="Sync Targets 页面初始化出现异常，应用已保留主壳层和导航能力。"
+                    Message="无法加载同步目标，请重试。"
                     Severity="Error" />
 
                 <StackPanel Spacing="6">

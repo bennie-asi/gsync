@@ -103,7 +103,7 @@ public partial class MainWindow : Window
         ShowPageLoadError(
             _viewModel.SelectedPageKey,
             $"{failedPageType} 无法打开",
-            "页面导航已被安全降级，应用主壳层和导航功能仍然可用。",
+            "无法打开此页面，请重试或返回游戏库。",
             e.Exception?.Message ?? "未提供异常详细信息。",
             "navigation");
     }
@@ -180,7 +180,7 @@ public partial class MainWindow : Window
             ShowPageLoadError(
                 _viewModel.SelectedPageKey,
                 $"{pageType.Name} 初始化失败",
-                "页面初始化在构造或同步加载阶段发生异常，应用已保留主窗口壳层。",
+                "无法加载此页面，请重试或返回游戏库。",
                 exception.Message,
                 "initialization");
         }
@@ -189,7 +189,7 @@ public partial class MainWindow : Window
     private void ShowPageLoadError(string requestedPageKey, string title, string message, string detail, string failureStage)
     {
         Log.Warning("Showing page load error for {PageKey} at stage {FailureStage}: {Title}", requestedPageKey, failureStage, title);
-        _viewModel.ReportStartupDegraded($"{title} · 已切换到安全降级视图");
+        _viewModel.ReportStartupDegraded(title);
         UpdateQueueBadge();
 
         ContentFrame.Navigate(

@@ -48,6 +48,9 @@ public partial class SettingsPageViewModel : ObservableObject
     private bool _autoInstallUpdates;
 
     [ObservableProperty]
+    private bool _closeToTray;
+
+    [ObservableProperty]
     private string _manifestSourceUrlText = string.Empty;
 
     [ObservableProperty]
@@ -229,6 +232,7 @@ public partial class SettingsPageViewModel : ObservableObject
             RefreshManifestOnStartup = string.Equals(SelectedRefreshManifestOption?.Key, "on", StringComparison.OrdinalIgnoreCase),
             AutoCheckUpdates = AutoCheckUpdates,
             AutoInstallUpdates = AutoInstallUpdates,
+            CloseToTray = CloseToTray,
             ManifestSourceUrl = string.IsNullOrWhiteSpace(ManifestSourceUrlText) ? null : ManifestSourceUrlText.Trim(),
         };
     }
@@ -258,6 +262,7 @@ public partial class SettingsPageViewModel : ObservableObject
         SelectedRefreshManifestOption = ToggleOptions.First(option => option.Key == (settings.RefreshManifestOnStartup ? "on" : "off"));
         AutoCheckUpdates = settings.AutoCheckUpdates;
         AutoInstallUpdates = settings.AutoInstallUpdates;
+        CloseToTray = settings.CloseToTray;
         ManifestSourceUrlText = settings.ManifestSourceUrl ?? string.Empty;
 
         ThemeName = SelectedThemeMode?.Label ?? string.Empty;
