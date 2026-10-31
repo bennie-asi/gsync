@@ -98,6 +98,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SyncQueue>();
         services.AddSingleton<SyncActivityGate>();
         services.AddSingleton<AppUpdateInstaller>();
+        services.AddSingleton(sp =>
+        {
+            var updates = sp.GetRequiredService<AppUpdateService>();
+            var installer = sp.GetRequiredService<AppUpdateInstaller>();
+            var paths = sp.GetRequiredService<IAppPathService>();
+            return new AutoUpdateCoordinator(
+                token => updates.CheckAsync(true, token), () => updates.Snapshot,
+                async token => { await updates.DownloadAsync(null, token); }, () => updates.LastDownload,
+                installer.InstallWhenIdleAsync, () => installer.Status,
+                () => GSYNC.Core.Updates.UpdateResultStore.Read(paths.GetAppDataRoot()));
+        });
         services.AddSingleton<ISyncQueue>(sp => sp.GetRequiredService<SyncQueue>());
         services.AddSingleton(sp =>
         {

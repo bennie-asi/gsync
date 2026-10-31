@@ -46,7 +46,7 @@ public sealed class UiSettingsStore
     {
         try { return LoadSettings(settingsPath); }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
-        { return new AppUiSettings { RefreshManifestOnStartup = false, AutoCheckUpdates = false }; }
+        { return new AppUiSettings { RefreshManifestOnStartup = false, AutoCheckUpdates = false, AutoInstallUpdates = false }; }
     }
 
     private static AppUiSettings LoadSettings(string settingsPath)
@@ -94,6 +94,8 @@ public sealed class AppUiSettings
     public bool RefreshManifestOnStartup { get; set; } = true;
 
     public bool AutoCheckUpdates { get; set; } = true;
+
+    public bool AutoInstallUpdates { get; set; } = true;
 
     public string? ManifestSourceUrl { get; set; }
 }

@@ -32,6 +32,8 @@
     <Compile Include="../../src/GSYNC.App/ViewModels/UiRecords.cs" Link="App/UiRecords.cs" />
     <Compile Include="../../src/GSYNC.App/Infrastructure/UiFormat.cs" Link="App/UiFormat.cs" />
     <Compile Include="../../src/GSYNC.App/Infrastructure/AppUpdateService.cs" Link="App/AppUpdateService.cs" />
+    <Compile Include="../../src/GSYNC.App/Infrastructure/AppUpdateInstaller.cs" Link="App/AppUpdateInstaller.cs" />
+    <Compile Include="../../src/GSYNC.App/Infrastructure/AutoUpdateCoordinator.cs" Link="App/AutoUpdateCoordinator.cs" />
     <Compile Include="../../src/GSYNC.App/Infrastructure/Localization/ILocalizationService.cs" Link="App/ILocalizationService.cs" />
     <Compile Include="../../src/GSYNC.App/Infrastructure/Localization/LocalizationService.cs" Link="App/LocalizationService.cs" />
     <Compile Include="../../src/GSYNC.App/Infrastructure/Wizard/*.cs" Link="App/%(Filename)%(Extension)" />

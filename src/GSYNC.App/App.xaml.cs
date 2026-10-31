@@ -162,8 +162,10 @@ public partial class App : Application
             Log.Information("Refreshing community manifest if configured.");
             var settingsStore = _services.GetRequiredService<UiSettingsStore>();
             var appSettings = settingsStore.Load();
-            if (appSettings.AutoCheckUpdates)
-                _ = _tasks.RunAsync(token => Task.Run(() => _services.GetRequiredService<AppUpdateService>().CheckAsync(true, token), token));
+            var autoUpdate = _services.GetRequiredService<AutoUpdateCoordinator>();
+            autoUpdate.Configure(appSettings.AutoCheckUpdates, appSettings.AutoInstallUpdates);
+            settingsStore.Changed += value => autoUpdate.Configure(value.AutoCheckUpdates, value.AutoInstallUpdates);
+            _ = _tasks.RunAsync(token => Task.Run(() => autoUpdate.RunAsync(token), token));
             if (appSettings.RefreshManifestOnStartup)
             {
                 _ = _tasks.RunAsync(token => Task.Run(() => RefreshCommunityManifestIfConfiguredAsync(_services, token), token));

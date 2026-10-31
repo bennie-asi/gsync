@@ -22,6 +22,7 @@ public sealed partial class SettingsPage : Page
     private AutoPullCoordinator? _autoPull;
     private AppUpdateService? _updates;
     private AppUpdateInstaller? _installer;
+    private AutoUpdateCoordinator? _autoUpdate;
     private CancellationTokenSource? _downloadCancellation;
     private string? _downloadedUpdate;
 
@@ -40,6 +41,8 @@ public sealed partial class SettingsPage : Page
         _updates.Changed += Updates_Changed;
         _installer = App.GetService<AppUpdateInstaller>();
         _installer.Changed += Updates_Changed;
+        _autoUpdate = App.GetService<AutoUpdateCoordinator>();
+        _autoUpdate.Changed += Updates_Changed;
         RefreshUpdateStatus();
         RefreshAutoPullStatus();
     }
@@ -49,6 +52,7 @@ public sealed partial class SettingsPage : Page
         if (_autoPull is not null) _autoPull.StatusChanged -= AutoPull_StatusChanged;
         if (_updates is not null) _updates.Changed -= Updates_Changed;
         if (_installer is not null) _installer.Changed -= Updates_Changed;
+        if (_autoUpdate is not null) _autoUpdate.Changed -= Updates_Changed;
         _downloadCancellation?.Cancel();
         base.OnNavigatedFrom(e);
     }
@@ -119,9 +123,13 @@ public sealed partial class SettingsPage : Page
         UpdateStatus.Text = zh ? "尚未检查应用更新。" : "Application updates have not been checked.";
         CheckUpdatesButton.Content = zh ? "检查更新" : "Check for updates";
         ReleasesButton.Content = zh ? "前往 GitHub 发行页" : "Open GitHub releases";
-        AutoCheckToggle.Header = zh ? "启动时自动检查更新（保存后生效，每天最多一次）" : "Check for updates on startup (save to apply, at most once a day)";
+        AutoCheckToggle.Header = zh ? "自动检查更新（运行期间每天最多一次）" : "Automatically check for updates (at most once a day while running)";
         AutoCheckToggle.OnContent = zh ? "开" : "On";
         AutoCheckToggle.OffContent = zh ? "关" : "Off";
+        AutoInstallToggle.Header = zh ? "自动下载并在同步结束后安装（将重启应用）" : "Automatically download and install after sync completes (restarts the app)";
+        AutoInstallToggle.OnContent = zh ? "开" : "On";
+        AutoInstallToggle.OffContent = zh ? "关" : "Off";
+        AutoUpdateNote.Text = zh ? "自动安装需要开启自动检查；更改保存后生效。" : "Automatic installation requires automatic checks. Save settings to apply changes.";
         DownloadUpdateButton.Content = zh ? "下载更新" : "Download update";
         CancelUpdateButton.Content = zh ? "取消下载" : "Cancel download";
         OpenUpdateFolderButton.Content = zh ? "打开下载位置" : "Open download location";
@@ -251,7 +259,8 @@ public sealed partial class SettingsPage : Page
         ReleaseNotes.Text = result.Notes ?? string.Empty;
         ReleaseNotesContainer.Visibility = string.IsNullOrWhiteSpace(ReleaseNotes.Text) ? Visibility.Collapsed : Visibility.Visible;
         var install = _installer?.Status ?? new InstallStatus("idle");
-        var installing = install.State is "preparing" or "waiting" or "starting";
+        var automatic = _autoUpdate?.Status ?? new AutoUpdateStatus("idle");
+        var installing = install.State is "preparing" or "waiting" or "starting" || automatic.State == "downloading";
         InstallStatusText.Text = install.State switch
         {
             "preparing" => zh ? "正在准备已签名的更新…" : "Preparing the signed update…",
@@ -261,6 +270,14 @@ public sealed partial class SettingsPage : Page
             "error" => (zh ? "无法安装更新：" : "Cannot install update: ") + install.Message,
             _ => string.Empty,
         };
+        if (install.State is not ("preparing" or "waiting" or "starting"))
+            InstallStatusText.Text = automatic.State switch
+            {
+                "downloading" => zh ? $"正在自动下载并验证版本 {automatic.Version}…" : $"Automatically downloading and verifying version {automatic.Version}…",
+                "deferred" => zh ? $"版本 {automatic.Version} 的自动安装已暂停，可手动安装或等待下一个版本。" : $"Automatic installation of {automatic.Version} is paused; install manually or wait for a newer version.",
+                "error" => (zh ? "自动更新失败，将在下次检查时重试：" : "Automatic update failed; it will retry on the next check: ") + automatic.Message,
+                _ => InstallStatusText.Text,
+            };
         var lastResult = UpdateResultStore.Read(App.GetService<IAppPathService>().GetAppDataRoot());
         LastUpdateResultText.Text = lastResult?.State switch
         {

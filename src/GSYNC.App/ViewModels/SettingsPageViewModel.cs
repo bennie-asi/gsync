@@ -45,6 +45,9 @@ public partial class SettingsPageViewModel : ObservableObject
     private bool _autoCheckUpdates;
 
     [ObservableProperty]
+    private bool _autoInstallUpdates;
+
+    [ObservableProperty]
     private string _manifestSourceUrlText = string.Empty;
 
     [ObservableProperty]
@@ -225,6 +228,7 @@ public partial class SettingsPageViewModel : ObservableObject
             AutoPullEnabled = string.Equals(SelectedAutoPullOption?.Key, "on", StringComparison.OrdinalIgnoreCase),
             RefreshManifestOnStartup = string.Equals(SelectedRefreshManifestOption?.Key, "on", StringComparison.OrdinalIgnoreCase),
             AutoCheckUpdates = AutoCheckUpdates,
+            AutoInstallUpdates = AutoInstallUpdates,
             ManifestSourceUrl = string.IsNullOrWhiteSpace(ManifestSourceUrlText) ? null : ManifestSourceUrlText.Trim(),
         };
     }
@@ -253,6 +257,7 @@ public partial class SettingsPageViewModel : ObservableObject
         SelectedAutoPullOption = ToggleOptions.First(option => option.Key == (settings.AutoPullEnabled ? "on" : "off"));
         SelectedRefreshManifestOption = ToggleOptions.First(option => option.Key == (settings.RefreshManifestOnStartup ? "on" : "off"));
         AutoCheckUpdates = settings.AutoCheckUpdates;
+        AutoInstallUpdates = settings.AutoInstallUpdates;
         ManifestSourceUrlText = settings.ManifestSourceUrl ?? string.Empty;
 
         ThemeName = SelectedThemeMode?.Label ?? string.Empty;

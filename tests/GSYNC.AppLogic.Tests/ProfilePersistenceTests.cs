@@ -588,6 +588,21 @@ public sealed class ProfilePersistenceTests
     }
 
     [Fact]
+    public async Task AutomaticUpdateSettings_DefaultOnAndPersistWhenDisabled()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var settings = fixture.Settings();
+        Assert.True(settings.AutoCheckUpdates);
+        Assert.True(settings.AutoInstallUpdates);
+        settings.AutoCheckUpdates = false;
+        settings.AutoInstallUpdates = false;
+        settings.SaveSettings();
+        var reloaded = fixture.Settings();
+        Assert.False(reloaded.AutoCheckUpdates);
+        Assert.False(reloaded.AutoInstallUpdates);
+    }
+
+    [Fact]
     public async Task TwoDeviceProfiles_ShareRemoteAndPullOnlyAfterLocalBaselineConfirmation()
     {
         using var fixture = await Fixture.CreateAsync();

@@ -154,7 +154,7 @@ To use an isolated application data directory, set the absolute `GSYNC_DATA_ROOT
 
 ### Application updates and startup
 
-Settings can check GitHub Releases automatically at startup or on demand and download compatible releases. For releases signed by the embedded public key, choose **Wait and install**: GSYNC waits for queued and running sync and restore work, verifies the signature and archive, then restarts through an independent updater. It backs up managed program files and rolls them back if the startup check fails. An older installation without the update helper and managed-file list must first be updated manually by extracting a signed release to a new folder; update the sign-in startup location if enabled. Unsigned releases can only be installed manually. GitHub's digest checks integrity; the separate signature authenticates the release.
+While running, GSYNC checks GitHub Releases at startup and periodically, at most once per day. By default it downloads trusted signed updates and waits for queued and running sync and restore work before restarting to install them; both automatic checking and installation can be disabled in Settings. The independent updater backs up managed program files and rolls them back if the startup check fails. An older installation without the update helper and managed-file list must first be updated manually by extracting a signed release to a new folder; update the sign-in startup location if enabled. Unsigned releases can only be installed manually. GitHub's digest checks integrity; the separate signature authenticates the release.
 
 ### Sync format and credential storage
 
@@ -280,7 +280,7 @@ dotnet test GSYNC.sln --no-build
 
 > 同步格式已升级为不可变版本与条件提交清单，请先升级所有设备的 GSYNC。WebDAV 需要强 ETag 和条件 PUT 支持，远端账户认证需要 HTTPS。密码按 Windows 当前用户加密，复制数据到其他账户后需在同步目标编辑器重新输入凭据。
 
-设置页支持自动或手动检查 GitHub 发行版并下载兼容版本。对于通过内置公钥验证的签名版本，选择“等待并安装”后，程序会等待运行中及排队的同步、恢复任务结束，再由独立更新器备份并替换受管程序文件；启动检查失败时回滚。旧版本如果没有更新器和受管文件清单，需先将签名版本手动解压到新文件夹，若启用了登录自启，再更新自启路径。没有可信签名的发行版只能手动安装。GitHub 摘要检查文件完整性，独立签名用于验证发布者。
+程序运行期间会在启动后及之后定期检查 GitHub 发行版，每天最多联网检查一次。默认自动下载可信签名版本，等待运行中及排队的同步、恢复任务结束后重启安装；设置页可分别关闭自动检查和自动安装。独立更新器会备份并替换受管程序文件，启动检查失败时回滚。旧版本如果没有更新器和受管文件清单，需先将签名版本手动解压到新文件夹，若启用了登录自启，再更新自启路径。没有可信签名的发行版只能手动安装。GitHub 摘要检查文件完整性，独立签名用于验证发布者。
 
 ### 🗺 项目状态
 
