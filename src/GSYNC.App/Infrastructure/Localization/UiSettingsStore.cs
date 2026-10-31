@@ -13,6 +13,7 @@ public sealed class UiSettingsStore
     };
 
     private readonly IAppPathService _appPathService;
+    public event Action<AppUiSettings>? Changed;
 
     public UiSettingsStore(IAppPathService appPathService)
     {
@@ -33,6 +34,7 @@ public sealed class UiSettingsStore
         Directory.CreateDirectory(_appPathService.GetAppDataRoot());
         var json = JsonSerializer.Serialize(settings, JsonOptions);
         AtomicFile.WriteAllText(_appPathService.GetUiSettingsPath(), json);
+        Changed?.Invoke(settings);
     }
 
     public static string LoadStartupLanguageTag(string settingsPath)
@@ -85,6 +87,8 @@ public sealed class AppUiSettings
     public string LogLevel { get; set; } = DefaultLogLevel;
 
     public bool AutoSnapshotBeforeDownload { get; set; } = true;
+
+    public bool AutoPullEnabled { get; set; }
 
     public bool RefreshManifestOnStartup { get; set; } = true;
 

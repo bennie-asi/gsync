@@ -10,9 +10,10 @@ using Microsoft.Extensions.Logging;
 namespace GSYNC.Core.Services.Sync;
 
 /// <summary>Coordinates job lifetime, per-game exclusion, and the focused sync services.</summary>
-public sealed class SyncEngine : ISyncEngine
+public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
 {
     private readonly ISyncQueue _queue;
+    private readonly IStorageBindingRepository _bindings;
     private readonly ISyncHistoryRepository _history;
     private readonly SyncContextFactory _contexts;
     private readonly SyncTransferService _transfers;
@@ -39,21 +40,43 @@ public sealed class SyncEngine : ISyncEngine
         ApplicationTaskHost? applicationTasks = null)
     {
         _queue = syncQueue;
+        _bindings = storageBindingRepository;
         _history = syncHistoryRepository;
         _applicationTasks = applicationTasks;
         var files = new SyncFileService(pathResolver, systemVariableProvider, userVariablesProvider);
         _contexts = new SyncContextFactory(gameInstanceRepository, storageBindingRepository, manifestService,
             sourceProviders, storageProviders, files, storageConfigurationResolver);
         _snapshots = new SyncSnapshotService(appPathService, syncHistoryRepository);
-        _transfers = new SyncTransferService(syncQueue, syncHistoryRepository, _snapshots, autoSnapshotBeforeDownloadEnabled ?? (() => true), Path.Combine(appPathService.GetAppDataRoot(), "transactions"));
+        _transfers = new SyncTransferService(syncQueue, syncHistoryRepository, _snapshots, autoSnapshotBeforeDownloadEnabled ?? (() => true), Path.Combine(appPathService.GetAppDataRoot(), "transactions"),
+            (id, token) => _contexts.BuildAsync(id, token));
         _operations = new SyncOperationRunner(syncHistoryRepository, logger);
     }
 
-    public Task QueueAsync(SyncJob syncJob, CancellationToken cancellationToken)
+    public async Task QueueAsync(SyncJob syncJob, CancellationToken cancellationToken)
     {
         if (_applicationTasks?.IsStopping == true) throw new InvalidOperationException("The application is stopping.");
-        return _queue.QueueAsync(syncJob, cancellationToken).AsTask();
+        var binding = (await _bindings.ListByGameInstanceAsync(syncJob.GameInstanceId, cancellationToken)).FirstOrDefault();
+        if (_applicationTasks?.IsStopping == true) throw new InvalidOperationException("The application is stopping.");
+        syncJob.BindingCaptured = true;
+        syncJob.CapturedBindingId = binding?.Id;
+        syncJob.CapturedBindingUpdatedAtUtc = binding?.UpdatedAtUtc;
+        await _queue.QueueAsync(syncJob, cancellationToken);
     }
+
+    public Task UpdateBindingAsync(StorageBinding binding, Guid? expectedBindingId, DateTimeOffset? expectedUpdatedAtUtc, CancellationToken cancellationToken)
+        => TrackAsync(async token =>
+        {
+            if (HasQueuedJob(binding.GameInstanceId)) throw new SyncBindingBusyException();
+            using var lease = await LockGameAsync(binding.GameInstanceId, token);
+            if (HasQueuedJob(binding.GameInstanceId)) throw new SyncBindingBusyException();
+            var current = (await _bindings.ListByGameInstanceAsync(binding.GameInstanceId, token)).FirstOrDefault();
+            if (current?.Id != expectedBindingId || current?.UpdatedAtUtc != expectedUpdatedAtUtc ||
+                (current is not null && binding.Id != current.Id))
+                throw new SyncBindingChangedException();
+            await _bindings.UpsertAsync(binding, token);
+        }, cancellationToken);
+
+    private bool HasQueuedJob(Guid gameId) => _queue.ActiveJob?.GameInstanceId == gameId || _queue.PendingJobs.Any(job => job.GameInstanceId == gameId);
 
     public Task<SyncComparison> CompareAsync(SyncJob syncJob, CancellationToken cancellationToken) => TrackAsync(async token =>
     {
@@ -104,6 +127,8 @@ public sealed class SyncEngine : ISyncEngine
     {
         using var lease = await LockGameAsync(job.GameInstanceId, token);
         var context = await _contexts.BuildAsync(job.GameInstanceId, token);
+        if (job.BindingCaptured && (job.CapturedBindingId != context.Binding.Id || job.CapturedBindingUpdatedAtUtc != context.Binding.UpdatedAtUtc))
+            throw new InvalidOperationException("The sync destination changed after this task was queued. Compare it again before syncing.");
         switch (job.Direction)
         {
             case SyncDirection.Upload: await _transfers.UploadAsync(job, context, state, token); break;

@@ -6,6 +6,7 @@ using GSYNC.Data.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Navigation;
 using Serilog;
 
 namespace GSYNC.App.Pages;
@@ -13,11 +14,69 @@ namespace GSYNC.App.Pages;
 public sealed partial class SyncTargetsPage : Page
 {
     private SyncTargetsPageViewModel? _viewModel;
+    private AddGameWizardViewModel? _returnWizard;
+    private GameTargetSetup? _returnGame;
+    private bool _isEditingTarget;
 
     public SyncTargetsPage()
     {
         InitializeComponent();
+        ResponsiveSplitLayout.Attach(TargetPanes, TargetDetailPane, 900, new GridLength(320), new GridLength(1, GridUnitType.Star));
         TryInitializePage();
+        Loaded += OnPageLoaded;
+        Unloaded += OnPageUnloaded;
+    }
+
+    protected override void OnNavigatedTo(NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+        if (e.Parameter is WizardTargetSetup context)
+        {
+            _returnWizard = context.Wizard;
+            ReturnToWizardButton.Content = _viewModel?.IsChinese == true ? "返回添加游戏" : "Return to setup";
+            ReturnToWizardButton.Visibility = Visibility.Visible;
+        }
+        else if (e.Parameter is GameTargetSetup gameContext)
+        {
+            _returnGame = gameContext;
+            ReturnToWizardButton.Content = _viewModel?.IsChinese == true ? "返回游戏详情" : "Return to game";
+            ReturnToWizardButton.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void ReturnToWizard_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isEditingTarget) return;
+        if (_returnWizard is not null)
+            Frame?.Navigate(typeof(AddGameWizardPage), new WizardTargetReturn(_returnWizard, _viewModel?.SelectedTargetId));
+        else if (_returnGame is not null)
+            Frame?.Navigate(typeof(GameDetailsPage), new GameTargetReturn(_returnGame.InstanceId, _viewModel?.SelectedTargetId, _returnGame.RemoteNamespace));
+    }
+
+    private void TargetsHeader_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var narrow = e.NewSize.Width < 790;
+        Grid.SetRow(TargetHeaderActions, narrow ? 2 : 1);
+        Grid.SetColumn(TargetHeaderActions, narrow ? 0 : 1);
+        Grid.SetColumnSpan(TargetHeaderActions, narrow ? 2 : 1);
+    }
+
+    private void OnPageLoaded(object sender, RoutedEventArgs e)
+    {
+        App.GetService<SyncTargetStore>().ConnectionChecksChanged += ConnectionChecksChanged;
+    }
+
+    private void OnPageUnloaded(object sender, RoutedEventArgs e)
+    {
+        App.GetService<SyncTargetStore>().ConnectionChecksChanged -= ConnectionChecksChanged;
+    }
+
+    private void ConnectionChecksChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            if (IsLoaded && _viewModel is not null) await _viewModel.LoadAsync();
+        });
     }
 
     private void TryInitializePage()
@@ -57,9 +116,9 @@ public sealed partial class SyncTargetsPage : Page
         TryInitializePage();
     }
 
-    private void TargetRow_Tapped(object sender, TappedRoutedEventArgs e)
+    private void TargetRow_Click(object sender, RoutedEventArgs e)
     {
-        if (_viewModel is not null && sender is FrameworkElement { DataContext: SyncTargetRow row })
+        if (!_isEditingTarget && _viewModel is not null && sender is FrameworkElement { DataContext: SyncTargetRow row })
         {
             _ = _viewModel.SelectTargetAsync(row);
         }
@@ -67,45 +126,36 @@ public sealed partial class SyncTargetsPage : Page
 
     private void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
-        _ = _viewModel?.LoadAsync(testConnections: true);
+        if (!_isEditingTarget) _ = _viewModel?.LoadAsync(testConnections: true);
     }
 
     private void TestSelectedButton_Click(object sender, RoutedEventArgs e)
     {
-        _ = _viewModel?.TestSelectedAsync();
+        if (!_isEditingTarget) _ = _viewModel?.TestSelectedAsync();
     }
 
-    private async void AddTargetButton_Click(object sender, RoutedEventArgs e)
+    private async void SetDefaultTarget_Click(object sender, RoutedEventArgs e)
     {
-        if (_viewModel is null)
+        if (_viewModel is not null && !_isEditingTarget) await _viewModel.SetSelectedDefaultAsync();
+    }
+
+    private void AddTargetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isEditingTarget && _viewModel is not null) ShowTargetEditor(null);
+    }
+
+    private void EditTargetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isEditingTarget || _viewModel?.GetSelectedConfig(includeCredentials: true) is not { } existing)
         {
             return;
         }
-
-        var config = await ShowTargetEditorAsync(null);
-        if (config is not null)
-        {
-            await _viewModel.SaveTargetAsync(config);
-        }
-    }
-
-    private async void EditTargetButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_viewModel?.GetSelectedConfig(includeCredentials: true) is not { } existing)
-        {
-            return;
-        }
-
-        var config = await ShowTargetEditorAsync(existing);
-        if (config is not null)
-        {
-            await _viewModel.SaveTargetAsync(config);
-        }
+        ShowTargetEditor(existing);
     }
 
     private async void RemoveTargetButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_viewModel?.GetSelectedConfig() is not { } config)
+        if (_isEditingTarget || _viewModel?.GetSelectedConfig() is not { } config)
         {
             return;
         }
@@ -198,11 +248,11 @@ public sealed partial class SyncTargetsPage : Page
         await dialog.ShowAsync();
     }
 
-    private async Task<SyncTargetConfig?> ShowTargetEditorAsync(SyncTargetConfig? existing)
+    private void ShowTargetEditor(SyncTargetConfig? existing)
     {
         if (_viewModel is null)
         {
-            return null;
+            return;
         }
 
         var vm = _viewModel;
@@ -368,11 +418,13 @@ public sealed partial class SyncTargetsPage : Page
         webDavPanel.Children.Add(browseRemoteButton);
         webDavPanel.Children.Add(browserPanel);
 
-        var panel = new StackPanel { Spacing = 12, MinWidth = 380 };
+        var panel = new StackPanel { Spacing = 12, MaxWidth = 680, HorizontalAlignment = HorizontalAlignment.Stretch };
         panel.Children.Add(nameBox);
         panel.Children.Add(typeBox);
         panel.Children.Add(webDavPanel);
         panel.Children.Add(localPanel);
+        var validationMessage = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+        panel.Children.Add(validationMessage);
 
         void UpdateFieldVisibility()
         {
@@ -384,52 +436,99 @@ public sealed partial class SyncTargetsPage : Page
         typeBox.SelectionChanged += (_, _) => UpdateFieldVisibility();
         UpdateFieldVisibility();
 
-        var dialog = DialogStyler.Apply(new ContentDialog
+        var saveButton = new Button { Content = isChinese ? "保存目标" : "Save target", Style = (Style)Application.Current.Resources["PrimaryToolbarButtonStyle"] };
+        var cancelButton = new Button { Content = isChinese ? "取消" : "Cancel", Style = secondaryStyle };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        buttons.Children.Add(saveButton);
+        buttons.Children.Add(cancelButton);
+        panel.Children.Add(buttons);
+        cancelButton.Click += (_, _) => CloseTargetEditor(passwordBox);
+        saveButton.Click += async (_, _) =>
         {
-            XamlRoot = XamlRoot,
-            Title = existing is null
-                ? (isChinese ? "添加同步目标" : "Add Sync Target")
-                : (isChinese ? "编辑同步目标" : "Edit Sync Target"),
-            Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
-            PrimaryButtonText = isChinese ? "保存" : "Save",
-            CloseButtonText = isChinese ? "取消" : "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-        });
-
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-        {
-            return null;
-        }
-
-        var isWebDavTarget = typeBox.SelectedIndex == 0;
-        var name = string.IsNullOrWhiteSpace(nameBox.Text)
-            ? (isWebDavTarget ? "WebDAV" : (isChinese ? "本地文件夹" : "Local Folder"))
-            : nameBox.Text.Trim();
-
-        var settings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (isWebDavTarget)
-        {
-            settings["baseUrl"] = urlBox.Text.Trim();
-            settings["username"] = usernameBox.Text.Trim();
-            settings["password"] = passwordBox.Password;
-        }
-        else
-        {
-            settings["rootPath"] = rootPathBox.Text.Trim();
-        }
-
-        if (existing is null)
-        {
-            return new SyncTargetConfig
+            string? error = null;
+            if (typeBox.SelectedIndex == 0)
             {
-                Name = name,
-                ProviderId = isWebDavTarget ? "webdav" : "local-folder",
-                Settings = settings,
-            };
-        }
+                if (!Uri.TryCreate(urlBox.Text.Trim(), UriKind.Absolute, out var endpoint) ||
+                    (endpoint.Scheme != Uri.UriSchemeHttp && endpoint.Scheme != Uri.UriSchemeHttps) ||
+                    endpoint.Query.Length != 0 || endpoint.Fragment.Length != 0 || endpoint.UserInfo.Length != 0)
+                {
+                    error = isChinese ? "请输入完整的 HTTP 或 HTTPS 地址，且不要包含用户名、查询参数或片段。" : "Enter a complete HTTP or HTTPS URL without user info, a query, or a fragment.";
+                }
+                else if (existing?.CredentialsUnavailable == true && string.IsNullOrEmpty(passwordBox.Password))
+                {
+                    error = isChinese ? "原有凭据无法读取，请重新输入密码后保存。" : "Existing credentials could not be read. Re-enter the password before saving.";
+                }
+            }
+            else if (string.IsNullOrWhiteSpace(rootPathBox.Text) || !Path.IsPathFullyQualified(rootPathBox.Text.Trim()))
+            {
+                error = isChinese ? "请输入或选择完整的本地文件夹路径。" : "Enter or choose an absolute local folder path.";
+            }
 
-        existing.Name = name;
-        existing.Settings = settings;
-        return existing;
+            if (error is not null)
+            {
+                validationMessage.Text = error;
+                validationMessage.Visibility = Visibility.Visible;
+                validationMessage.StartBringIntoView();
+                return;
+            }
+
+            var isWebDavTarget = typeBox.SelectedIndex == 0;
+            var name = string.IsNullOrWhiteSpace(nameBox.Text)
+                ? (isWebDavTarget ? "WebDAV" : (isChinese ? "本地文件夹" : "Local Folder"))
+                : nameBox.Text.Trim();
+            var settings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (isWebDavTarget)
+            {
+                settings["baseUrl"] = urlBox.Text.Trim();
+                settings["username"] = usernameBox.Text.Trim();
+                settings["password"] = passwordBox.Password;
+            }
+            else settings["rootPath"] = rootPathBox.Text.Trim();
+            var config = existing ?? new SyncTargetConfig { Name = name, ProviderId = isWebDavTarget ? "webdav" : "local-folder", Settings = settings };
+            config.Name = name;
+            config.Settings = settings;
+            saveButton.IsEnabled = false;
+            try
+            {
+                await vm.SaveTargetAsync(config);
+                CloseTargetEditor(passwordBox);
+            }
+            catch (Exception exception)
+            {
+                Log.Error(exception, "Failed to save sync target.");
+                validationMessage.Text = (isChinese ? "保存失败：" : "Could not save: ") + exception.Message;
+                validationMessage.Visibility = Visibility.Visible;
+                saveButton.IsEnabled = true;
+            }
+        };
+
+        TargetEditorHeading.Text = existing is null ? (isChinese ? "添加同步目标" : "Add sync target") : (isChinese ? "编辑同步目标" : "Edit sync target");
+        TargetEditorContent.Content = panel;
+        TargetDetailHeading.Visibility = Visibility.Collapsed;
+        TargetEditorHeading.Visibility = Visibility.Visible;
+        SetDefaultTargetButton.Visibility = Visibility.Collapsed;
+        TargetDetailsScroll.Visibility = Visibility.Collapsed;
+        TargetActionsFooter.Visibility = Visibility.Collapsed;
+        TargetEditorScroll.Visibility = Visibility.Visible;
+        _isEditingTarget = true;
+        TargetsHeader.IsHitTestVisible = false;
+        TargetListPane.IsHitTestVisible = false;
+        TargetEditorScroll.ChangeView(null, 0, null);
+        TargetDetailPane.StartBringIntoView();
+    }
+
+    private void CloseTargetEditor(PasswordBox passwordBox)
+    {
+        passwordBox.Password = string.Empty;
+        TargetEditorContent.Content = null;
+        TargetDetailHeading.Visibility = Visibility.Visible;
+        TargetEditorHeading.Visibility = Visibility.Collapsed;
+        SetDefaultTargetButton.Visibility = Visibility.Visible;
+        TargetDetailsScroll.Visibility = Visibility.Visible;
+        TargetActionsFooter.Visibility = Visibility.Visible;
+        TargetEditorScroll.Visibility = Visibility.Collapsed;
+        _isEditingTarget = false;
+        TargetsHeader.IsHitTestVisible = true;
+        TargetListPane.IsHitTestVisible = true;
     }
 }

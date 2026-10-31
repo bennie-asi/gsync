@@ -21,7 +21,7 @@
   <data name="MainWindow.Nav.History" xml:space="preserve"><value>历史</value></data>
   <data name="MainWindow.Nav.Settings" xml:space="preserve"><value>设置</value></data>
   <data name="MainWindow.Subtitle.Library" xml:space="preserve"><value>游戏库总览与快速同步操作</value></data>
-  <data name="MainWindow.Subtitle.Wizard" xml:space="preserve"><value>引导式六步添加游戏流程</value></data>
+  <data name="MainWindow.Subtitle.Wizard" xml:space="preserve"><value>引导式添加游戏流程</value></data>
   <data name="MainWindow.Subtitle.Conflict" xml:space="preserve"><value>在选择安全解决方案前检查本地与远端变更</value></data>
   <data name="MainWindow.Subtitle.Targets" xml:space="preserve"><value>管理本地与远端同步目标绑定</value></data>
   <data name="MainWindow.Subtitle.Variables" xml:space="preserve"><value>检查变量与模板解析结果</value></data>

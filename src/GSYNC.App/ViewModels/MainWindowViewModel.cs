@@ -1,4 +1,5 @@
 using GSYNC.App.Infrastructure.Configuration;
+using GSYNC.App.Infrastructure;
 using GSYNC.App.Infrastructure.Localization;
 using GSYNC.Core.Abstractions;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -11,8 +12,9 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly SyncTargetStore _syncTargetStore;
     private readonly IEnumerable<IStorageProvider> _storageProviders;
     private string? _startupStatusOverride;
+    private int _queueActivityCount;
 
-    private readonly record struct TargetStatus(string Name, bool IsOnline, bool IsLocal);
+    private readonly record struct TargetStatus(string Name, bool? IsOnline, bool IsLocal, DateTimeOffset? CheckedAt);
     private IReadOnlyList<TargetStatus> _lastKnownStatuses = [];
 
     [ObservableProperty]
@@ -29,6 +31,14 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private string _syncStatusText = string.Empty;
+
+    private string _primaryTargetStatusText = string.Empty;
+
+    public string PrimaryTargetStatusText
+    {
+        get => _primaryTargetStatusText;
+        set => SetProperty(ref _primaryTargetStatusText, value);
+    }
 
     public MainWindowViewModel(
         ILocalizationService localizationService,
@@ -47,6 +57,7 @@ public partial class MainWindowViewModel : ObservableObject
         LocalStatusText = string.Empty;
         TargetNameText = isChinese ? "---" : "---";
         SyncStatusText = checking;
+        PrimaryTargetStatusText = checking;
         SelectedPageKey = GetInitialPageKey();
     }
 
@@ -65,59 +76,55 @@ public partial class MainWindowViewModel : ObservableObject
         _ => _localizationService.GetString("MainWindow.Subtitle.Default"),
     };
 
-    public string GlobalStatusText => _startupStatusOverride ?? (SelectedPageKey switch
+    public string GlobalStatusText => _startupStatusOverride ?? (_queueActivityCount > 0
+        ? (_localizationService.CurrentLanguageTag == "zh-CN" ? $"{_queueActivityCount} 个同步任务进行中或等待中" : $"{_queueActivityCount} sync jobs running or waiting")
+        : SelectedPageKey switch
     {
         "wizard" => _localizationService.GetString("MainWindow.Status.Wizard"),
         "conflict" => _localizationService.GetString("MainWindow.Status.Conflict"),
         "history" => _localizationService.GetString("MainWindow.Status.History"),
-        "targets" => _localizationService.GetString("MainWindow.Status.Targets"),
+        "targets" => SyncStatusText,
         "variables" => _localizationService.GetString("MainWindow.Status.Variables"),
         "queue" => _localizationService.GetString("MainWindow.Status.Queue"),
         _ => _localizationService.GetString("MainWindow.Status.Ready"),
     });
 
+    public void SetQueueActivity(int count)
+    {
+        if (_queueActivityCount == count) return;
+        _queueActivityCount = count;
+        OnPropertyChanged(nameof(GlobalStatusText));
+    }
+
     public async Task RefreshTargetStatusAsync(CancellationToken cancellationToken = default)
     {
         var targets = _syncTargetStore.List();
-        var statuses = new List<TargetStatus>(targets.Count);
-
         foreach (var target in targets)
         {
-            var isLocal = string.Equals(target.ProviderId, "local-folder", StringComparison.OrdinalIgnoreCase);
-            bool isOnline;
-            if (isLocal)
+            cancellationToken.ThrowIfCancellationRequested();
+            var startedAt = DateTimeOffset.UtcNow;
+            var provider = _storageProviders.FirstOrDefault(
+                p => string.Equals(p.ProviderId, target.ProviderId, StringComparison.OrdinalIgnoreCase));
+            if (provider is null)
             {
-                var rootPath = target.Settings.GetValueOrDefault("rootPath", string.Empty);
-                isOnline = !string.IsNullOrWhiteSpace(rootPath) && Directory.Exists(rootPath);
-            }
-            else
-            {
-                var provider = _storageProviders.FirstOrDefault(
-                    p => string.Equals(p.ProviderId, target.ProviderId, StringComparison.OrdinalIgnoreCase));
-                if (provider is null)
-                {
-                    isOnline = false;
-                }
-                else
-                {
-                    try
-                    {
-                        using var probeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                        probeCts.CancelAfter(TimeSpan.FromSeconds(6));
-                        var result = await provider.TestConnectionAsync(_syncTargetStore.ResolveSettings(target.Settings), probeCts.Token);
-                        isOnline = result.IsSuccess;
-                    }
-                    catch
-                    {
-                        isOnline = false;
-                    }
-                }
+                _syncTargetStore.SetConnectionCheck(target, false, "Storage provider is not registered.", startedAt);
+                continue;
             }
 
-            statuses.Add(new TargetStatus(target.Name, isOnline, isLocal));
+            try
+            {
+                using var probeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                probeCts.CancelAfter(TimeSpan.FromSeconds(6));
+                var result = await provider.TestConnectionAsync(_syncTargetStore.ResolveSettings(target.Settings), probeCts.Token);
+                _syncTargetStore.SetConnectionCheck(target, result.IsSuccess, result.ErrorMessage, startedAt);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception exception)
+            {
+                _syncTargetStore.SetConnectionCheck(target, false, exception.Message, startedAt);
+            }
         }
 
-        _lastKnownStatuses = statuses;
         ApplyStatusToProperties();
     }
 
@@ -205,9 +212,16 @@ public partial class MainWindowViewModel : ObservableObject
         return "library";
     }
 
-    private void ApplyStatusToProperties()
+    public void ApplyStatusToProperties()
     {
         var isChinese = _localizationService.CurrentLanguageTag == "zh-CN";
+        var checks = _syncTargetStore.GetConnectionChecks();
+        _lastKnownStatuses = _syncTargetStore.List().Select(target =>
+        {
+            checks.TryGetValue(target.Id, out var check);
+            return new TargetStatus(target.Name, check?.Success,
+                string.Equals(target.ProviderId, "local-folder", StringComparison.OrdinalIgnoreCase), check?.CheckedAt);
+        }).ToArray();
         var remoteTargets = _lastKnownStatuses.Where(s => !s.IsLocal).ToList();
         var localTargets = _lastKnownStatuses.Where(s => s.IsLocal).ToList();
 
@@ -216,20 +230,38 @@ public partial class MainWindowViewModel : ObservableObject
 
         var defaultTarget = _syncTargetStore.GetDefault();
         TargetNameText = defaultTarget?.Name ?? (isChinese ? "无目标" : "No target");
+        if (defaultTarget is null)
+        {
+            PrimaryTargetStatusText = isChinese ? "尚未配置同步目标" : "No sync target configured";
+        }
+        else
+        {
+            checks.TryGetValue(defaultTarget.Id, out var defaultCheck);
+            PrimaryTargetStatusText = BuildGroupStatus(
+                [new TargetStatus(defaultTarget.Name, defaultCheck?.Success,
+                    string.Equals(defaultTarget.ProviderId, "local-folder", StringComparison.OrdinalIgnoreCase), defaultCheck?.CheckedAt)],
+                isChinese ? "目标" : "Target", isChinese);
+        }
 
         if (_lastKnownStatuses.Count == 0)
         {
             SyncStatusText = isChinese ? "无目标" : "No targets";
         }
-        else if (_lastKnownStatuses.All(s => s.IsOnline))
+        else if (_lastKnownStatuses.Any(s => s.IsOnline == false))
         {
-            SyncStatusText = isChinese ? "全部就绪" : "All ready";
+            var offlineCount = _lastKnownStatuses.Count(s => s.IsOnline == false);
+            SyncStatusText = isChinese ? $"{offlineCount} 个目标连接失败" : $"{offlineCount} target{(offlineCount == 1 ? "" : "s")} failed";
+        }
+        else if (_lastKnownStatuses.Any(s => s.IsOnline is null))
+        {
+            var untestedCount = _lastKnownStatuses.Count(s => s.IsOnline is null);
+            SyncStatusText = isChinese ? $"{untestedCount} 个目标未检查" : $"{untestedCount} target{(untestedCount == 1 ? "" : "s")} untested";
         }
         else
         {
-            var offlineCount = _lastKnownStatuses.Count(s => !s.IsOnline);
-            SyncStatusText = isChinese ? $"{offlineCount} 个目标离线" : $"{offlineCount} target{(offlineCount == 1 ? "" : "s")} offline";
+            SyncStatusText = isChinese ? "全部就绪" : "All ready";
         }
+        OnPropertyChanged(nameof(GlobalStatusText));
     }
 
     private static string BuildGroupStatus(List<TargetStatus> targets, string groupLabel, bool isChinese)
@@ -241,13 +273,17 @@ public partial class MainWindowViewModel : ObservableObject
 
         if (targets.Count == 1)
         {
-            var onlineText = isChinese
-                ? (targets[0].IsOnline ? "在线" : "离线")
-                : (targets[0].IsOnline ? "Online" : "Offline");
-            return $"{targets[0].Name} · {onlineText}";
+            var status = targets[0].IsOnline switch
+            {
+                true => isChinese ? "已连接" : "Connected",
+                false => isChinese ? "连接失败" : "Failed",
+                null => isChinese ? "未检查" : "Untested",
+            };
+            var checkedAt = targets[0].CheckedAt is { } time ? $" · {UiFormat.TimeOfRecord(time, isChinese)}" : string.Empty;
+            return $"{targets[0].Name} · {status}{checkedAt}";
         }
 
-        var onlineCount = targets.Count(s => s.IsOnline);
+        var onlineCount = targets.Count(s => s.IsOnline == true);
         return isChinese
             ? $"{groupLabel} {onlineCount}/{targets.Count} 在线"
             : $"{groupLabel} {onlineCount}/{targets.Count} online";
@@ -263,6 +299,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void OnSyncTargetsChanged(object? sender, EventArgs e)
     {
+        ApplyStatusToProperties();
         _ = RefreshTargetStatusAsync();
     }
 

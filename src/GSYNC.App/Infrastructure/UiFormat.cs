@@ -109,6 +109,11 @@ public static class UiFormat
         ? (isChinese ? "恢复快照" : "Restore snapshot")
         : DirectionText(record.Direction, isChinese);
 
+    public static string RestoreConfirmationText(string gameName, string snapshotName, string timestamp, int fileCount, bool isChinese)
+        => isChinese
+            ? $"游戏：{gameName}\n快照：{snapshotName}\n时间：{timestamp}\n文件数：{fileCount}\n\n恢复会替换受影响的本地存档文件。当前文件会先保存为新的快照。"
+            : $"Game: {gameName}\nSnapshot: {snapshotName}\nTime: {timestamp}\nFiles: {fileCount}\n\nRestoring replaces affected local save files. Their current contents are backed up as a new snapshot first.";
+
     public static string DownloadConfirmationText(bool autoSnapshot, bool isChinese) => (autoSnapshot, isChinese) switch
     {
         (true, true) => "远端数据将覆盖本地文件。覆盖前会自动创建本地快照。是否继续？",

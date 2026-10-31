@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Text;
 using GSYNC.Core.Models;
 using GSYNC.Core.Models.Manifest;
 using GSYNC.Core.Utilities;
@@ -7,6 +8,21 @@ namespace GSYNC.App.Infrastructure.Wizard;
 
 public sealed class AddGameMatchService
 {
+    public IReadOnlyList<GameCatalogCandidate> FindNameCandidates(string name, IReadOnlyList<GameContentDefinition> definitions)
+    {
+        var query = NormalizeName(name);
+        if (query.Length == 0) return [];
+        return definitions
+            .Where(definition => definition.ContentItems.Count > 0)
+            .Select(definition => (Definition: definition, Name: NormalizeName(definition.DisplayName)))
+            .Where(item => item.Name == query || (query.Length >= 3 && item.Name.Contains(query, StringComparison.Ordinal)))
+            .OrderByDescending(item => item.Name == query)
+            .ThenBy(item => item.Definition.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Take(30)
+            .Select(item => new GameCatalogCandidate(item.Definition, item.Name == query, item.Definition.DisplayName))
+            .ToArray();
+    }
+
     public GameDefinitionMatch Match(
         DiscoveredGame game,
         IReadOnlyList<GameContentDefinition> definitions,
@@ -73,11 +89,13 @@ public sealed class AddGameMatchService
             true);
     }
 
-    private static string NormalizeName(string name)
+    public static string NormalizeName(string name)
     {
-        return new string(name.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+        return new string(name.Normalize(NormalizationForm.FormKC).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
     }
 }
+
+public sealed record GameCatalogCandidate(GameContentDefinition Definition, bool IsExact, string MatchedName);
 
 public sealed class AddGamePathValidationService
 {
@@ -97,7 +115,8 @@ public sealed class AddGamePathValidationService
         GameDefinitionMatch match,
         IEnumerable<ContentItem> enabledItems,
         IReadOnlyDictionary<string, string> sourceVariables,
-        IReadOnlyDictionary<string, string> gameVariables)
+        IReadOnlyDictionary<string, string> gameVariables,
+        IReadOnlyList<ContentSelection>? selections = null)
     {
         var systemVariables = _systemVariableProvider.GetVariables();
         var userVariables = _userVariablesProvider?.Invoke() ?? new Dictionary<string, string>();
@@ -105,9 +124,12 @@ public sealed class AddGamePathValidationService
 
         foreach (var item in enabledItems)
         {
+            var selection = selections?.FirstOrDefault(value =>
+                string.Equals(value.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase));
             foreach (var template in item.PathTemplates)
             {
-                var resolved = _pathResolver.Resolve(template, systemVariables, sourceVariables, gameVariables, userVariables);
+                var effectiveTemplate = selection?.EffectiveTemplate(template) ?? template;
+                var resolved = _pathResolver.Resolve(effectiveTemplate, systemVariables, sourceVariables, gameVariables, userVariables);
                 if (string.IsNullOrWhiteSpace(resolved) || resolved.IndexOfAny(['<', '>']) >= 0 || Regex.IsMatch(resolved, @"%[A-Z0-9_]+%", RegexOptions.IgnoreCase) || !Path.IsPathFullyQualified(resolved))
                 {
                     results.Add(new PathValidationResult(

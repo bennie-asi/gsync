@@ -46,9 +46,12 @@ internal sealed class SyncFileService(PathResolver pathResolver, SystemVariableP
             .SelectMany(item =>
             {
                 var templates = item.PathTemplates.Select(path => path.Replace('\\', '/')).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                var selection = binding.ContentSelections.FirstOrDefault(value =>
+                    string.Equals(value.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase));
                 return templates.Select(template =>
                 {
-                    var resolved = _pathResolver.Resolve(template, systemVariables, sourceVariables, instanceVariables, userVariables, userOverrides);
+                    var effectiveTemplate = selection?.EffectiveTemplate(template) ?? template;
+                    var resolved = _pathResolver.Resolve(effectiveTemplate, systemVariables, sourceVariables, instanceVariables, userVariables, userOverrides);
                     if (string.IsNullOrWhiteSpace(resolved) || resolved.IndexOfAny(['<', '>']) >= 0 || Regex.IsMatch(resolved, @"%[A-Z0-9_]+%", RegexOptions.IgnoreCase) || !Path.IsPathFullyQualified(resolved))
                     {
                         throw new InvalidOperationException($"Content path '{template}' did not resolve to an absolute path. Check its variables.");
@@ -56,7 +59,7 @@ internal sealed class SyncFileService(PathResolver pathResolver, SystemVariableP
 
                     var (rootPath, pattern) = File.Exists(resolved) || Directory.Exists(resolved) ? (resolved, (string?)null) : PathGlob.SplitRoot(resolved);
                     return new ResolvedContentRoot(item, rootPath,
-                        pattern is not null || (Directory.Exists(resolved) ? true : File.Exists(resolved) ? false : ShouldTreatAsDirectory(item, template)),
+                        pattern is not null || (Directory.Exists(resolved) ? true : File.Exists(resolved) ? false : ShouldTreatAsDirectory(item, effectiveTemplate)),
                         templates.Length == 1 ? item.ContentId : BuildRemotePath(item.ContentId, "__roots", GetRootId(template)))
                     {
                         GlobPattern = pattern,
@@ -359,6 +362,7 @@ internal sealed class SyncFileService(PathResolver pathResolver, SystemVariableP
         return new SyncComparison
         {
             Entries = entries,
+            ConfigurationFingerprint = context.ConfigurationFingerprint,
         };
     }
 

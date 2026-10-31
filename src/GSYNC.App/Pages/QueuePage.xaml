@@ -34,20 +34,17 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding PageTitle}" />
-                    <TextBlock VerticalAlignment="Bottom" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding PageSubtitle}" TextWrapping="WrapWholeWords" />
-                </StackPanel>
+                <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
 
                 <Button Grid.Column="1" Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding RefreshButtonText}" />
                 </Button>
             </Grid>
 
-            <Grid Grid.Row="1" ColumnSpacing="14">
+            <Grid x:Name="QueuePanes" Grid.Row="1" ColumnSpacing="14" RowSpacing="12">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" MinWidth="720" />
-                    <ColumnDefinition Width="360" MinWidth="320" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="360" />
                 </Grid.ColumnDefinitions>
 
                 <Grid>
@@ -83,7 +80,7 @@
                     </Border>
                 </Grid>
 
-                <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
+                <Border x:Name="QueueDetailPane" Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />

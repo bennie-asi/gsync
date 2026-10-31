@@ -12,17 +12,33 @@
             <Setter Property="Foreground" Value="{StaticResource AppTextDimBrush}" />
         </Style>
         <DataTemplate x:Key="WizardOptionTemplate" x:DataType="vm:WizardOption">
-            <Border Padding="14" Margin="0,0,0,10" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{x:Bind BorderBrush}" BorderThickness="1" CornerRadius="8" Tapped="WizardOption_Tapped">
-                <StackPanel Spacing="4">
+            <Button Padding="14" Margin="0,0,0,10" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{x:Bind BorderBrush}" BorderThickness="1" CornerRadius="8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Click="WizardOption_Click" AutomationProperties.Name="{x:Bind Title}" AutomationProperties.HelpText="{x:Bind Summary}" AutomationProperties.ItemStatus="{x:Bind SelectionStatus}">
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="4">
+                        <TextBlock FontSize="15" FontWeight="SemiBold" Text="{x:Bind Title}" />
+                        <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Summary}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="✓" FontSize="18" Foreground="{StaticResource AppPrimaryBrush}" Visibility="{x:Bind IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </Grid>
+            </Button>
+        </DataTemplate>
+        <DataTemplate x:Key="WizardSourceTemplate" x:DataType="vm:WizardOption">
+            <Button Width="215" MinHeight="110" Padding="14" Margin="0,0,10,10" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{x:Bind BorderBrush}" BorderThickness="1" CornerRadius="8" HorizontalContentAlignment="Stretch" Click="WizardOption_Click" AutomationProperties.Name="{x:Bind Title}" AutomationProperties.HelpText="{x:Bind Summary}" AutomationProperties.ItemStatus="{x:Bind SelectionStatus}">
+                <StackPanel Spacing="6">
                     <TextBlock FontSize="15" FontWeight="SemiBold" Text="{x:Bind Title}" />
                     <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
                 </StackPanel>
-            </Border>
+            </Button>
         </DataTemplate>
     </Page.Resources>
 
     <Grid Padding="{StaticResource AppPagePadding}" RowSpacing="16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -30,56 +46,50 @@
 
         <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
 
-        <Grid Grid.Row="1" ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="260" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Steps}">
+            <ItemsControl.ItemsPanel><ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:WizardStepItem">
+                    <Border Width="145" Padding="10" Margin="0,0,8,8" Background="{StaticResource AppSurfaceBrush}" CornerRadius="8" Opacity="{x:Bind Opacity}">
+                        <Grid ColumnSpacing="10">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Border Width="28" Height="28" Background="{StaticResource AppPrimaryBrush}" CornerRadius="14">
+                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FF0B0E17" FontWeight="SemiBold" Text="{x:Bind Indicator}" />
+                            </Border>
+                            <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{x:Bind Title}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
 
-            <primitives:WizardStepRail>
-                <primitives:WizardStepRail.RailContent>
-                    <StackPanel Spacing="12">
-                        <StackPanel Spacing="2">
-                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding WizardRailTitle}" />
-                            <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding WizardRailSubtitle}" TextWrapping="WrapWholeWords" />
-                        </StackPanel>
-
-                        <ItemsControl ItemsSource="{Binding Steps}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:WizardStepItem">
-                                    <Border Padding="10" Margin="0,0,0,8" Background="{StaticResource AppSurfaceBrush}" CornerRadius="8">
-                                        <Grid ColumnSpacing="10">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Border Width="24" Height="24" Background="{StaticResource AppPrimaryBrush}" CornerRadius="12">
-                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource AppBackgroundBrush}" FontWeight="SemiBold" Text="{x:Bind Index}" />
-                                            </Border>
-                                            <StackPanel Grid.Column="1" Spacing="2">
-                                                <TextBlock FontWeight="SemiBold" Text="{x:Bind Title}" />
-                                                <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </primitives:WizardStepRail.RailContent>
-            </primitives:WizardStepRail>
-
-            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
                 <StackPanel Spacing="16">
-                    <primitives:PropertySheet Title="{Binding CurrentStepTitle}">
-                        <primitives:PropertySheet.PanelContent>
-                            <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding CurrentStepDescription}" TextWrapping="WrapWholeWords" />
-                        </primitives:PropertySheet.PanelContent>
-                    </primitives:PropertySheet>
+                    <StackPanel Spacing="4">
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding CurrentStepTitle}" />
+                        <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding CurrentStepDescription}" TextWrapping="WrapWholeWords" />
+                    </StackPanel>
 
                     <primitives:DenseDataGrid Title="{Binding SourcesTitle}" Subtitle="{Binding SourcesSubtitle}" FooterText="{Binding CurrentStepFooter}" Visibility="{Binding IsStep1, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <primitives:DenseDataGrid.GridContent>
-                            <ItemsControl ItemTemplate="{StaticResource WizardOptionTemplate}" ItemsSource="{Binding Sources}" />
+                            <StackPanel Spacing="12">
+                                <ItemsControl ItemTemplate="{StaticResource WizardSourceTemplate}" ItemsSource="{Binding Sources}">
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <StackPanel Spacing="10" MaxWidth="680" HorizontalAlignment="Stretch" Visibility="{Binding IsManualSourceSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock x:Name="ManualValidationText" Foreground="{StaticResource AppWarningBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+                                    <TextBlock Text="{Binding ManualMatchHelp}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
+                                    <Button x:Name="RefreshCatalogButton" Click="RefreshCatalog_Click" Content="{Binding RefreshCatalogText}" Style="{StaticResource SecondaryToolbarButtonStyle}" HorizontalAlignment="Left" />
+                                    <TextBox Header="{Binding ManualProgramLabel}" Text="{Binding ManualProgramPath}" IsReadOnly="True" />
+                                    <Button Click="BrowseGameProgram_Click" Content="{Binding BrowseProgramText}" Style="{StaticResource SecondaryToolbarButtonStyle}" HorizontalAlignment="Left" />
+                                    <TextBox Header="{Binding ManualNameLabel}" PlaceholderText="{Binding ManualNamePlaceholder}" Text="{Binding ManualGameName, Mode=TwoWay}" />
+                                    <TextBox Header="{Binding ManualPathLabel}" PlaceholderText="C:\Users\You\Documents\My Game\Saves" Text="{Binding ManualSavePath, Mode=TwoWay}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Click="BrowseManualFolder_Click" Content="{Binding BrowseFolderText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                        <Button Click="BrowseManualFile_Click" Content="{Binding BrowseFileText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
                         </primitives:DenseDataGrid.GridContent>
                     </primitives:DenseDataGrid>
 
@@ -110,7 +120,10 @@
 
                             <primitives:DenseDataGrid Title="{Binding GamesTitle}" Subtitle="{Binding GamesSubtitle}" FooterText="{Binding CurrentStepFooter}">
                                 <primitives:DenseDataGrid.GridContent>
-                                    <ItemsControl ItemTemplate="{StaticResource WizardOptionTemplate}" ItemsSource="{Binding Games}" />
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="{Binding ManualMatchMessage}" TextWrapping="Wrap" Foreground="{StaticResource AppTextSecondaryBrush}" Visibility="{Binding IsManualSourceSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        <ItemsControl ItemTemplate="{StaticResource WizardOptionTemplate}" ItemsSource="{Binding Games}" />
+                                    </StackPanel>
                                 </primitives:DenseDataGrid.GridContent>
                             </primitives:DenseDataGrid>
 
@@ -130,13 +143,37 @@
 
                     <primitives:PropertySheet Title="{Binding Step4ReviewTitle}" Visibility="{Binding IsStep4, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <primitives:PropertySheet.PanelContent>
-                            <primitives:KeyValueList ItemsSource="{Binding PathReview}" ContentMaxHeight="200" />
+                            <StackPanel Spacing="12">
+                                <TextBlock x:Name="PathValidationText" Foreground="{StaticResource AppWarningBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+                                <ItemsControl ItemsSource="{Binding PathReview}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:WizardPathReviewRow">
+                                            <Border Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{x:Bind Result}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
+                                                    <TextBox Header="{x:Bind OverrideLabel}" Text="{x:Bind OverridePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <Button Content="{x:Bind BrowseFolderText}" Click="BrowseReviewFolder_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                                        <Button Content="{x:Bind BrowseFileText}" Click="BrowseReviewFile_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                                        <Button Content="{x:Bind ApplyText}" Click="RecheckPath_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                                        <Button Content="{x:Bind ResetText}" Click="ResetPath_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
                         </primitives:PropertySheet.PanelContent>
                     </primitives:PropertySheet>
 
                     <primitives:DenseDataGrid Title="{Binding TargetsTitle}" Subtitle="{Binding TargetsSubtitle}" FooterText="{Binding CurrentStepFooter}" Visibility="{Binding IsStep5, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <primitives:DenseDataGrid.GridContent>
-                            <ItemsControl ItemTemplate="{StaticResource WizardOptionTemplate}" ItemsSource="{Binding Targets}" />
+                            <StackPanel Spacing="10">
+                                <ItemsControl ItemTemplate="{StaticResource WizardOptionTemplate}" ItemsSource="{Binding Targets}" />
+                                <Button Click="ManageTargetsButton_Click" Content="{Binding ManageTargetsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" HorizontalAlignment="Left" />
+                            </StackPanel>
                         </primitives:DenseDataGrid.GridContent>
                     </primitives:DenseDataGrid>
 
@@ -151,9 +188,8 @@
                     </primitives:PropertySheet>
                 </StackPanel>
             </ScrollViewer>
-        </Grid>
 
-        <Grid Grid.Row="2" ColumnSpacing="8">
+        <Grid Grid.Row="3" ColumnSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -166,7 +202,7 @@
             <Button Grid.Column="2" Click="BackButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" IsEnabled="{Binding CanGoBack}">
                 <primitives:IconText Glyph="{StaticResource IconArrowBack}" Text="{Binding BackText}" />
             </Button>
-            <Button Grid.Column="3" Click="NextButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
+            <Button Grid.Column="3" Click="NextButton_Click" IsEnabled="{Binding CanProceed}" Style="{StaticResource PrimaryToolbarButtonStyle}">
                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <TextBlock VerticalAlignment="Center" Text="{Binding NextButtonText}" />
                     <FontIcon Style="{StaticResource AppIcon}" FontSize="18" Glyph="{StaticResource IconChevronRight}" />

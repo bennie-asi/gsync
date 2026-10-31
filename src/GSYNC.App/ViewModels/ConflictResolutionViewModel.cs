@@ -57,11 +57,11 @@ public partial class ConflictResolutionViewModel : ObservableObject
         RemoteTitle = Pick("远端版本", "Remote Version");
         BaselineTitle = Pick("比较摘要", "Comparison summary");
         TableTitle = Pick("差异文件", "Differing files");
-        TableSubtitle = Pick("列表中可按文件设置保留本地、保留远端或暂不处理。", "Use the list to choose keep-local, keep-remote, or leave undecided per file.");
+        TableSubtitle = Pick("为每个文件选择保留本地、保留远端或暂不处理。", "Choose whether to keep the local or remote version of each file, or leave it unchanged.");
         UseLocalText = Pick("全部保留本地", "Keep Local for All");
         UseRemoteText = Pick("全部保留远端", "Keep Remote for All");
         KeepBothText = Pick("仅处理已决文件", "Apply Decided Files Only");
-        BackupRestoreText = Pick("批量设为远端", "Bulk Remote");
+        BackupRestoreText = Pick("应用所选决策", "Apply decisions");
         CancelText = Pick("返回", "Back");
         TableFooterText = string.Empty;
         LocalVersion = [];
@@ -73,6 +73,7 @@ public partial class ConflictResolutionViewModel : ObservableObject
     public string PageSubtitle { get; }
     public string RiskHintTitle { get; }
     public string RiskHintMessage { get; }
+    public string VersionDetailsTitle => Pick("查看版本详情", "View version details");
     public string LocalTitle { get; }
     public string RemoteTitle { get; }
     public string BaselineTitle { get; }
@@ -86,6 +87,7 @@ public partial class ConflictResolutionViewModel : ObservableObject
     public bool IsChinese => _isChinese;
 
     public bool HasContext => _context is not null;
+    public Guid? InstanceId => _context?.InstanceId;
 
     public void LoadFrom(ConflictNavigationContext context)
     {
@@ -94,8 +96,8 @@ public partial class ConflictResolutionViewModel : ObservableObject
 
         var entries = context.Comparison.Entries;
         var conflicts = entries.Where(entry => entry.ChangeKind == SyncChangeKind.Conflict).ToArray();
-        var localOnly = entries.Where(entry => entry.ChangeKind == SyncChangeKind.AddedLocally).ToArray();
-        var remoteOnly = entries.Where(entry => entry.ChangeKind == SyncChangeKind.AddedRemotely).ToArray();
+        var localOnly = entries.Where(entry => entry.ChangeKind is SyncChangeKind.AddedLocally or SyncChangeKind.UpdatedLocally).ToArray();
+        var remoteOnly = entries.Where(entry => entry.ChangeKind is SyncChangeKind.AddedRemotely or SyncChangeKind.UpdatedRemotely).ToArray();
         var unchanged = entries.Count(entry => entry.ChangeKind == SyncChangeKind.Unchanged);
 
         WarningTitle = conflicts.Length == 0 && localOnly.Length == 0 && remoteOnly.Length == 0
@@ -104,8 +106,8 @@ public partial class ConflictResolutionViewModel : ObservableObject
         WarningMessage = conflicts.Length == 0 && localOnly.Length == 0 && remoteOnly.Length == 0
             ? Pick("本地与远端没有差异，无需进一步处理。", "Local and remote files match. No action is required.")
             : Pick(
-                $"共 {entries.Count} 个文件：{conflicts.Length} 个冲突、{localOnly.Length} 个仅本地、{remoteOnly.Length} 个仅远端。",
-                $"{entries.Count} files compared: {conflicts.Length} conflicts, {localOnly.Length} local-only, {remoteOnly.Length} remote-only.");
+                $"共 {entries.Count} 个文件：{conflicts.Length} 个冲突、{localOnly.Length} 个本地变化、{remoteOnly.Length} 个远端变化。",
+                $"{entries.Count} files compared: {conflicts.Length} conflicts, {localOnly.Length} local changes, {remoteOnly.Length} remote changes.");
 
         ComparisonContext = Pick(
             $"游戏：{context.GameName} · 比较时间：{UiFormat.TimeOfRecord(DateTimeOffset.Now, true)}",
@@ -125,7 +127,7 @@ public partial class ConflictResolutionViewModel : ObservableObject
         [
             new(Pick("比较文件总数", "Total files compared"), entries.Count.ToString()),
             new(Pick("一致文件", "Unchanged files"), unchanged.ToString()),
-            new(Pick("冲突 / 仅本地 / 仅远端", "Conflicts / local-only / remote-only"), $"{conflicts.Length} / {localOnly.Length} / {remoteOnly.Length}"),
+            new(Pick("冲突 / 本地变化 / 远端变化", "Conflicts / local changes / remote changes"), $"{conflicts.Length} / {localOnly.Length} / {remoteOnly.Length}"),
         ];
 
         ConflictFiles = entries
@@ -135,7 +137,7 @@ public partial class ConflictResolutionViewModel : ObservableObject
                 DescribeLocalState(entry),
                 DescribeRemoteState(entry),
                 ChooseInitialAction(entry),
-                false))
+                false) { IsChinese = _isChinese, CanKeepLocal = entry.LocalHash is not null, CanKeepRemote = entry.RemoteHash is not null })
             .ToArray();
 
         RefreshFooter(unchanged);
@@ -143,7 +145,7 @@ public partial class ConflictResolutionViewModel : ObservableObject
 
     public void SetAllActions(ConflictResolutionAction action)
     {
-        ConflictFiles = ConflictFiles.Select(row => row with { Action = action }).ToArray();
+        ConflictFiles = ConflictFiles.Select(row => row with { Action = IsActionAvailable(row.Filename, action) ? action : ConflictResolutionAction.Skip }).ToArray();
         RefreshFooter();
     }
 
@@ -151,9 +153,20 @@ public partial class ConflictResolutionViewModel : ObservableObject
     {
         ConflictFiles = ConflictFiles.Select(row =>
             string.Equals(row.Filename, filename, StringComparison.OrdinalIgnoreCase)
-                ? row with { Action = action }
+                ? row with { Action = IsActionAvailable(row.Filename, action) ? action : ConflictResolutionAction.Skip }
                 : row).ToArray();
         RefreshFooter();
+    }
+
+    private bool IsActionAvailable(string filename, ConflictResolutionAction action)
+    {
+        var entry = _context?.Comparison.Entries.FirstOrDefault(item => string.Equals(item.RelativePath, filename, StringComparison.OrdinalIgnoreCase));
+        return action switch
+        {
+            ConflictResolutionAction.KeepLocal => entry?.LocalHash is not null,
+            ConflictResolutionAction.KeepRemote => entry?.RemoteHash is not null,
+            _ => true,
+        };
     }
 
     public async Task<string?> ResolveAsync(CancellationToken cancellationToken = default)
@@ -168,6 +181,7 @@ public partial class ConflictResolutionViewModel : ObservableObject
             var plan = new ConflictResolutionPlan
             {
                 GameInstanceId = _context.InstanceId,
+                ExpectedConfigurationFingerprint = _context.Comparison.ConfigurationFingerprint,
                 Decisions = ConflictFiles.Select(row => new ConflictResolutionDecision
                 {
                     RelativePath = row.Filename,
@@ -227,6 +241,8 @@ public partial class ConflictResolutionViewModel : ObservableObject
         {
             SyncChangeKind.AddedLocally => Pick("仅本地存在", "Local only"),
             SyncChangeKind.AddedRemotely => Pick("本地缺失", "Missing locally"),
+            SyncChangeKind.UpdatedLocally => Pick("本地已更新", "Updated locally"),
+            SyncChangeKind.UpdatedRemotely => Pick("本地未更新", "Unchanged locally"),
             SyncChangeKind.Conflict => entry.LocalModifiedAtUtc is { } modified
                 ? Pick($"本地修改于 {UiFormat.TimeOfRecord(modified, true)}", $"Modified {UiFormat.TimeOfRecord(modified, false)}")
                 : Pick("内容不同", "Different content"),
@@ -240,6 +256,8 @@ public partial class ConflictResolutionViewModel : ObservableObject
         {
             SyncChangeKind.AddedLocally => Pick("远端缺失", "Missing remotely"),
             SyncChangeKind.AddedRemotely => Pick("仅远端存在", "Remote only"),
+            SyncChangeKind.UpdatedLocally => Pick("远端未更新", "Unchanged remotely"),
+            SyncChangeKind.UpdatedRemotely => Pick("远端已更新", "Updated remotely"),
             SyncChangeKind.Conflict => entry.RemoteModifiedAtUtc is { } modified
                 ? Pick($"远端修改于 {UiFormat.TimeOfRecord(modified, true)}", $"Modified {UiFormat.TimeOfRecord(modified, false)}")
                 : Pick("内容不同", "Different content"),
@@ -257,11 +275,27 @@ public sealed record ConflictFileRow(
     ConflictResolutionAction Action,
     bool IsSelected)
 {
+    public bool IsChinese { get; init; }
+    public bool CanKeepLocal { get; init; }
+    public bool CanKeepRemote { get; init; }
+    public string KeepLocalText => IsChinese ? "保留本地" : "Keep local";
+    public string KeepRemoteText => IsChinese ? "保留远端" : "Keep remote";
+    public string SkipText => IsChinese ? "暂不处理" : "Skip";
+    public string DecisionLabel => IsChinese ? $"{Filename}：{ActionText}" : $"{Filename}: {ActionText}";
+    public string DisplayFilename
+    {
+        get
+        {
+            var normalized = Filename.Replace('\\', '/');
+            var lastSeparator = normalized.LastIndexOf('/');
+            return lastSeparator < 0 ? normalized : $"{normalized[(lastSeparator + 1)..]} — {normalized[..lastSeparator]}";
+        }
+    }
     public string ActionText => Action switch
     {
-        ConflictResolutionAction.KeepLocal => "Keep Local",
-        ConflictResolutionAction.KeepRemote => "Keep Remote",
-        ConflictResolutionAction.Skip => "Skip",
-        _ => "Undecided",
+        ConflictResolutionAction.KeepLocal => IsChinese ? "保留本地" : "Keep local",
+        ConflictResolutionAction.KeepRemote => IsChinese ? "保留远端" : "Keep remote",
+        ConflictResolutionAction.Skip => IsChinese ? "暂不处理" : "Skip",
+        _ => IsChinese ? "待选择" : "Undecided",
     };
 }

@@ -21,7 +21,7 @@
   <data name="MainWindow.Nav.History" xml:space="preserve"><value>History</value></data>
   <data name="MainWindow.Nav.Settings" xml:space="preserve"><value>Settings</value></data>
   <data name="MainWindow.Subtitle.Library" xml:space="preserve"><value>Library overview and quick sync actions</value></data>
-  <data name="MainWindow.Subtitle.Wizard" xml:space="preserve"><value>Guided six-step game onboarding flow</value></data>
+  <data name="MainWindow.Subtitle.Wizard" xml:space="preserve"><value>Guided game setup</value></data>
   <data name="MainWindow.Subtitle.Conflict" xml:space="preserve"><value>Review local and remote changes before choosing a safe resolution</value></data>
   <data name="MainWindow.Subtitle.Targets" xml:space="preserve"><value>Manage local and remote sync target bindings</value></data>
   <data name="MainWindow.Subtitle.Variables" xml:space="preserve"><value>Review variables and template resolution</value></data>

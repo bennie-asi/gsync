@@ -30,6 +30,7 @@ public partial class AddGameWizardViewModel : ObservableObject
     private readonly ISyncEngine _syncEngine;
     private readonly IUserDefinitionStore _userDefinitionStore;
     private readonly IGameProfileRepository _profiles;
+    private readonly SteamCatalogSearchService? _steamCatalogSearch;
 
     private IReadOnlyList<DiscoveredGame> _discoveredGames = [];
     private IReadOnlyList<GameContentDefinition> _definitions = [];
@@ -37,6 +38,10 @@ public partial class AddGameWizardViewModel : ObservableObject
     private GameDefinitionMatch? _selectedMatch;
     private IReadOnlyList<PathValidationResult> _pathValidationResults = [];
     private readonly HashSet<string> _selectedContentIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, string>> _pathOverrides = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<GameCatalogCandidate> _manualCandidates = [];
+    private GameProgramSelection? _programSelection;
+    private const string ManualPathOptionKey = "__manual_path__";
 
     [ObservableProperty]
     private int _currentStep;
@@ -63,7 +68,7 @@ public partial class AddGameWizardViewModel : ObservableObject
     private IReadOnlyList<WizardOption> _contentItems = [];
 
     [ObservableProperty]
-    private IReadOnlyList<UiPropertyRow> _pathReview = [];
+    private IReadOnlyList<WizardPathReviewRow> _pathReview = [];
 
     [ObservableProperty]
     private IReadOnlyList<WizardOption> _targets = [];
@@ -84,7 +89,8 @@ public partial class AddGameWizardViewModel : ObservableObject
         SystemVariableProvider systemVariableProvider,
         ISyncEngine syncEngine,
         IUserDefinitionStore userDefinitionStore,
-        IGameProfileRepository profiles)
+        IGameProfileRepository profiles,
+        SteamCatalogSearchService? steamCatalogSearch = null)
     {
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
         _sourceProviders = sourceProviders;
@@ -99,17 +105,18 @@ public partial class AddGameWizardViewModel : ObservableObject
         _syncEngine = syncEngine;
         _userDefinitionStore = userDefinitionStore;
         _profiles = profiles;
+        _steamCatalogSearch = steamCatalogSearch;
 
         PageTitle = Pick("添加游戏", "Add Game");
-        PageSubtitle = Pick("六步向导：选择来源、确认游戏、勾选内容、检查路径、绑定目标并创建配置。", "Six-step wizard: choose a source, confirm the game, pick content, review paths, bind a target, and create the profile.");
+        PageSubtitle = Pick("选择游戏和存档、设置同步目标，然后检查并完成。", "Choose a game and saves, set a sync target, then review and finish.");
         WizardRailTitle = Pick("配置流程", "Profile Flow");
-        WizardRailSubtitle = Pick("固定六步，不在向导过程中重排信息架构。", "Fixed six-step flow with no layout drift between steps.");
-        Step2DetailsTitle = Pick("检测到的游戏详情", "Detected game details");
+        WizardRailSubtitle = Pick("按六个步骤完成配置。", "Complete the setup in six steps.");
+        Step2DetailsTitle = Pick("所选游戏详情", "Selected game details");
         Step4ReviewTitle = Pick("已解析路径检查", "Resolved path review");
         Step6ReadyTitle = Pick("准备添加游戏", "Ready to Add Game");
         FinishCalloutTitle = Pick("确认后将创建游戏配置", "The game profile is created on confirm");
         FinishCalloutMessage = Pick("创建后可随时在游戏详情页执行上传、下载、比较与恢复。", "After creation you can upload, download, compare, and restore from the game detail page at any time.");
-        StartFirstSyncText = Pick("完成后立即上传首次同步", "Start the first upload after finishing");
+        StartFirstSyncText = Pick("创建后检查远端并准备首次同步", "Check the remote target and prepare the first sync after creation");
         CancelText = Pick("取消", "Cancel");
         BackText = Pick("返回", "Back");
         NoResultsTitle = Pick("没有找到匹配的游戏", "No matching games found");
@@ -117,24 +124,14 @@ public partial class AddGameWizardViewModel : ObservableObject
         NoResultsPrimaryActionText = Pick("改用手动配置", "Switch to manual setup");
         NoResultsSecondaryActionText = Pick("返回来源选择", "Back to source selection");
 
-        Steps =
-        [
-            new(1, Pick("选择来源", "Select Source"), Pick("选择 GSYNC 应该从哪里查找游戏。", "Choose where GSYNC should look for the game.")),
-            new(2, Pick("选择游戏", "Select Game"), Pick("选择检测到的游戏或手动录入。", "Pick a discovered game or enter one manually.")),
-            new(3, Pick("内容项", "Content Items"), Pick("选择要同步的存档与配置内容。", "Select saves and config content to synchronize.")),
-            new(4, Pick("检查路径", "Review Paths"), Pick("验证解析路径与可移植性覆盖情况。", "Validate resolved paths and portability coverage.")),
-            new(5, Pick("绑定目标", "Bind Target"), Pick("选择同步数据应存储到哪个目标。", "Choose where the profile will store synchronized data.")),
-            new(6, Pick("完成", "Finish"), Pick("检查摘要并创建配置。", "Review the summary and create the profile.")),
-        ];
-
         SourcesTitle = Pick("可用来源", "Available sources");
         SourcesSubtitle = Pick("自动来源会尝试检测已安装游戏；手动来源允许自定义路径。", "Automated sources try to detect installed games; the manual source allows custom paths.");
-        GamesTitle = Pick("检测到的游戏", "Detected games");
-        GamesSubtitle = Pick("从所选来源中选择检测到的游戏。", "Choose a discovered game from the selected source.");
+        GamesTitle = Pick("游戏候选", "Game candidates");
+        GamesSubtitle = Pick("确认或选择要添加的游戏。", "Confirm or choose the game to add.");
         ContentTitle = Pick("同步内容", "Content to sync");
         ContentSubtitle = Pick("点击条目可切换启用状态。", "Tap an item to toggle whether it is synchronized.");
         TargetsTitle = Pick("可用目标", "Available targets");
-        TargetsSubtitle = Pick("目标在“同步目标”页管理，这里选择此游戏要绑定的目标。", "Targets are managed on the Sync Targets page; pick the one this game binds to.");
+        TargetsSubtitle = Pick("选择保存位置；也可以在此配置或测试目标。", "Choose a destination, or configure and test a target here.");
 
         BuildSources();
         SelectedSourceKey = null;
@@ -165,7 +162,55 @@ public partial class AddGameWizardViewModel : ObservableObject
     public string NoResultsMessage { get; }
     public string NoResultsPrimaryActionText { get; }
     public string NoResultsSecondaryActionText { get; }
-    public IReadOnlyList<WizardStepItem> Steps { get; }
+    public IReadOnlyList<WizardStepItem> Steps =>
+    [
+        MakeStep(1, Pick("选择来源", "Source")),
+        MakeStep(2, Pick("选择游戏", "Game")),
+        MakeStep(3, Pick("选择内容", "Content")),
+        MakeStep(4, Pick("检查路径", "Paths")),
+        MakeStep(5, Pick("同步目标", "Target")),
+        MakeStep(6, Pick("检查并完成", "Finish")),
+    ];
+    private WizardStepItem MakeStep(int index, string title) => new(index, title, CurrentStep == index, CurrentStep > index);
+    public string ManageTargetsText => Pick("配置或测试目标", "Configure or test targets");
+    private string _manualGameName = string.Empty;
+    private string _manualSavePath = string.Empty;
+    private string _manualProgramPath = string.Empty;
+    private string _manualMatchMessage = string.Empty;
+
+    public string ManualGameName
+    {
+        get => _manualGameName;
+        set => SetProperty(ref _manualGameName, value);
+    }
+
+    public string ManualSavePath
+    {
+        get => _manualSavePath;
+        set => SetProperty(ref _manualSavePath, value);
+    }
+
+    public string ManualProgramPath
+    {
+        get => _manualProgramPath;
+        private set => SetProperty(ref _manualProgramPath, value);
+    }
+
+    public string ManualMatchMessage
+    {
+        get => _manualMatchMessage;
+        private set => SetProperty(ref _manualMatchMessage, value);
+    }
+
+    public string ManualNameLabel => Pick("游戏名称", "Game name");
+    public string ManualNamePlaceholder => Pick("例如：Elden Ring", "For example: Elden Ring");
+    public string ManualPathLabel => Pick("自定义存档目录或文件（未匹配时填写）", "Custom save folder or file (if not matched)");
+    public string ManualProgramLabel => Pick("游戏程序或快捷方式（可选）", "Game executable or shortcut (optional)");
+    public string BrowseProgramText => Pick("选择程序或快捷方式", "Choose executable or shortcut");
+    public string ManualMatchHelp => Pick("根据名称查找本地游戏资料；必要时查询 Steam 公开名称。选择程序不会启动游戏。", "Match the name against local game definitions and, when needed, public Steam titles. Selecting a program does not launch it.");
+    public string RefreshCatalogText => Pick("更新游戏资料库", "Update game catalog");
+    public string BrowseFolderText => Pick("选择文件夹", "Browse folder");
+    public string BrowseFileText => Pick("选择文件", "Browse file");
     public bool IsChinese => _isChinese;
 
     public string? SelectedSourceKey { get; private set; }
@@ -174,23 +219,24 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     public string CurrentStepTitle => CurrentStep switch
     {
-        1 => Pick("第 1 步 · 选择来源", "Step 1 · Select Source"),
-        2 => Pick("第 2 步 · 选择游戏", "Step 2 · Select Game"),
-        3 => Pick("第 3 步 · 内容项", "Step 3 · Content Items"),
-        4 => Pick("第 4 步 · 检查路径", "Step 4 · Review Paths"),
-        5 => Pick("第 5 步 · 绑定目标", "Step 5 · Bind Target"),
-        6 => Pick("第 6 步 · 完成", "Step 6 · Finish"),
-        _ => Pick("第 1 步 · 选择来源", "Step 1 · Select Source"),
+        1 => Pick("游戏与存档 · 选择来源", "Game and saves · Choose a source"),
+        2 => Pick("游戏与存档 · 选择游戏", "Game and saves · Choose a game"),
+        3 => Pick("游戏与存档 · 选择内容", "Game and saves · Choose content"),
+        4 => Pick("游戏与存档 · 检查路径", "Game and saves · Review paths"),
+        5 => Pick("同步目标 · 选择位置", "Sync target · Choose a destination"),
+        6 => Pick("检查并完成", "Review and finish"),
+        _ => Pick("游戏与存档", "Game and saves"),
     };
 
     public string CurrentStepDescription => CurrentStep switch
     {
         1 => Pick("选择最适合要添加游戏的来源。Steam/Epic 会扫描本机安装目录；手动来源支持任意游戏。", "Choose the source that matches the game. Steam/Epic scan local install directories; the manual source supports any game."),
+        2 when IsManualSourceSelected => Pick("确认匹配的游戏资料；相似结果需要手动选择。", "Confirm the matching game definition; choose among similar results."),
         2 => ShowNoResultsState
             ? Pick("当前来源下没有匹配的检测结果。可以返回切换来源，或改用手动配置。", "No matching results were found under the current source. Go back to switch source, or use manual setup.")
             : Pick("从所选来源中选择一个检测到的游戏。系统会优先使用稳定标识匹配内容定义，其次回退到名称级匹配。", "Choose a discovered game. The system prefers stable identifiers when matching content definitions, then falls back to name-level matching."),
         3 => Pick("选择此配置应同步哪些存档与配置内容。点击条目切换启用状态。", "Choose which save and configuration items should be synchronized. Tap an item to toggle it."),
-        4 => Pick("在绑定目标前验证路径模板与解析结果。阻断错误会阻止创建，警告会允许继续但需要确认。", "Validate path templates and resolved results before binding a target. Blocking errors stop creation; warnings allow you to continue with caution."),
+        4 => Pick("检查每条路径；解析不正确时可直接输入本机路径或选择文件、文件夹。", "Review each path; enter a local path or browse for a file or folder if the result is incorrect."),
         5 => Pick("选择此游戏配置应同步到哪个目标。", "Choose the sync target that should receive this game profile."),
         6 => Pick("检查最终摘要、匹配依据和路径预检结果，确认后创建游戏配置。", "Review the summary, match basis, and path validation results, then create the game profile."),
         _ => string.Empty,
@@ -198,14 +244,14 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     public string CurrentStepFooter => CurrentStep switch
     {
-        1 => Pick("共 6 步中的第 1 步 · 选择来源后继续。", "Step 1 of 6 · Continue after choosing a source."),
+        1 => Pick("步骤 1/6 · 选择来源后继续。", "Step 1/6 · Choose a source to continue."),
         2 => ShowNoResultsState
-            ? Pick("共 6 步中的第 2 步 · 返回上一步或切换到手动配置。", "Step 2 of 6 · Go back or switch to manual setup.")
-            : Pick("共 6 步中的第 2 步 · 继续前确认检测到的游戏。", "Step 2 of 6 · Confirm the detected game before continuing."),
-        3 => Pick("共 6 步中的第 3 步 · 至少保留一个启用的内容项。", "Step 3 of 6 · Keep at least one content item enabled."),
-        4 => Pick("共 6 步中的第 4 步 · 绑定前验证所有解析路径。", "Step 4 of 6 · Verify all resolved paths before binding."),
-        5 => Pick("共 6 步中的第 5 步 · 选择主要目标。", "Step 5 of 6 · Pick the primary destination."),
-        6 => Pick("共 6 步中的第 6 步 · 已准备创建配置。", "Step 6 of 6 · Ready to create the profile."),
+            ? Pick("步骤 2/6 · 返回上一步或切换到手动配置。", "Step 2/6 · Go back or use manual setup.")
+            : Pick("步骤 2/6 · 确认选择的游戏。", "Step 2/6 · Confirm the selected game."),
+        3 => Pick("步骤 3/6 · 至少保留一个内容项。", "Step 3/6 · Keep at least one content item."),
+        4 => Pick("步骤 4/6 · 检查解析后的路径。", "Step 4/6 · Review the resolved paths."),
+        5 => Pick("步骤 5/6 · 选择同步目标。", "Step 5/6 · Choose a sync target."),
+        6 => Pick("步骤 6/6 · 检查配置后创建。", "Step 6/6 · Review and create the profile."),
         _ => string.Empty,
     };
 
@@ -215,9 +261,13 @@ public partial class AddGameWizardViewModel : ObservableObject
     public bool IsStep4 => CurrentStep == 4;
     public bool IsStep5 => CurrentStep == 5;
     public bool IsStep6 => CurrentStep == 6;
+    public int PathWarningCount => _pathValidationResults.Count(result => result.Severity == PathValidationSeverity.Warning);
     public bool CanGoBack => CurrentStep > 1;
+    public bool CanProceed => !IsBusy;
     public string NextButtonText => CurrentStep == 6 ? Pick("创建配置", "Create Profile") : Pick("下一步", "Next Step");
     public bool IsManualSourceSelected => string.Equals(SelectedSourceKey, ManualSourceKey, StringComparison.OrdinalIgnoreCase);
+
+    partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(CanProceed));
 
     partial void OnCurrentStepChanged(int value)
     {
@@ -227,6 +277,7 @@ public partial class AddGameWizardViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(CurrentStepTitle));
+        OnPropertyChanged(nameof(Steps));
         OnPropertyChanged(nameof(CurrentStepDescription));
         OnPropertyChanged(nameof(CurrentStepFooter));
         OnPropertyChanged(nameof(IsStep1));
@@ -252,6 +303,7 @@ public partial class AddGameWizardViewModel : ObservableObject
             case 1:
                 SelectedSourceKey = option.Key;
                 Sources = Sources.Select(candidate => candidate with { IsSelected = candidate.Key == option.Key }).ToArray();
+                OnPropertyChanged(nameof(IsManualSourceSelected));
                 break;
             case 2:
                 SelectGame(option.Key);
@@ -291,7 +343,11 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     public void GoBack()
     {
-        if (CurrentStep > 1)
+        if (CurrentStep == 3 && IsManualSourceSelected && _manualCandidates.Count == 0)
+        {
+            CurrentStep = 1;
+        }
+        else if (CurrentStep > 1)
         {
             CurrentStep--;
         }
@@ -302,6 +358,7 @@ public partial class AddGameWizardViewModel : ObservableObject
         ShowNoResultsState = false;
         SelectedSourceKey = ManualSourceKey;
         Sources = Sources.Select(candidate => candidate with { IsSelected = candidate.Key == ManualSourceKey }).ToArray();
+        OnPropertyChanged(nameof(IsManualSourceSelected));
     }
 
     public void BackToSourceSelection()
@@ -328,13 +385,14 @@ public partial class AddGameWizardViewModel : ObservableObject
                 .Select(game =>
                 {
                     var match = _matchService.Match(game, _definitions, CreateFallbackDefinition);
-                    return new WizardOption(game.GameId, game.DisplayName, DescribeMatchSummary(match));
+                    return MakeOption(game.GameId, game.DisplayName, DescribeMatchSummary(match));
                 })
                 .ToArray();
 
             ShowNoResultsState = Games.Count == 0;
             _selectedGame = null;
             _selectedMatch = null;
+            _pathOverrides.Clear();
             _pathValidationResults = [];
             GameDetails = [];
             PathReview = [];
@@ -350,20 +408,153 @@ public partial class AddGameWizardViewModel : ObservableObject
         }
     }
 
+    public void SetProgramSelection(GameProgramSelection selection)
+    {
+        var previousName = _programSelection?.DisplayName;
+        _programSelection = selection;
+        ManualProgramPath = selection.SourcePath;
+        if (string.IsNullOrWhiteSpace(ManualGameName) || string.Equals(ManualGameName, previousName, StringComparison.OrdinalIgnoreCase))
+            ManualGameName = selection.DisplayName;
+    }
+
+    public async Task<string?> RefreshCatalogAsync(CancellationToken cancellationToken = default)
+    {
+        if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is already in progress.");
+        IsBusy = true;
+        try
+        {
+            await Task.Run(() => _manifestService.RefreshCommunityDefinitionsAsync(cancellationToken), cancellationToken);
+            return null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Could not refresh the game catalog.");
+            return Pick($"更新资料库失败：{exception.Message}", $"Could not update the game catalog: {exception.Message}");
+        }
+        finally { IsBusy = false; }
+    }
+
+    public async Task<string?> PrepareManualCandidatesAsync(CancellationToken cancellationToken = default)
+    {
+        if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is already in progress.");
+        if (string.IsNullOrWhiteSpace(ManualGameName))
+            return Pick("请填写游戏名称或选择游戏程序。", "Enter a game name or choose a game executable.");
+        IsBusy = true;
+        try
+        {
+            _definitions = await Task.Run(() => _manifestService.GetDefinitionsAsync(cancellationToken), cancellationToken);
+            var game = CreateManualDiscoveredGame(ManualGameName);
+            _discoveredGames = [game];
+            _selectedGame = game;
+            _selectedMatch = null;
+            _pathOverrides.Clear();
+            _selectedContentIds.Clear();
+            _pathValidationResults = [];
+            var candidates = (await Task.Run(() => _matchService.FindNameCandidates(game.DisplayName, _definitions), cancellationToken)).ToList();
+            var searchFailed = false;
+            if (!string.IsNullOrWhiteSpace(_programSelection?.SteamId))
+            {
+                foreach (var definition in _definitions.Where(definition => definition.ContentItems.Count > 0 &&
+                    definition.SourceHints.TryGetValue("steam.id", out var id) && id == _programSelection.SteamId))
+                    if (!candidates.Any(candidate => candidate.Definition.GameId == definition.GameId))
+                        candidates.Add(new GameCatalogCandidate(definition, true, $"Steam ID {_programSelection.SteamId}"));
+            }
+            if (candidates.Count(candidate => candidate.IsExact) != 1 && _steamCatalogSearch is not null)
+            {
+                try
+                {
+                    var results = await _steamCatalogSearch.SearchAsync(game.DisplayName, _isChinese, cancellationToken);
+                    var bySteamId = _definitions.Where(definition => definition.ContentItems.Count > 0 && definition.SourceHints.ContainsKey("steam.id"))
+                        .GroupBy(definition => definition.SourceHints["steam.id"], StringComparer.Ordinal)
+                        .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
+                    foreach (var result in results)
+                    {
+                        if (!bySteamId.TryGetValue(result.SteamId, out var matches)) continue;
+                        foreach (var definition in matches)
+                        {
+                            var exact = AddGameMatchService.NormalizeName(result.Name) == AddGameMatchService.NormalizeName(game.DisplayName);
+                            var existingIndex = candidates.FindIndex(candidate => candidate.Definition.GameId == definition.GameId);
+                            if (existingIndex >= 0)
+                            {
+                                if (exact && !candidates[existingIndex].IsExact)
+                                    candidates[existingIndex] = new GameCatalogCandidate(definition, true, result.Name);
+                            }
+                            else candidates.Add(new GameCatalogCandidate(definition, exact, result.Name));
+                        }
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException or IOException or UriFormatException)
+                {
+                    searchFailed = true;
+                    Log.Warning(exception, "Public game name lookup failed; local matching is still available.");
+                }
+            }
+            _manualCandidates = candidates.OrderByDescending(candidate => candidate.IsExact)
+                .ThenBy(candidate => candidate.Definition.DisplayName, StringComparer.OrdinalIgnoreCase).Take(30).ToArray();
+            if (_manualCandidates.Count == 0 && string.IsNullOrWhiteSpace(ManualSavePath))
+                return searchFailed
+                    ? Pick("没有找到本地匹配，Steam 名称查询暂不可用。请填写自定义存档路径后继续。", "No local match was found and Steam name search is unavailable. Enter a custom save path to continue.")
+                    : Pick("没有找到游戏资料。可更新游戏资料库，或填写自定义存档路径后继续。", "No game definition was found. Update the game catalog or enter a custom save path to continue.");
+
+            ManualMatchMessage = searchFailed
+                ? Pick("Steam 名称查询暂不可用，以下为本地资料库结果。", "Steam name search is unavailable; showing local catalog results.")
+                : Pick("请确认匹配结果；自定义路径可作为独立选项。", "Confirm the match; the custom path is offered as a separate option.");
+            var options = _manualCandidates.Select(candidate => MakeOption(candidate.Definition.GameId,
+                candidate.Definition.DisplayName,
+                candidate.IsExact
+                    ? Pick($"名称或标识匹配 · {candidate.MatchedName}", $"Name or identifier match · {candidate.MatchedName}")
+                    : Pick($"相似结果，请确认 · {candidate.MatchedName}", $"Similar result; confirm · {candidate.MatchedName}"))).ToList();
+            if (!string.IsNullOrWhiteSpace(ManualSavePath))
+                options.Add(MakeOption(ManualPathOptionKey, Pick("使用自定义存档路径", "Use custom save path"), ManualSavePath));
+            Games = options;
+            ShowNoResultsState = false;
+            GameDetails = [];
+            var exactCandidates = _manualCandidates.Where(candidate => candidate.IsExact).ToArray();
+            if (exactCandidates.Length == 1) SelectGame(exactCandidates[0].Definition.GameId);
+            else if (_manualCandidates.Count == 0) SelectGame(ManualPathOptionKey);
+            return null;
+        }
+        finally { IsBusy = false; }
+    }
+
     public void SetManualGame(string displayName, string savePath)
     {
-        var manualGame = new DiscoveredGame
+        ManualGameName = displayName.Trim();
+        ManualSavePath = savePath.Trim();
+        var manualGame = CreateManualDiscoveredGame(displayName);
+        _discoveredGames = [manualGame];
+        _selectedGame = manualGame;
+        _manualCandidates = [];
+        _selectedMatch = CreateManualMatch(manualGame, savePath);
+        _pathOverrides.Clear();
+        _selectedContentIds.Clear();
+        _pathValidationResults = [];
+
+        Games = [MakeOption(manualGame.GameId, manualGame.DisplayName, Pick("手动配置 · 1 个内容项", "Manual setup · 1 content item"), true)];
+        ShowNoResultsState = false;
+        BuildGameDetails();
+    }
+
+    private DiscoveredGame CreateManualDiscoveredGame(string displayName)
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (_programSelection is not null)
+            variables[GameProgramSelectionReader.ProgramPathVariable] = _programSelection.ExecutablePath ?? _programSelection.SourcePath;
+        return new DiscoveredGame
         {
             GameId = GameIdentity.ForManualName(displayName),
             DisplayName = displayName.Trim(),
             SourceProviderId = "custom",
-            InstallDirectory = null,
-            Variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            InstallDirectory = _programSelection?.InstallDirectory,
+            PlatformGameId = _programSelection?.SteamId,
+            Variables = variables,
         };
+    }
 
-        _discoveredGames = [manualGame];
-        _selectedGame = manualGame;
-        _selectedMatch = new GameDefinitionMatch(
+    private GameDefinitionMatch CreateManualMatch(DiscoveredGame manualGame, string savePath) =>
+        new(
             manualGame,
             new GameContentDefinition
             {
@@ -386,13 +577,6 @@ public partial class AddGameWizardViewModel : ObservableObject
             MatchOrigin.ManualDefinition,
             "manual-entry",
             true);
-        _selectedContentIds.Clear();
-        _pathValidationResults = [];
-
-        Games = [new WizardOption(manualGame.GameId, manualGame.DisplayName, Pick("手动配置 · 1 个内容项", "Manual setup · 1 content item"), true)];
-        ShowNoResultsState = false;
-        BuildGameDetails();
-    }
 
     public async Task<string?> CreateProfileAsync(CancellationToken cancellationToken = default)
     {
@@ -422,7 +606,7 @@ public partial class AddGameWizardViewModel : ObservableObject
                 return Pick("请先明确选择存档路径。", "Choose the save paths first.");
             var pathResults = _pathValidationService.Validate(_selectedMatch,
                 _selectedMatch.Definition.ContentItems.Where(item => _selectedContentIds.Contains(item.ContentId)),
-                BuildSourceVariables(_selectedGame, _selectedMatch.Definition), _selectedGame.Variables);
+                BuildSourceVariables(_selectedGame, _selectedMatch.Definition), _selectedGame.Variables, BuildContentSelections());
             if (pathResults.Any(result => result.Severity == PathValidationSeverity.Blocking))
                 return Pick("存档路径仍有错误，请先修复。", "Fix the save path errors before creating the profile.");
             var instances = await _gameInstanceRepository.ListAsync(cancellationToken);
@@ -459,13 +643,7 @@ public partial class AddGameWizardViewModel : ObservableObject
                 StorageProviderId = target.ProviderId,
                 RemoteNamespace = GameIdentity.StorageNamespace(_selectedMatch.Definition.GameId),
                 Settings = bindingSettings,
-                ContentSelections = _selectedMatch.Definition.ContentItems
-                    .Select(item => new ContentSelection
-                    {
-                        ContentId = item.ContentId,
-                        IsEnabled = _selectedContentIds.Contains(item.ContentId),
-                    })
-                    .ToArray(),
+                ContentSelections = BuildContentSelections(),
             };
             var hasUserDefinition = (await _userDefinitionStore.LoadDefinitionsAsync(cancellationToken))
                 .Any(definition => string.Equals(definition.GameId, instance.GameId, StringComparison.OrdinalIgnoreCase));
@@ -473,17 +651,6 @@ public partial class AddGameWizardViewModel : ObservableObject
                 await _userDefinitionStore.SaveDefinitionAsync(_selectedMatch.Definition, cancellationToken, overwrite: false);
             await _profiles.CreateAsync(instance, binding, cancellationToken);
             LastCreatedInstanceId = instance.Id;
-
-            if (StartFirstSync)
-            {
-                await _syncEngine.QueueAsync(new SyncJob
-                {
-                    GameInstanceId = instance.Id,
-                    Direction = SyncDirection.Upload,
-                    ProtectRemoteChanges = true,
-                    DisplayName = instance.DisplayName,
-                }, cancellationToken);
-            }
 
             return null;
         }
@@ -495,6 +662,49 @@ public partial class AddGameWizardViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    public async Task<(ConflictNavigationContext? Context, string? Error)> CompareCreatedProfileAsync(CancellationToken cancellationToken = default)
+    {
+        if (LastCreatedInstanceId is not { } id || _selectedGame is null)
+            return (null, Pick("游戏配置尚未创建。", "The game profile has not been created."));
+        try
+        {
+            var comparison = await _syncEngine.CompareAsync(new SyncJob
+            {
+                GameInstanceId = id,
+                Direction = SyncDirection.Compare,
+                DisplayName = _selectedGame.DisplayName,
+            }, cancellationToken);
+            return (new ConflictNavigationContext(id, _selectedGame.DisplayName, comparison), null);
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Failed to compare a newly created profile.");
+            return (null, exception.Message);
+        }
+    }
+
+    public async Task<string?> QueueFirstUploadAsync(CancellationToken cancellationToken = default)
+    {
+        if (LastCreatedInstanceId is not { } id || _selectedGame is null)
+            return Pick("游戏配置尚未创建。", "The game profile has not been created.");
+        try
+        {
+            await _syncEngine.QueueAsync(new SyncJob
+            {
+                GameInstanceId = id,
+                Direction = SyncDirection.Upload,
+                ProtectRemoteChanges = true,
+                DisplayName = _selectedGame.DisplayName,
+            }, cancellationToken);
+            return null;
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Failed to queue the first upload.");
+            return exception.Message;
         }
     }
 
@@ -528,19 +738,56 @@ public partial class AddGameWizardViewModel : ObservableObject
                 "epic" => Pick("扫描 Epic 启动器安装的游戏", "Scan games installed by the Epic launcher"),
                 _ => provider.DisplayName,
             };
-            options.Add(new WizardOption(provider.ProviderId, provider.DisplayName, summary));
+            options.Add(MakeOption(provider.ProviderId, provider.DisplayName, summary));
         }
 
-        options.Add(new WizardOption(
+        options.Add(MakeOption(
             ManualSourceKey,
             Pick("手动 / 自定义", "Manual / Custom"),
-            Pick("手动输入游戏名称与存档目录，适用于任何游戏或便携安装", "Enter the game name and save folder manually; works for any game or portable install")));
+            Pick("选择程序或输入名称，自动匹配游戏资料。", "Choose a program or enter a name to match game definitions.")));
 
         Sources = options;
     }
 
     private void SelectGame(string gameId)
     {
+        var previousId = _selectedMatch?.Definition.GameId;
+        if (IsManualSourceSelected && _discoveredGames.Count == 1 && Games.Any(option => option.Key == gameId))
+        {
+            // Rebuild from the original program selection so switching candidates cannot
+            // retain a different game's derived store ID or account wildcard.
+            _selectedGame = CreateManualDiscoveredGame(ManualGameName);
+            if (gameId == ManualPathOptionKey)
+                _selectedMatch = CreateManualMatch(_selectedGame, ManualSavePath);
+            else if (_manualCandidates.FirstOrDefault(candidate => candidate.Definition.GameId == gameId) is { } candidate)
+            {
+                var variables = new Dictionary<string, string>(_selectedGame.Variables, StringComparer.OrdinalIgnoreCase);
+                if (candidate.Definition.ContentItems.SelectMany(item => item.PathTemplates)
+                    .Any(path => path.Contains("%STORE_USER_ID%", StringComparison.OrdinalIgnoreCase)))
+                    variables.TryAdd("STORE_USER_ID", "*");
+                if (candidate.Definition.SourceHints.TryGetValue("steam.id", out var steamId))
+                    variables.TryAdd("STORE_GAME_ID", steamId);
+                _selectedGame = new DiscoveredGame
+                {
+                    GameId = _selectedGame.GameId, DisplayName = _selectedGame.DisplayName,
+                    SourceProviderId = _selectedGame.SourceProviderId, InstallDirectory = _selectedGame.InstallDirectory,
+                    PlatformGameId = _selectedGame.PlatformGameId is { } shortcutId &&
+                        candidate.Definition.SourceHints.TryGetValue("steam.id", out var matchedId) && matchedId == shortcutId
+                        ? shortcutId : null,
+                    Variables = variables,
+                };
+                _selectedMatch = new GameDefinitionMatch(_selectedGame, candidate.Definition, MatchConfidence.NormalizedName,
+                    MatchOrigin.ExistingDefinition, candidate.MatchedName, false);
+            }
+            else return;
+            if (!string.Equals(previousId, _selectedMatch.Definition.GameId, StringComparison.OrdinalIgnoreCase)) _pathOverrides.Clear();
+            _discoveredGames = [_selectedGame];
+            _selectedContentIds.Clear();
+            _pathValidationResults = [];
+            Games = Games.Select(option => option with { IsSelected = option.Key == gameId }).ToArray();
+            BuildGameDetails();
+            return;
+        }
         _selectedGame = _discoveredGames.FirstOrDefault(game =>
             string.Equals(game.GameId, gameId, StringComparison.OrdinalIgnoreCase));
         if (_selectedGame is null)
@@ -551,6 +798,7 @@ public partial class AddGameWizardViewModel : ObservableObject
         if (!IsManualSourceSelected)
         {
             _selectedMatch = _matchService.Match(_selectedGame, _definitions, CreateFallbackDefinition);
+            if (!string.Equals(previousId, _selectedMatch.Definition.GameId, StringComparison.OrdinalIgnoreCase)) _pathOverrides.Clear();
             _selectedContentIds.Clear();
             _pathValidationResults = [];
         }
@@ -594,7 +842,7 @@ public partial class AddGameWizardViewModel : ObservableObject
         }
 
         ContentItems = _selectedMatch.Definition.ContentItems
-            .Select(item => new WizardOption(
+            .Select(item => MakeOption(
                 item.ContentId,
                 item.ContentId,
                 BuildContentSummary(item),
@@ -641,14 +889,38 @@ public partial class AddGameWizardViewModel : ObservableObject
             _selectedMatch,
             _selectedMatch.Definition.ContentItems.Where(item => _selectedContentIds.Contains(item.ContentId)),
             sourceVariables,
-            _selectedGame.Variables);
+            _selectedGame.Variables,
+            BuildContentSelections());
 
         PathReview = _pathValidationResults
-            .Select(result => new UiPropertyRow(
-                $"{result.ContentId} · {result.Template}",
-                $"{result.ResolvedPath} · {DescribeValidationSeverity(result.Severity)} · {DescribeValidationMessage(result.MessageCode)}"))
+            .Select(result => new WizardPathReviewRow(result.ContentId, result.Template, result.ResolvedPath,
+                $"{DescribeValidationSeverity(result.Severity)} · {DescribeValidationMessage(result.MessageCode)}",
+                _pathOverrides.TryGetValue(result.ContentId, out var paths) && paths.TryGetValue(result.Template, out var path) ? path : string.Empty,
+                _isChinese))
             .ToArray();
     }
+
+    public void ApplyPathChanges()
+    {
+        foreach (var row in PathReview)
+        {
+            if (!_pathOverrides.TryGetValue(row.ContentId, out var paths))
+                _pathOverrides[row.ContentId] = paths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(row.OverridePath)) paths.Remove(row.Template);
+            else paths[row.Template] = row.OverridePath.Trim().Replace('\\', '/');
+        }
+        BuildPathReview();
+    }
+
+    private IReadOnlyList<ContentSelection> BuildContentSelections() =>
+        _selectedMatch?.Definition.ContentItems.Select(item => new ContentSelection
+        {
+            ContentId = item.ContentId,
+            IsEnabled = _selectedContentIds.Contains(item.ContentId),
+            PathOverrides = _pathOverrides.TryGetValue(item.ContentId, out var paths)
+                ? new Dictionary<string, string>(paths, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(),
+        }).ToArray() ?? [];
 
     private IReadOnlyDictionary<string, string> BuildSourceVariables(DiscoveredGame game, GameContentDefinition definition)
     {
@@ -674,7 +946,7 @@ public partial class AddGameWizardViewModel : ObservableObject
         SelectedTargetId ??= _syncTargetStore.GetDefault()?.Id;
 
         Targets = configs
-            .Select(config => new WizardOption(
+            .Select(config => MakeOption(
                 config.Id.ToString("D"),
                 config.Name,
                 config.ProviderId == "webdav"
@@ -682,6 +954,13 @@ public partial class AddGameWizardViewModel : ObservableObject
                     : Pick($"本地文件夹 · {config.Settings.GetValueOrDefault("rootPath", "--")}", $"Local folder · {config.Settings.GetValueOrDefault("rootPath", "--")}"),
                 config.Id == SelectedTargetId))
             .ToArray();
+    }
+
+    public void RefreshTargets(Guid? selectedTargetId = null)
+    {
+        if (selectedTargetId is { } id && _syncTargetStore.Get(id) is not null) SelectedTargetId = id;
+        else if (SelectedTargetId is { } current && _syncTargetStore.Get(current) is null) SelectedTargetId = null;
+        BuildTargets();
     }
 
     private void BuildFinishSummary()
@@ -777,9 +1056,36 @@ public partial class AddGameWizardViewModel : ObservableObject
         };
     }
 
+    private WizardOption MakeOption(string key, string title, string summary, bool isSelected = false) =>
+        new(key, title, summary, isSelected) { IsChinese = _isChinese };
+
     private string Pick(string zh, string en) => _isChinese ? zh : en;
 }
 
-public sealed record WizardStepItem(int Index, string Title, string Summary);
+public sealed record WizardStepItem(int Index, string Title, bool IsCurrent, bool IsComplete)
+{
+    public double Opacity => IsCurrent ? 1 : IsComplete ? 0.8 : 0.55;
+    public string Indicator => IsComplete ? "✓" : Index.ToString();
+}
 
-public sealed partial record WizardOption(string Key, string Title, string Summary, bool IsSelected = false);
+public sealed class WizardPathReviewRow(string contentId, string template, string resolvedPath, string status, string overridePath, bool chinese)
+{
+    public string ContentId { get; } = contentId;
+    public string Template { get; } = template;
+    public string ResolvedPath { get; } = resolvedPath;
+    public string Status { get; } = status;
+    public string OverridePath { get; set; } = overridePath;
+    public string Title => $"{ContentId} · {Template}";
+    public string Result => $"{ResolvedPath} · {Status}";
+    public string OverrideLabel => chinese ? "本机路径（留空使用默认模板）" : "Local path (leave empty to use the default template)";
+    public string BrowseFolderText => chinese ? "选择文件夹" : "Browse folder";
+    public string BrowseFileText => chinese ? "选择文件" : "Browse file";
+    public string ApplyText => chinese ? "重新检查" : "Recheck";
+    public string ResetText => chinese ? "使用默认路径" : "Use default";
+}
+
+public sealed partial record WizardOption(string Key, string Title, string Summary, bool IsSelected = false)
+{
+    public bool IsChinese { get; init; }
+    public string SelectionStatus => IsSelected ? (IsChinese ? "已选择" : "Selected") : (IsChinese ? "未选择" : "Not selected");
+}

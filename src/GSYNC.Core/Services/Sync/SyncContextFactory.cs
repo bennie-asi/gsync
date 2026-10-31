@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Security.Cryptography;
 using GSYNC.Core.Abstractions;
 using GSYNC.Core.Abstractions.Data;
 using GSYNC.Core.Abstractions.Manifest;
@@ -41,9 +42,10 @@ internal sealed class SyncContextFactory(
 
         var storageProvider = _storageProviders.FirstOrDefault(provider => string.Equals(provider.ProviderId, binding.StorageProviderId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"Storage provider '{binding.StorageProviderId}' is not registered.");
+        var effectiveConfiguration = configureStorage ? _storageConfigurationResolver?.Invoke(binding) ?? binding.Settings : binding.Settings;
         if (configureStorage)
         {
-            storageProvider = storageProvider.WithConfiguration(_storageConfigurationResolver?.Invoke(binding) ?? binding.Settings);
+            storageProvider = storageProvider.WithConfiguration(effectiveConfiguration);
             storageProvider = await RemoteSaveSession.OpenAsync(storageProvider, binding.RemoteNamespace, cancellationToken);
         }
 
@@ -74,7 +76,25 @@ internal sealed class SyncContextFactory(
                 }
             }
         }
-        return new SyncExecutionContext(gameInstance, binding, sourceProvider, storageProvider, resolvedContentRoots);
+        // Do not persist credentials. These fields identify the destination and resolved local scope.
+        var targetIdentity = effectiveConfiguration
+            .Where(pair => pair.Key.Equals("targetId", StringComparison.OrdinalIgnoreCase) || pair.Key.Equals("rootPath", StringComparison.OrdinalIgnoreCase) ||
+                           pair.Key.Equals("baseUrl", StringComparison.OrdinalIgnoreCase) || pair.Key.Equals("username", StringComparison.OrdinalIgnoreCase))
+            .Select(pair => new { Key = pair.Key.ToUpperInvariant(), pair.Value }).ToList();
+        if (binding.Settings.TryGetValue("__gsyncTargetRevision", out var targetRevision))
+            targetIdentity.Add(new { Key = "__GSYNCTARGETREVISION", Value = targetRevision });
+        var identity = new
+        {
+            gameInstance.GameId, gameInstance.SourceProviderId, binding.Id, binding.StorageProviderId, binding.RemoteNamespace,
+            Target = targetIdentity.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase).ToArray(),
+            Roots = resolvedContentRoots.OrderBy(root => root.StorageKey, StringComparer.OrdinalIgnoreCase).Select(root => new
+            {
+                root.StorageKey, root.LocalRootPath, root.TreatAsDirectory, root.GlobPattern,
+                root.ContentItem.IncludePatterns, root.ContentItem.ExcludePatterns,
+            }).ToArray(),
+        };
+        var fingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(identity)));
+        return new SyncExecutionContext(gameInstance, binding, sourceProvider, storageProvider, resolvedContentRoots, fingerprint);
     }
 
 }

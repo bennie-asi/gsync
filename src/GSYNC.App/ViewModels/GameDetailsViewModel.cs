@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using GSYNC.App.Infrastructure;
 using GSYNC.App.Infrastructure.Configuration;
 using GSYNC.App.Infrastructure.Localization;
+using GSYNC.App.Infrastructure.Wizard;
 using GSYNC.Core.Abstractions;
 using GSYNC.Core.Abstractions.Data;
 using GSYNC.Core.Abstractions.Manifest;
@@ -29,6 +30,8 @@ public partial class GameDetailsViewModel : ObservableObject
     private readonly PathResolver _pathResolver;
     private readonly SystemVariableProvider _systemVariableProvider;
     private readonly UserVariablesStore _userVariablesStore;
+    private readonly SyncTargetStore _syncTargetStore;
+    private readonly ISyncBindingUpdater _bindingUpdater;
 
     private GameInstance? _instance;
     private StorageBinding? _binding;
@@ -38,6 +41,15 @@ public partial class GameDetailsViewModel : ObservableObject
 
     [ObservableProperty]
     private string _title = string.Empty;
+
+    [ObservableProperty]
+    private string _coverUri = string.Empty;
+
+    [ObservableProperty]
+    private string _localArtworkPath = string.Empty;
+
+    [ObservableProperty]
+    private string _programPath = string.Empty;
 
     [ObservableProperty]
     private string _activeTarget = string.Empty;
@@ -98,7 +110,9 @@ public partial class GameDetailsViewModel : ObservableObject
         IUserDefinitionStore userDefinitionStore,
         PathResolver pathResolver,
         SystemVariableProvider systemVariableProvider,
-        UserVariablesStore userVariablesStore)
+        UserVariablesStore userVariablesStore,
+        SyncTargetStore syncTargetStore,
+        ISyncBindingUpdater bindingUpdater)
     {
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
         _gameInstanceRepository = gameInstanceRepository;
@@ -111,23 +125,25 @@ public partial class GameDetailsViewModel : ObservableObject
         _pathResolver = pathResolver;
         _systemVariableProvider = systemVariableProvider;
         _userVariablesStore = userVariablesStore;
+        _syncTargetStore = syncTargetStore;
+        _bindingUpdater = bindingUpdater;
 
         Title = Pick("游戏详情", "Game Details");
-        PageSubtitle = Pick("精炼后的详情工作区，固定展示游戏上下文、内容项、历史与右侧检查面板。", "Refined detail workspace with persistent game context, content items, history, and a right-hand inspection pane.");
+        PageSubtitle = Pick("查看存档状态、同步内容与恢复记录。", "Review save status, synchronized content, and recovery history.");
         PrimaryActionLabel = Pick("快速操作", "Quick Actions");
         UploadText = Pick("上传", "Upload");
         DownloadText = Pick("下载", "Download");
-        CompareText = Pick("比较", "Compare");
+        CompareText = Pick("检查并同步", "Check and sync");
         RestoreText = Pick("恢复备份", "Restore Backup");
-        TableSectionTitle = Pick("内容项", "Content Items");
-        TableSectionSubtitle = Pick("存档、配置与附加内容保持在高密度表格中，右侧检查区负责属性与路径验证。", "Saves, config, and auxiliary content stay in a dense table while the right pane handles inspection and path validation.");
+        TableSectionTitle = Pick("同步内容", "Sync content");
+        TableSectionSubtitle = Pick("本地存档路径与同步配置。", "Local save paths and sync configuration.");
         AddItemText = Pick("添加条目", "Add Item");
         PropertiesTitle = Pick("检查器", "Inspector");
         PropertiesSubtitle = Pick("所选内容项的路径模板、策略与可移植性检查结果。", "Path template, policy, and portability checks for the selected content item.");
         OpenFolderText = Pick("打开目录", "Open Folder");
         TestPathText = Pick("测试路径", "Test Path");
         HistorySectionTitle = Pick("历史与快照", "History & Snapshots");
-        HistorySectionSubtitle = Pick("底部区域保留最近同步记录与可恢复快照。", "The bottom section keeps recent sync activity and recoverable snapshots visible.");
+        HistorySectionSubtitle = Pick("查看最近活动与可恢复的快照。", "Review recent activity and recoverable snapshots.");
         HistoryTabText = Pick("最近同步历史", "Recent Sync History");
         SnapshotsTabText = Pick("快照", "Snapshots");
         HistoryFeedTitle = Pick("最近活动", "Recent Activity");
@@ -155,10 +171,22 @@ public partial class GameDetailsViewModel : ObservableObject
         SelectedItemProperties = [];
         RecentActivityItems = [];
         Snapshots = [];
-        IsInspectorVisible = true;
+        IsInspectorVisible = false;
     }
 
     public string PageSubtitle { get; }
+    public string GameMonogram
+    {
+        get
+        {
+            var text = new System.Globalization.StringInfo(Title.Trim());
+            return text.LengthInTextElements == 0 ? "?" : text.SubstringByTextElements(0, Math.Min(2, text.LengthInTextElements)).ToUpperInvariant();
+        }
+    }
+
+    partial void OnTitleChanged(string value) => OnPropertyChanged(nameof(GameMonogram));
+    partial void OnProgramPathChanged(string value) => OnPropertyChanged(nameof(HasProgramPath));
+    public bool HasProgramPath => !string.IsNullOrWhiteSpace(ProgramPath);
     public string PrimaryActionLabel { get; }
     public string UploadText { get; }
     public string DownloadText { get; }
@@ -169,6 +197,28 @@ public partial class GameDetailsViewModel : ObservableObject
     public string TableTitle { get; }
     public string TableSubtitle { get; }
     public string AddItemText { get; }
+    public string EditGameText => Pick("编辑游戏", "Edit game");
+    public string AutoPullTitle => Pick("安全自动拉取", "Safe automatic pull");
+    public string ConfirmBaselineText => Pick("比较并确认共同版本", "Compare and confirm common version");
+    public string AutoPullNote => Pick("请先关闭游戏。首次关联或发生冲突时，先手动处理并让两端文件一致，再确认共同版本。更改路径不会移动存档。", "Close the game first. On first connection or conflict, resolve differences manually until both sides match, then confirm the common version. Changing paths does not move saves.");
+    public string SyncDestinationTitle => Pick("同步位置", "Sync destination");
+    public string ChangeDestinationText => Pick("修改同步位置", "Change destination");
+    public string RemoteNamespaceText => Pick("远端目录", "Remote directory");
+    public string SelectTargetText => Pick("同步目标", "Sync target");
+    public string SaveDestinationText => Pick("保存同步位置", "Save destination");
+    public string ManageTargetsText => Pick("管理同步目标", "Manage sync targets");
+    public string CancelDestinationText => Pick("取消", "Cancel");
+    public string DestinationHelp => Pick("切换只修改此游戏的绑定，不会移动或删除本地及原远端存档。保存后请先比较新位置，再确认自动拉取的共同版本。", "Changing the destination only updates this game's binding; it does not move or delete local or old remote saves. Compare the new location and confirm a common version before automatic pull.");
+    public string ShowInspectorText => Pick("查看详情", "Show details");
+    public string CloseDetailsText => Pick("关闭详情", "Close details");
+    public string RestoreSnapshotText => Pick("恢复此快照", "Restore snapshot");
+    public bool HasSnapshots => Snapshots.Count > 0;
+    public bool HasRecentActivity => RecentActivityItems.Count > 0;
+    public string EmptySnapshotsText => Pick("还没有可恢复的快照。", "There are no snapshots to restore yet.");
+    public string EmptyActivityText => Pick("还没有同步活动。", "There is no sync activity yet.");
+
+    partial void OnSnapshotsChanged(IReadOnlyList<SnapshotRow> value) => OnPropertyChanged(nameof(HasSnapshots));
+    partial void OnRecentActivityItemsChanged(IReadOnlyList<UiActivityItem> value) => OnPropertyChanged(nameof(HasRecentActivity));
     public bool IsChinese => _isChinese;
     public string PropertiesSubtitle { get; }
     public string OpenFolderText { get; }
@@ -188,7 +238,165 @@ public partial class GameDetailsViewModel : ObservableObject
 
     public Guid? InstanceId => _instance?.Id;
 
+    public GameInstance? EditableInstance => _instance;
+    public Guid? CurrentTargetId => _binding is not null && _binding.Settings.TryGetValue("targetId", out var id) && Guid.TryParse(id, out var parsed) ? parsed : null;
+    public string CurrentRemoteNamespace => _binding?.RemoteNamespace ?? (_instance is null ? string.Empty : GameIdentity.StorageNamespace(_instance.GameId));
+    public string CurrentTargetLocation
+    {
+        get
+        {
+            var settings = CurrentTargetId is { } id ? _syncTargetStore.Get(id)?.Settings : _binding?.Settings;
+            return settings?.GetValueOrDefault("baseUrl") ?? settings?.GetValueOrDefault("rootPath") ?? string.Empty;
+        }
+    }
+
+    public IReadOnlyList<GameTargetOption> GetTargetOptions() => _syncTargetStore.List()
+        .Select(target => new GameTargetOption(target.Id, target.Name, target.ProviderId,
+            target.Settings.GetValueOrDefault("baseUrl", target.Settings.GetValueOrDefault("rootPath", string.Empty))))
+        .ToArray();
+
     public ContentItemRow? SelectedContentItem { get; private set; }
+
+    public async Task<string?> UpdateDestinationAsync(Guid targetId, string remoteNamespace, CancellationToken cancellationToken = default)
+    {
+        if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is in progress. Please wait.");
+        if (_instance is null) return Pick("游戏实例尚未加载。", "Game instance is not loaded.");
+        var target = _syncTargetStore.Get(targetId);
+        if (target is null) return Pick("所选同步目标已不存在，请重新选择。", "The selected target no longer exists. Choose another one.");
+        string normalized;
+        try
+        {
+            normalized = SafePath.ValidateRelative(remoteNamespace.Trim()).TrimEnd('/');
+            if (normalized.Split('/').Any(segment => string.IsNullOrEmpty(segment) ||
+                segment.Equals("__gsync_meta", StringComparison.OrdinalIgnoreCase) || segment.Equals("__gsync_versions", StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidDataException();
+        }
+        catch (Exception exception) when (exception is InvalidDataException or ArgumentException)
+        {
+            return Pick("远端目录必须是相对路径，不能包含空目录、.. 或保留目录。", "Enter a relative remote directory without empty segments, .., or reserved directories.");
+        }
+        if (CurrentTargetId == targetId && string.Equals(CurrentRemoteNamespace, normalized, StringComparison.Ordinal) &&
+            string.Equals(_binding?.StorageProviderId, target.ProviderId, StringComparison.OrdinalIgnoreCase)) return null;
+
+        IsBusy = true;
+        StopStatusCheck();
+        try
+        {
+            var existing = _binding;
+            var settings = new Dictionary<string, string>(existing?.Settings ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+            foreach (var key in new[] { "targetId", "targetName", "rootPath", "baseUrl", "credentialId", "username", "password", "token", "accessToken", "refreshToken", "apiKey", "clientSecret", "__gsyncTargetRevision" }) settings.Remove(key);
+            foreach (var pair in target.Settings) settings[pair.Key] = pair.Value;
+            settings["targetId"] = target.Id.ToString("D");
+            settings["targetName"] = target.Name;
+            settings["__gsyncTargetRevision"] = Guid.NewGuid().ToString("N");
+            var updatedAt = DateTimeOffset.UtcNow;
+            if (existing is not null && updatedAt <= existing.UpdatedAtUtc) updatedAt = existing.UpdatedAtUtc.AddTicks(1);
+            var updated = new StorageBinding
+            {
+                Id = existing?.Id ?? Guid.NewGuid(), GameInstanceId = _instance.Id, StorageProviderId = target.ProviderId,
+                RemoteNamespace = normalized, Settings = settings, ContentSelections = existing?.ContentSelections ?? Array.Empty<ContentSelection>(),
+                CreatedAtUtc = existing?.CreatedAtUtc ?? updatedAt, UpdatedAtUtc = updatedAt,
+            };
+            await _bindingUpdater.UpdateBindingAsync(updated, existing?.Id, existing?.UpdatedAtUtc, cancellationToken);
+            await LoadAsync(updated.GameInstanceId, cancellationToken);
+            OnPropertyChanged(nameof(CurrentTargetId));
+            OnPropertyChanged(nameof(CurrentRemoteNamespace));
+            OnPropertyChanged(nameof(CurrentTargetLocation));
+            return null;
+        }
+        catch (SyncBindingBusyException)
+        {
+            if (_instance is not null) await LoadAsync(_instance.Id, cancellationToken);
+            return Pick("该游戏仍有排队或运行中的同步任务，请结束后再切换。", "Wait for this game's queued or running sync tasks before changing the destination.");
+        }
+        catch (SyncBindingChangedException)
+        {
+            if (_instance is not null) await LoadAsync(_instance.Id, cancellationToken);
+            return Pick("同步位置已发生变化，请重新打开游戏详情后再试。", "The sync destination changed. Reopen the game details and try again.");
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Failed to update game sync destination.");
+            return exception.Message;
+        }
+        finally { IsBusy = false; }
+    }
+
+    public async Task<string?> UpdateGameAsync(string name, string? installDirectory, IReadOnlyDictionary<string, string> variables)
+    {
+        if (_instance is null || string.IsNullOrWhiteSpace(name))
+            return Pick("请填写游戏名称。", "Enter a game name.");
+        try
+        {
+            var existing = await _gameInstanceRepository.GetAsync(_instance.Id, CancellationToken.None);
+            if (existing is null) return Pick("游戏已不存在。", "The game no longer exists.");
+            await _gameInstanceRepository.UpsertAsync(new GameInstance
+            {
+                Id = existing.Id, GameId = existing.GameId, DisplayName = name.Trim(),
+                SourceProviderId = existing.SourceProviderId, PlatformInstanceId = existing.PlatformInstanceId,
+                InstallDirectory = string.IsNullOrWhiteSpace(installDirectory) ? null : installDirectory.Trim(),
+                CreatedAtUtc = existing.CreatedAtUtc, UpdatedAtUtc = DateTimeOffset.UtcNow, Variables = variables,
+            }, CancellationToken.None);
+            await LoadAsync(existing.Id);
+            return null;
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Failed to update game settings.");
+            return exception.Message;
+        }
+    }
+
+    public async Task<string?> UpdateContentPathAsync(ContentItemRow row, string path)
+    {
+        if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is in progress. Please wait.");
+        if (string.IsNullOrWhiteSpace(path)) return Pick("请填写存档路径。", "Enter a save path.");
+        if (_definition is null || _binding is null) return Pick("请先为游戏设置同步目标。", "Set a sync target for the game first.");
+        IsBusy = true;
+        try
+        {
+            var definition = await _manifestService.GetDefinitionAsync(_definition.GameId, CancellationToken.None)
+                ?? throw new InvalidOperationException("The game definition no longer exists.");
+            var item = definition.ContentItems.FirstOrDefault(x => string.Equals(x.ContentId, row.Name, StringComparison.OrdinalIgnoreCase));
+            if (item is null || !item.PathTemplates.Contains(row.PathTemplate))
+                return Pick("内容项已发生变化，请刷新后重试。", "The content item changed. Refresh and try again.");
+            var previous = _binding;
+            var selections = definition.ContentItems.Select(content =>
+            {
+                var old = previous.ContentSelections.FirstOrDefault(selection =>
+                    string.Equals(selection.ContentId, content.ContentId, StringComparison.OrdinalIgnoreCase));
+                var paths = new Dictionary<string, string>(old?.PathOverrides ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+                if (string.Equals(content.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))
+                {
+                    var normalized = path.Trim().Replace('\\', '/');
+                    if (string.Equals(normalized, row.PathTemplate.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)) paths.Remove(row.PathTemplate);
+                    else paths[row.PathTemplate] = normalized;
+                }
+                return new ContentSelection { ContentId = content.ContentId,
+                    IsEnabled = previous.ContentSelections.Count == 0 ? content.DefaultEnabled : old?.IsEnabled ?? false,
+                    PathOverrides = paths };
+            }).ToArray();
+            var updatedAt = DateTimeOffset.UtcNow;
+            if (updatedAt <= previous.UpdatedAtUtc) updatedAt = previous.UpdatedAtUtc.AddTicks(1);
+            var updated = new StorageBinding
+            {
+                Id = previous.Id, GameInstanceId = previous.GameInstanceId, StorageProviderId = previous.StorageProviderId,
+                RemoteNamespace = previous.RemoteNamespace, Settings = previous.Settings, CreatedAtUtc = previous.CreatedAtUtc,
+                UpdatedAtUtc = updatedAt, ContentSelections = selections,
+            };
+            await _bindingUpdater.UpdateBindingAsync(updated, previous.Id, previous.UpdatedAtUtc, CancellationToken.None);
+            _binding = updated;
+            BuildContentItems();
+            HideInspector();
+            return null;
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Failed to update content path.");
+            return exception.Message;
+        }
+        finally { IsBusy = false; }
+    }
 
     public async Task LoadAsync(Guid instanceId, CancellationToken cancellationToken = default)
     {
@@ -215,13 +423,29 @@ public partial class GameDetailsViewModel : ObservableObject
             var bindings = await _storageBindingRepository.ListByGameInstanceAsync(instanceId, cancellationToken);
             if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
             _binding = bindings.FirstOrDefault();
-            ActiveTarget = _binding is null
-                ? Pick("未绑定", "Unbound")
-                : _binding.Settings.GetValueOrDefault("targetName", _binding.StorageProviderId);
+            ActiveTarget = _binding is null ? Pick("未绑定", "Unbound") :
+                CurrentTargetId is { } targetId
+                    ? _syncTargetStore.Get(targetId)?.Name ?? Pick("目标已移除，请重新选择", "Target removed; choose another")
+                    : _binding.Settings.GetValueOrDefault("targetName", _binding.StorageProviderId);
+            OnPropertyChanged(nameof(CurrentTargetId));
+            OnPropertyChanged(nameof(CurrentRemoteNamespace));
+            OnPropertyChanged(nameof(CurrentTargetLocation));
 
             var definition = await _manifestService.GetDefinitionAsync(_instance.GameId, cancellationToken);
             if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
             _definition = definition;
+            var artwork = GameArtworkResolver.Resolve(_instance, definition);
+            if (artwork.CoverUri is null)
+            {
+                var catalog = await Task.Run(() => _manifestService.GetDefinitionsAsync(cancellationToken), cancellationToken);
+                if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
+                var index = await Task.Run(() => GameArtworkResolver.BuildCatalogIndex(catalog), cancellationToken);
+                if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
+                artwork = GameArtworkResolver.ResolveWithIndex(_instance, definition, index);
+            }
+            CoverUri = artwork.CoverUri ?? string.Empty;
+            LocalArtworkPath = artwork.LocalArtworkPath ?? string.Empty;
+            ProgramPath = artwork.ProgramPath ?? string.Empty;
 
             var records = await _syncHistoryRepository.ListRecordsAsync(instanceId, cancellationToken);
             if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
@@ -343,6 +567,11 @@ public partial class GameDetailsViewModel : ObservableObject
         IsInspectorVisible = false;
     }
 
+    public void ShowInspector()
+    {
+        IsInspectorVisible = true;
+    }
+
     public async Task<string?> AddCustomContentItemAsync(string name, string pathTemplate, CancellationToken cancellationToken = default)
     {
         if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is in progress. Please wait.");
@@ -396,6 +625,7 @@ public partial class GameDetailsViewModel : ObservableObject
                         ContentId = item.ContentId,
                         IsEnabled = item.ContentId == contentId || (oldBinding.ContentSelections.Count == 0 ? item.DefaultEnabled :
                             oldBinding.ContentSelections.Any(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase) && selection.IsEnabled)),
+                        PathOverrides = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.PathOverrides ?? new Dictionary<string, string>(),
                     }).ToArray(),
                 };
                 await _storageBindingRepository.UpsertAsync(updatedBinding, cancellationToken);
@@ -437,6 +667,7 @@ public partial class GameDetailsViewModel : ObservableObject
 
     public async Task<string?> QueueSyncAsync(SyncDirection direction, CancellationToken cancellationToken = default)
     {
+        if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is in progress. Please wait.");
         if (_instance is null)
         {
             return Pick("游戏实例尚未加载。", "Game instance is not loaded.");
@@ -453,6 +684,7 @@ public partial class GameDetailsViewModel : ObservableObject
             {
                 GameInstanceId = _instance.Id,
                 Direction = direction,
+                ProtectRemoteChanges = direction == SyncDirection.Upload,
                 DisplayName = _instance.DisplayName,
             }, cancellationToken);
             return null;
@@ -502,9 +734,19 @@ public partial class GameDetailsViewModel : ObservableObject
             return Pick("还没有可恢复的快照。可以在设置中启用下载前自动快照。", "No snapshots to restore yet. Automatic snapshots before downloads can be enabled in Settings.");
         }
 
+        return await RestoreSnapshotAsync(latest, cancellationToken);
+    }
+
+    public async Task<string?> RestoreSnapshotAsync(SnapshotRow snapshot, CancellationToken cancellationToken = default)
+    {
+        if (!Snapshots.Any(candidate => candidate.SnapshotId == snapshot.SnapshotId))
+        {
+            return Pick("该快照已不可用，请刷新后重试。", "The snapshot is no longer available. Refresh and try again.");
+        }
+
         try
         {
-            await _syncEngine.RestoreSnapshotAsync(latest.SnapshotId, cancellationToken);
+            await _syncEngine.RestoreSnapshotAsync(snapshot.SnapshotId, cancellationToken);
             if (_instance is not null)
             {
                 await LoadAsync(_instance.Id, cancellationToken);
@@ -542,7 +784,9 @@ public partial class GameDetailsViewModel : ObservableObject
             var enabled = IsContentEnabled(item);
             foreach (var template in item.PathTemplates)
             {
-                var resolved = _pathResolver.Resolve(template, systemVariables, sourceVariables, _instance.Variables, _userVariablesStore.AsDictionary(), bindingSettings);
+                var selection = _binding?.ContentSelections.FirstOrDefault(value => string.Equals(value.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase));
+                var effectiveTemplate = selection?.EffectiveTemplate(template) ?? template;
+                var resolved = _pathResolver.Resolve(effectiveTemplate, systemVariables, sourceVariables, _instance.Variables, _userVariablesStore.AsDictionary(), bindingSettings);
                 var (statusText, statusVariant, size) = DescribeLocalPath(resolved, enabled);
                 totalBytes += size;
                 rows.Add(new ContentItemRow(
@@ -555,7 +799,10 @@ public partial class GameDetailsViewModel : ObservableObject
                     enabled)
                 {
                     PathTemplate = template,
+                    EffectivePathTemplate = effectiveTemplate,
                     Patterns = BuildPatternText(item),
+                    EnabledText = enabled ? Pick("开启", "On") : Pick("关闭", "Off"),
+                    IsChinese = _isChinese,
                 });
             }
         }
@@ -565,11 +812,13 @@ public partial class GameDetailsViewModel : ObservableObject
         var enabledCount = rows.Count(row => row.Enabled);
         TableFooterText = Pick(
             $"{rows.Count} 个内容项 · {enabledCount} 个已启用",
-            $"{rows.Count} items · {enabledCount} enabled");
+            $"{rows.Count} {(rows.Count == 1 ? "item" : "items")} · {enabledCount} enabled");
 
         if (rows.Count > 0)
         {
+            var inspectorWasVisible = IsInspectorVisible;
             SelectContentItem(rows[0]);
+            IsInspectorVisible = inspectorWasVisible;
         }
     }
 
@@ -672,6 +921,11 @@ public partial class GameDetailsViewModel : ObservableObject
     private string Pick(string zh, string en) => _isChinese ? zh : en;
 }
 
+public sealed record GameTargetOption(Guid Id, string Name, string ProviderId, string Location)
+{
+    public string Label => string.IsNullOrWhiteSpace(Location) ? Name : $"{Name} · {Location}";
+}
+
 public sealed record ContentItemRow(
     string Name,
     string Category,
@@ -682,10 +936,16 @@ public sealed record ContentItemRow(
     bool Enabled)
 {
     public string PathTemplate { get; init; } = string.Empty;
+    public string EffectivePathTemplate { get; init; } = string.Empty;
 
     public string Patterns { get; init; } = string.Empty;
 
-    public string EnabledText => Enabled ? "On" : "Off";
+    public string EnabledText { get; init; } = string.Empty;
+    public bool IsChinese { get; init; }
+    public string OpenFolderText => IsChinese ? "打开目录" : "Open folder";
+    public string TestPathText => IsChinese ? "测试路径" : "Test path";
+    public string DetailsText => IsChinese ? "查看详情" : "Details";
+    public string EditText => IsChinese ? "编辑路径" : "Edit path";
 
     public string EnabledVariant => Enabled ? "synced" : "disabled";
 }

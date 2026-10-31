@@ -36,6 +36,10 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient();
         services.AddHttpClient<IManifestUpdateSource, HttpManifestUpdateSource>()
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) });
+        services.AddHttpClient<SteamCatalogSearchService>(client =>
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 GSYNC/1.0");
+        });
         services.AddHttpClient<WebDavStorageProvider>()
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5), AllowAutoRedirect = false });
 
@@ -127,6 +131,9 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<GSYNC.Core.Services.ApplicationTaskHost>());
         });
         services.AddSingleton<ISyncEngine>(sp => sp.GetRequiredService<SyncEngine>());
+        services.AddSingleton<ISyncBindingUpdater>(sp => sp.GetRequiredService<SyncEngine>());
+        services.AddSingleton<AutoPullBaselineStore>();
+        services.AddSingleton<AutoPullCoordinator>();
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<LibraryPageViewModel>();

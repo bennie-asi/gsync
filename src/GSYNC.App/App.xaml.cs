@@ -193,6 +193,11 @@ public partial class App : Application
     {
         var syncEngine = services.GetRequiredService<SyncEngine>();
         _ = _tasks.RunAsync(token => Task.Run(() => syncEngine.ProcessQueuedJobsAsync(token), token));
+        var autoPull = services.GetRequiredService<AutoPullCoordinator>();
+        var settings = services.GetRequiredService<UiSettingsStore>();
+        autoPull.SetEnabled(settings.LoadForStartup().AutoPullEnabled);
+        settings.Changed += value => autoPull.SetEnabled(value.AutoPullEnabled);
+        _ = _tasks.RunAsync(token => Task.Run(() => autoPull.RunAsync(token), token));
     }
 
     private static async Task RefreshCommunityManifestIfConfiguredAsync(IServiceProvider services, CancellationToken cancellationToken)

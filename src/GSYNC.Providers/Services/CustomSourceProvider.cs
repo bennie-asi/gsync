@@ -20,6 +20,7 @@ public sealed class CustomSourceProvider : ISourceProvider
         if (!string.IsNullOrWhiteSpace(instance.InstallDirectory))
         {
             variables["GAME_INSTALL_DIR"] = instance.InstallDirectory;
+            variables["GAME_DIR_NAME"] = Path.GetFileName(instance.InstallDirectory.TrimEnd('/', '\\'));
         }
 
         return variables;

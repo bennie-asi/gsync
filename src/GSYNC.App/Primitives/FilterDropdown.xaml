@@ -6,14 +6,17 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Button
         x:Name="DropdownButton"
+        AutomationProperties.Name="{Binding Placeholder, ElementName=Root}"
         Background="{StaticResource AppInputBrush}"
         BorderBrush="{StaticResource AppDividerBrush}"
         BorderThickness="1"
         Click="DropdownButton_OnClick"
         CornerRadius="8"
         MinHeight="34"
+        HorizontalAlignment="Stretch"
+        HorizontalContentAlignment="Stretch"
         Padding="10,0">
-        <Grid MinWidth="140">
+        <Grid MinWidth="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

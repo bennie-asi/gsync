@@ -23,6 +23,8 @@ public sealed class SyncTargetConfig
     public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 }
 
+public sealed record TargetConnectionCheck(bool Success, string? Error, DateTimeOffset CheckedAt, DateTimeOffset StartedAt);
+
 public sealed class SyncTargetStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -34,6 +36,7 @@ public sealed class SyncTargetStore
     private readonly IAppPathService _appPathService;
     private readonly CredentialSettingsService _credentials;
     private readonly object _gate = new();
+    private readonly Dictionary<Guid, TargetConnectionCheck> _connectionChecks = [];
     private SyncTargetDocument? _document;
 
     public SyncTargetStore(IAppPathService appPathService, CredentialSettingsService? credentials = null)
@@ -60,6 +63,24 @@ public sealed class SyncTargetStore
     }
 
     public event EventHandler? Changed;
+    public event EventHandler? ConnectionChecksChanged;
+
+    public IReadOnlyDictionary<Guid, TargetConnectionCheck> GetConnectionChecks()
+    {
+        lock (_gate) return new Dictionary<Guid, TargetConnectionCheck>(_connectionChecks);
+    }
+
+    public void SetConnectionCheck(SyncTargetConfig target, bool success, string? error, DateTimeOffset startedAt)
+    {
+        lock (_gate)
+        {
+            var current = EnsureLoaded().Targets.FirstOrDefault(item => item.Id == target.Id);
+            if (current is null || current.UpdatedAtUtc != target.UpdatedAtUtc ||
+                (_connectionChecks.TryGetValue(target.Id, out var previous) && previous.StartedAt > startedAt)) return;
+            _connectionChecks[target.Id] = new TargetConnectionCheck(success, error, DateTimeOffset.UtcNow, startedAt);
+        }
+        ConnectionChecksChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     public IReadOnlyList<SyncTargetConfig> List()
     {
@@ -119,6 +140,7 @@ public sealed class SyncTargetStore
             }
 
             Save(document);
+            _connectionChecks.Remove(target.Id);
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
@@ -136,6 +158,7 @@ public sealed class SyncTargetStore
             }
 
             Save(document);
+            _connectionChecks.Remove(id);
         }
 
         Changed?.Invoke(this, EventArgs.Empty);

@@ -1,8 +1,8 @@
 using GSYNC.App.Infrastructure.Localization;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using System.Reflection;
 
 namespace GSYNC.App.Primitives;
 
@@ -14,11 +14,14 @@ public sealed partial class AppNavRail : UserControl
         typeof(AppNavRail),
         new PropertyMetadata("library", OnSelectedKeyChanged));
 
-    public static readonly DependencyProperty AppVersionProperty = DependencyProperty.Register(
-        nameof(AppVersion),
+    public static readonly DependencyProperty TargetStatusTextProperty = DependencyProperty.Register(
+        nameof(TargetStatusText),
         typeof(string),
         typeof(AppNavRail),
-        new PropertyMetadata(GetApplicationVersion(), OnAppVersionChanged));
+        new PropertyMetadata(string.Empty));
+
+    private bool _isExpanded = true;
+    private bool _isChinese = true;
 
     public event EventHandler<NavigationRequestedEventArgs>? NavigationRequested;
 
@@ -27,17 +30,9 @@ public sealed partial class AppNavRail : UserControl
         InitializeComponent();
         Loaded += (_, _) =>
         {
-            ApplyAppVersion();
+            ApplyLayout();
             ApplySelectionState();
         };
-    }
-
-    private static string GetApplicationVersion()
-    {
-        var assembly = typeof(AppNavRail).Assembly;
-        var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? assembly.GetName().Version?.ToString() ?? "unknown";
-        return "v" + version.Split('+', 2)[0];
     }
 
     public string SelectedKey
@@ -46,20 +41,33 @@ public sealed partial class AppNavRail : UserControl
         set => SetValue(SelectedKeyProperty, value);
     }
 
-    public string AppVersion
+    public string TargetStatusText
     {
-        get => (string)GetValue(AppVersionProperty);
-        set => SetValue(AppVersionProperty, value);
+        get => (string)GetValue(TargetStatusTextProperty);
+        set => SetValue(TargetStatusTextProperty, value);
     }
 
     public void ApplyLocalization(ILocalizationService localizationService)
     {
+        _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
         LibraryTextBlock.Text = localizationService.GetString("MainWindow.Nav.Library");
         TargetsTextBlock.Text = localizationService.GetString("MainWindow.Nav.Targets");
         VariablesTextBlock.Text = localizationService.GetString("MainWindow.Nav.Variables");
         HistoryTextBlock.Text = localizationService.GetString("MainWindow.Nav.History");
         QueueTextBlock.Text = localizationService.GetString("MainWindow.Nav.Queue");
         SettingsTextBlock.Text = localizationService.GetString("MainWindow.Nav.Settings");
+        BrandSubtitleTextBlock.Text = _isChinese ? "游戏存档同步" : "Game save sync";
+        foreach (var (button, label) in new[]
+        {
+            (LibraryButton, LibraryTextBlock), (TargetsButton, TargetsTextBlock),
+            (VariablesButton, VariablesTextBlock), (HistoryButton, HistoryTextBlock),
+            (QueueButton, QueueTextBlock), (SettingsButton, SettingsTextBlock),
+        })
+        {
+            AutomationProperties.SetName(button, label.Text);
+            ToolTipService.SetToolTip(button, label.Text);
+        }
+        ApplyLayout();
     }
 
     private static void OnSelectedKeyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -67,14 +75,6 @@ public sealed partial class AppNavRail : UserControl
         if (d is AppNavRail rail)
         {
             rail.ApplySelectionState();
-        }
-    }
-
-    private static void OnAppVersionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-    {
-        if (d is AppNavRail rail)
-        {
-            rail.ApplyAppVersion();
         }
     }
 
@@ -86,22 +86,53 @@ public sealed partial class AppNavRail : UserControl
         }
     }
 
-    private void ApplyAppVersion()
+    public void SetExpanded(bool expanded)
     {
-        if (AppVersionTextBlock is not null)
+        _isExpanded = expanded;
+        ApplyLayout();
+    }
+
+    private void ToggleRail_Click(object sender, RoutedEventArgs e) => SetExpanded(!_isExpanded);
+
+    private void ApplyLayout()
+    {
+        if (RootGrid is null) return;
+        Width = _isExpanded ? 220 : 72;
+        RootGrid.Padding = _isExpanded ? new Thickness(10, 18, 10, 12) : new Thickness(8, 18, 8, 12);
+        BrandPanel.HorizontalAlignment = _isExpanded ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+        BrandPanel.Margin = _isExpanded ? new Thickness(3, 0, 0, 0) : new Thickness(0);
+        QueueIconGrid.ColumnSpacing = _isExpanded ? 12 : 0;
+        foreach (var button in new[] { LibraryButton, TargetsButton, VariablesButton, HistoryButton, QueueButton, SettingsButton, ToggleRailButton })
         {
-            AppVersionTextBlock.Text = AppVersion;
+            button.MinWidth = 0;
+            button.Padding = _isExpanded ? new Thickness(12, 8, 12, 8) : new Thickness(0);
+            button.HorizontalContentAlignment = _isExpanded ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
         }
+        var visibility = _isExpanded ? Visibility.Visible : Visibility.Collapsed;
+        BrandTextPanel.Visibility = visibility;
+        TargetStatusCard.Visibility = visibility;
+        LibraryTextBlock.Visibility = visibility;
+        TargetsTextBlock.Visibility = visibility;
+        VariablesTextBlock.Visibility = visibility;
+        HistoryTextBlock.Visibility = visibility;
+        QueueTextBlock.Visibility = visibility;
+        SettingsTextBlock.Visibility = visibility;
+        ToggleRailTextBlock.Visibility = visibility;
+        ToggleRailTextBlock.Text = _isChinese ? "收起导航" : "Collapse navigation";
+        ToggleRailIcon.Glyph = _isExpanded ? "\uE5CB" : "\uE5CC";
+        var toggleName = _isExpanded ? (_isChinese ? "收起导航" : "Collapse navigation") : (_isChinese ? "展开导航" : "Expand navigation");
+        AutomationProperties.SetName(ToggleRailButton, toggleName);
+        ToolTipService.SetToolTip(ToggleRailButton, toggleName);
     }
 
     private void ApplySelectionState()
     {
-        ApplyButtonState(LibraryButton, SelectedKey == "library");
-        ApplyButtonState(TargetsButton, SelectedKey == "targets");
-        ApplyButtonState(VariablesButton, SelectedKey == "variables");
-        ApplyButtonState(HistoryButton, SelectedKey == "history");
-        ApplyButtonState(QueueButton, SelectedKey == "queue");
-        ApplyButtonState(SettingsButton, SelectedKey == "settings");
+        ApplyButtonState(LibraryButton, LibraryTextBlock, LibraryIcon, SelectedKey is "library" or "wizard" or "conflict");
+        ApplyButtonState(TargetsButton, TargetsTextBlock, TargetsIcon, SelectedKey == "targets");
+        ApplyButtonState(VariablesButton, VariablesTextBlock, VariablesIcon, SelectedKey == "variables");
+        ApplyButtonState(HistoryButton, HistoryTextBlock, HistoryIcon, SelectedKey == "history");
+        ApplyButtonState(QueueButton, QueueTextBlock, QueueIcon, SelectedKey == "queue");
+        ApplyButtonState(SettingsButton, SettingsTextBlock, SettingsIcon, SelectedKey == "settings");
     }
 
     public void SetQueueBadge(int count)
@@ -115,12 +146,16 @@ public sealed partial class AppNavRail : UserControl
         QueueBadgeTextBlock.Text = count.ToString();
     }
 
-    private void ApplyButtonState(Button button, bool isSelected)
+    private void ApplyButtonState(Button button, TextBlock label, FontIcon icon, bool isSelected)
     {
         var resources = Application.Current.Resources;
         button.Background = (Brush)resources[isSelected ? "AppSurfaceRaisedBrush" : "AppSurfaceAltBrush"];
-        button.Foreground = (Brush)resources[isSelected ? "AppTextPrimaryBrush" : "AppTextSecondaryBrush"];
-        button.Opacity = isSelected ? 1 : 0.88;
+        var foreground = (Brush)resources[isSelected ? "AppPrimaryBrush" : "AppTextSecondaryBrush"];
+        button.Foreground = foreground;
+        label.Foreground = foreground;
+        icon.Foreground = foreground;
+        button.BorderBrush = (Brush)resources[isSelected ? "AppPrimaryBrush" : "AppSurfaceAltBrush"];
+        button.BorderThickness = new Thickness(1);
     }
 }
 

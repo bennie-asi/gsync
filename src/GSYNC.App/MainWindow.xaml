@@ -12,7 +12,7 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid x:Name="RootLayout" Background="{StaticResource AppBackgroundBrush}">
+    <Grid x:Name="RootLayout" Background="{StaticResource AppBackgroundBrush}" SizeChanged="RootLayout_SizeChanged">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -28,13 +28,14 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="{StaticResource AppNavRailColumnWidth}" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
             <primitives:AppNavRail
                 x:Name="NavRailControl"
-                SelectedKey="{Binding SelectedPageKey, Mode=OneWay}" />
+                SelectedKey="{Binding SelectedPageKey, Mode=OneWay}"
+                TargetStatusText="{Binding PrimaryTargetStatusText}" />
 
             <Border Grid.Column="1" Background="Transparent">
                 <Frame x:Name="ContentFrame" />

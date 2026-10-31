@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using GSYNC.App.Infrastructure;
 using GSYNC.App.Infrastructure.Configuration;
 using GSYNC.App.Infrastructure.Localization;
+using GSYNC.App.Infrastructure.Wizard;
 using GSYNC.Core.Abstractions.Data;
 using GSYNC.Core.Abstractions.Manifest;
 using GSYNC.Core.Abstractions.Sync;
@@ -72,20 +73,22 @@ public partial class LibraryPageViewModel : ObservableObject
         _uiSettingsStore = uiSettingsStore;
 
         PageTitle = Pick("游戏库", "Game Library");
-        PageSubtitle = Pick("密集型多游戏总览，集中展示同步状态、近期活动与快捷恢复操作。", "Dense multi-game overview with explicit sync state, recent activity, and quick recovery actions.");
+        PageSubtitle = Pick("集中管理游戏存档，比较后选择同步方式。", "Manage your game saves and compare changes before syncing.");
         SearchPlaceholder = Pick("搜索游戏", "Search games");
         StatusFilterPlaceholder = Pick("状态", "Status");
         SortText = Pick("排序", "Sort");
         RefreshText = Pick("刷新", "Refresh");
         AddGameText = Pick("添加游戏", "Add Game");
-        SyncNowText = Pick("立即同步", "Sync Now");
+        SyncNowText = Pick("检查并同步", "Check and sync");
+        UploadAllText = Pick("上传全部", "Upload all");
+        CompareText = Pick("比较", "Compare");
         TableTitle = string.Empty;
         TableSubtitle = string.Empty;
         TableFooterText = string.Empty;
         OverviewTitle = Pick("总览", "Overview");
-        OverviewSubtitle = Pick("保留关键指标摘要，活动轨迹在下方独立显示。", "Keep key metrics here, with the activity timeline displayed below.");
+        OverviewSubtitle = Pick("查看游戏和同步任务概况。", "Review your games and sync activity.");
         ActivityTitle = Pick("活动时间线", "Activity Timeline");
-        ActivitySubtitle = Pick("按时间顺序查看最近同步、冲突与恢复事件。", "Review recent sync, conflict, and recovery events in chronological order.");
+        ActivitySubtitle = Pick("最近的同步与恢复记录。", "Recent sync and recovery activity.");
         OpenButtonText = Pick("打开", "Open");
         MoreButtonText = Pick("更多", "More");
 
@@ -96,6 +99,8 @@ public partial class LibraryPageViewModel : ObservableObject
             Pick("本地较新", "Local newer"),
             Pick("远端较新", "Remote newer"),
             Pick("冲突", "Conflict"),
+            Pick("无法比较", "Compare failed"),
+            Pick("未绑定", "Unbound"),
         ];
         SelectedStatus = StatusFilters[0];
         SearchText = string.Empty;
@@ -113,6 +118,8 @@ public partial class LibraryPageViewModel : ObservableObject
     public string RefreshText { get; }
     public string AddGameText { get; }
     public string SyncNowText { get; }
+    public string UploadAllText { get; }
+    public string CompareText { get; }
     public string TableTitle { get; }
     public string TableSubtitle { get; }
     public string TableFooterText { get; }
@@ -125,12 +132,29 @@ public partial class LibraryPageViewModel : ObservableObject
     public bool IsChinese => _isChinese;
 
     public IReadOnlyList<string> StatusFilters { get; }
+    public IReadOnlyList<LibraryGameRow> AllGames => _allGames;
+    public string EmptyTitle => Pick("开始保护你的游戏存档", "Start protecting your game saves");
+    public string EmptyMessage => Pick("添加游戏并选择存档位置，然后选择一个同步目标。", "Add a game and its save location, then choose a sync target.");
+    public string EmptyTargetHint => Pick("本地文件夹保存在所选位置；跨设备同步需要共享目录或同一个 WebDAV 目标。", "A local folder stores saves at the selected location. For multiple devices, use a shared folder or the same WebDAV target.");
+    public string ManageTargetsText => Pick("配置同步目标", "Configure sync targets");
+    public string NoMatchesText => Pick("没有符合筛选条件的游戏。", "No games match these filters.");
+    public int ConflictCount => _allGames.Count(row => row.IsConflict);
+    public bool HasConflicts => ConflictCount > 0;
+    public string ConflictSummary => Pick($"{ConflictCount} 个游戏的存档存在冲突，请先比较后再决定如何同步。",
+        ConflictCount == 1 ? "1 game has conflicting saves. Compare them before syncing." : $"{ConflictCount} games have conflicting saves. Compare them before syncing.");
+    public string ReviewConflictText => Pick("查看冲突", "Review conflicts");
+    public bool ShowNoMatches => !IsEmptyState && Games.Count == 0 &&
+        (!string.IsNullOrWhiteSpace(SearchText) || (!string.IsNullOrWhiteSpace(SelectedStatus) && SelectedStatus != StatusFilters[0]));
+
+    partial void OnIsEmptyStateChanged(bool value) => OnPropertyChanged(nameof(ShowNoMatches));
+    partial void OnGamesChanged(IReadOnlyList<LibraryGameRow> value) => OnPropertyChanged(nameof(ShowNoMatches));
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             var instances = await _gameInstanceRepository.ListAsync(cancellationToken);
+            IReadOnlyDictionary<string, string?>? artworkIndex = null;
             var recentRecords = await _syncHistoryRepository.ListRecentRecordsAsync(200, cancellationToken);
             var lastRecordByInstance = recentRecords
                 .GroupBy(record => record.GameInstanceId)
@@ -146,6 +170,13 @@ public partial class LibraryPageViewModel : ObservableObject
                 var bindings = await _storageBindingRepository.ListByGameInstanceAsync(instance.Id, cancellationToken);
                 var binding = bindings.FirstOrDefault();
                 var definition = await _manifestService.GetDefinitionAsync(instance.GameId, cancellationToken);
+                var artwork = GameArtworkResolver.Resolve(instance, definition);
+                if (artwork.CoverUri is null)
+                {
+                    artworkIndex ??= await Task.Run(async () => GameArtworkResolver.BuildCatalogIndex(
+                        await _manifestService.GetDefinitionsAsync(cancellationToken)), cancellationToken);
+                    artwork = GameArtworkResolver.ResolveWithIndex(instance, definition, artworkIndex);
+                }
                 lastRecordByInstance.TryGetValue(instance.Id, out var lastRecord);
 
                 // Local/remote status reflects a real two-sided comparison, which is computed in the
@@ -179,6 +210,13 @@ public partial class LibraryPageViewModel : ObservableObject
                     InstanceId = instance.Id,
                     OpenLabel = OpenButtonText,
                     MoreLabel = MoreButtonText,
+                    CompareLabel = CompareText,
+                    SavePath = definition?.ContentItems.SelectMany(item => item.PathTemplates).FirstOrDefault() ?? Pick("未配置存档路径", "Save path not configured"),
+                    PathLabel = Pick("路径模板", "Path template"),
+                    LastSyncLabel = Pick("上次同步", "Last sync"),
+                    CoverUri = artwork.CoverUri ?? string.Empty,
+                    LocalArtworkPath = artwork.LocalArtworkPath ?? string.Empty,
+                    ProgramPath = artwork.ProgramPath ?? string.Empty,
                 });
             }
 
@@ -322,20 +360,7 @@ public partial class LibraryPageViewModel : ObservableObject
                 case SyncChangeKind.Conflict:
                     hasLocal = true;
                     hasRemote = true;
-                    var order = CompareModifiedTimes(entry.LocalModifiedAtUtc, entry.RemoteModifiedAtUtc);
-                    if (order > 0)
-                    {
-                        localNewer = true;
-                    }
-                    else if (order < 0)
-                    {
-                        remoteNewer = true;
-                    }
-                    else
-                    {
-                        conflict = true;
-                    }
-
+                    conflict = true;
                     break;
             }
         }
@@ -389,45 +414,15 @@ public partial class LibraryPageViewModel : ObservableObject
         return new LibraryStatusPair(localText, localVariant, remoteText, remoteVariant);
     }
 
-    private static int CompareModifiedTimes(DateTimeOffset? local, DateTimeOffset? remote)
-    {
-        if (local is null && remote is null)
-        {
-            return 0;
-        }
-
-        if (local is null)
-        {
-            return -1;
-        }
-
-        if (remote is null)
-        {
-            return 1;
-        }
-
-        var difference = (local.Value - remote.Value).TotalSeconds;
-        if (difference > 1)
-        {
-            return 1;
-        }
-
-        if (difference < -1)
-        {
-            return -1;
-        }
-
-        return 0;
-    }
-
-    public async Task SyncAllAsync(CancellationToken cancellationToken = default)
+    public async Task<(int QueuedCount, string? Error)> SyncAllAsync(CancellationToken cancellationToken = default)
     {
         if (IsSyncInProgress)
         {
-            return;
+            return (0, Pick("正在提交上传任务。", "Upload jobs are already being submitted."));
         }
 
         IsSyncInProgress = true;
+        var queuedCount = 0;
         try
         {
             var instances = await _gameInstanceRepository.ListAsync(cancellationToken);
@@ -440,11 +435,15 @@ public partial class LibraryPageViewModel : ObservableObject
                     ProtectRemoteChanges = true,
                     DisplayName = instance.DisplayName,
                 }, cancellationToken);
+                queuedCount++;
             }
+
+            return (queuedCount, null);
         }
         catch (Exception exception)
         {
             Log.Error(exception, "Failed to queue sync-all jobs.");
+            return (queuedCount, exception.Message);
         }
         finally
         {
@@ -452,7 +451,7 @@ public partial class LibraryPageViewModel : ObservableObject
         }
     }
 
-    public async Task QueueSyncForGameAsync(Guid instanceId, SyncDirection direction, string? displayName = null, CancellationToken cancellationToken = default)
+    public async Task<string?> QueueSyncForGameAsync(Guid instanceId, SyncDirection direction, string? displayName = null, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -460,12 +459,34 @@ public partial class LibraryPageViewModel : ObservableObject
             {
                 GameInstanceId = instanceId,
                 Direction = direction,
+                ProtectRemoteChanges = direction == SyncDirection.Upload,
                 DisplayName = displayName,
             }, cancellationToken);
+            return null;
         }
         catch (Exception exception)
         {
             Log.Error(exception, "Failed to queue {Direction} for game {GameInstanceId}.", direction, instanceId);
+            return exception.Message;
+        }
+    }
+
+    public async Task<(ConflictNavigationContext? Context, string? Error)> CompareGameAsync(LibraryGameRow row, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var comparison = await _syncEngine.CompareAsync(new SyncJob
+            {
+                GameInstanceId = row.InstanceId,
+                Direction = SyncDirection.Compare,
+                DisplayName = row.Name,
+            }, cancellationToken);
+            return (new ConflictNavigationContext(row.InstanceId, row.Name, comparison), null);
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Failed to compare game {GameInstanceId}.", row.InstanceId);
+            return (null, exception.Message);
         }
     }
 
@@ -487,6 +508,9 @@ public partial class LibraryPageViewModel : ObservableObject
 
     private void ApplyFilters()
     {
+        OnPropertyChanged(nameof(ConflictCount));
+        OnPropertyChanged(nameof(HasConflicts));
+        OnPropertyChanged(nameof(ConflictSummary));
         IEnumerable<LibraryGameRow> filtered = _allGames;
         if (!string.IsNullOrWhiteSpace(SearchText))
         {
@@ -573,6 +597,32 @@ public sealed record LibraryGameRow(
     public string OpenLabel { get; init; } = string.Empty;
 
     public string MoreLabel { get; init; } = string.Empty;
+    public string CompareLabel { get; init; } = string.Empty;
+    public string SavePath { get; init; } = string.Empty;
+    public string PathLabel { get; init; } = string.Empty;
+    public string LastSyncLabel { get; init; } = string.Empty;
+    public string CoverUri { get; init; } = string.Empty;
+    public string LocalArtworkPath { get; init; } = string.Empty;
+    public string ProgramPath { get; init; } = string.Empty;
+    public bool HasProgramPath => !string.IsNullOrWhiteSpace(ProgramPath);
+    public string Monogram => string.IsNullOrWhiteSpace(Name) ? "G" : System.Globalization.StringInfo.GetNextTextElement(Name);
+    public string Metadata => $"{Source} · {Target} · {LastSyncLabel}: {LastSync}";
+    public string PathDescription => $"{PathLabel}: {SavePath}";
+    public bool IsConflict => LocalStatusVariant == "conflict" || RemoteStatusVariant == "conflict";
+
+    public string SummaryStatus => LocalStatusVariant == "conflict" ? LocalStatus
+        : RemoteStatusVariant == "missing" ? RemoteStatus
+        : LocalStatusVariant == "missing" ? LocalStatus
+        : LocalStatusVariant == "local newer" ? LocalStatus
+        : RemoteStatusVariant == "remote newer" ? RemoteStatus
+        : LocalStatus;
+
+    public string SummaryStatusVariant => LocalStatusVariant == "conflict" ? LocalStatusVariant
+        : RemoteStatusVariant == "missing" ? RemoteStatusVariant
+        : LocalStatusVariant == "missing" ? LocalStatusVariant
+        : LocalStatusVariant == "local newer" ? LocalStatusVariant
+        : RemoteStatusVariant == "remote newer" ? RemoteStatusVariant
+        : LocalStatusVariant;
 }
 
 internal sealed record LibraryStatusPair(string LocalText, string LocalVariant, string RemoteText, string RemoteVariant);

@@ -30,26 +30,14 @@ public sealed partial class HomePage : Page
             DataContext = _viewModel;
             ApplyLocalizedStaticText();
 
-            LibraryTable.Columns =
-            [
-                new ResizableTableColumn { Key = "name", Header = _viewModel.IsChinese ? "游戏" : "Game", BindingPath = nameof(LibraryGameRow.Name), Width = 240, MinWidth = 160, IsBold = true, IsFillColumn = true, CellTemplate = (DataTemplate)Resources["LibraryNameCellTemplate"] },
-                new ResizableTableColumn { Key = "source", Header = _viewModel.IsChinese ? "来源" : "Source", BindingPath = nameof(LibraryGameRow.Source), Width = 98, MinWidth = 82 },
-                new ResizableTableColumn { Key = "itemCount", Header = _viewModel.IsChinese ? "条目" : "Items", BindingPath = nameof(LibraryGameRow.ItemCount), Width = 68, MinWidth = 56 },
-                new ResizableTableColumn { Key = "localStatus", Header = _viewModel.IsChinese ? "本地" : "Local", BindingPath = nameof(LibraryGameRow.LocalStatus), Width = 104, MinWidth = 84, CellTemplate = (DataTemplate)Resources["LibraryStatusCellTemplate"] },
-                new ResizableTableColumn { Key = "remoteStatus", Header = _viewModel.IsChinese ? "远端" : "Remote", BindingPath = nameof(LibraryGameRow.RemoteStatus), Width = 104, MinWidth = 84, CellTemplate = (DataTemplate)Resources["LibraryRemoteStatusCellTemplate"] },
-                new ResizableTableColumn { Key = "lastSync", Header = _viewModel.IsChinese ? "上次同步" : "Last Sync", BindingPath = nameof(LibraryGameRow.LastSync), Width = 104, MinWidth = 92 },
-                new ResizableTableColumn { Key = "target", Header = _viewModel.IsChinese ? "目标" : "Target", BindingPath = nameof(LibraryGameRow.Target), Width = 122, MinWidth = 100 },
-                new ResizableTableColumn { Key = "action", Header = _viewModel.IsChinese ? "操作" : "Action", BindingPath = nameof(LibraryGameRow.Name), Width = 164, MinWidth = 152, CellTemplate = (DataTemplate)Resources["LibraryActionCellTemplate"] },
-            ];
-
             MainContentRoot.Visibility = Visibility.Visible;
             InitializationErrorPanel.Visibility = Visibility.Collapsed;
             RefreshButton.Click -= RefreshButton_Click;
             RefreshButton.Click += RefreshButton_Click;
-            SyncNowButton.Click -= SyncNowButton_Click;
-            SyncNowButton.Click += SyncNowButton_Click;
-            LibraryTable.RowDoubleInvoked -= LibraryTable_RowDoubleInvoked;
-            LibraryTable.RowDoubleInvoked += LibraryTable_RowDoubleInvoked;
+            SyncNowButton.Click -= CheckAndSyncButton_Click;
+            SyncNowButton.Click += CheckAndSyncButton_Click;
+            UploadAllButton.Click -= SyncNowButton_Click;
+            UploadAllButton.Click += SyncNowButton_Click;
             _ = _viewModel.LoadAsync();
             Log.Information("HomePage initialized successfully.");
         }
@@ -74,13 +62,7 @@ public sealed partial class HomePage : Page
         RefreshButton.Content = _viewModel.RefreshText;
         AddGameButton.Content = _viewModel.AddGameText;
         SyncNowButton.Content = _viewModel.SyncNowText;
-        LibraryTable.Title = _viewModel.TableTitle;
-        LibraryTable.Subtitle = _viewModel.TableSubtitle;
-        LibraryTable.FooterText = _viewModel.TableFooterText;
-        OverviewSheet.Title = _viewModel.OverviewTitle;
-        OverviewSubtitleTextBlock.Text = _viewModel.OverviewSubtitle;
-        ActivitySheet.Title = _viewModel.ActivityTitle;
-        ActivitySubtitleTextBlock.Text = _viewModel.ActivitySubtitle;
+        UploadAllButton.Content = _viewModel.UploadAllText;
     }
 
     private void RetryInitialization_Click(object sender, RoutedEventArgs e)
@@ -102,6 +84,29 @@ public sealed partial class HomePage : Page
         Frame?.Navigate(typeof(AddGameWizardPage));
     }
 
+    private void MainContentRoot_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var narrowHeader = e.NewSize.Width < 800;
+        Grid.SetRow(HeaderActions, narrowHeader ? 1 : 0);
+        Grid.SetColumn(HeaderActions, narrowHeader ? 0 : 1);
+        Grid.SetColumnSpan(HeaderActions, narrowHeader ? 2 : 1);
+
+        var narrowFilters = e.NewSize.Width < 700;
+        Grid.SetColumnSpan(SearchBoxControl, narrowFilters ? 4 : 1);
+        Grid.SetRow(StatusFilter, narrowFilters ? 1 : 0);
+        Grid.SetColumn(StatusFilter, narrowFilters ? 0 : 1);
+        StatusFilter.HorizontalAlignment = narrowFilters ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
+        Grid.SetRow(SortButton, narrowFilters ? 1 : 0);
+        Grid.SetColumn(SortButton, narrowFilters ? 1 : 2);
+        Grid.SetRow(RefreshButton, narrowFilters ? 1 : 0);
+        Grid.SetColumn(RefreshButton, narrowFilters ? 2 : 3);
+    }
+
+    private void OpenTargets_Click(object sender, RoutedEventArgs e)
+    {
+        Frame?.Navigate(typeof(SyncTargetsPage));
+    }
+
     private void OpenGameDetails_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: LibraryGameRow row })
@@ -113,12 +118,10 @@ public sealed partial class HomePage : Page
         Frame?.Navigate(typeof(GameDetailsPage));
     }
 
-    private void LibraryTable_RowDoubleInvoked(object? sender, object item)
+    private async void ReviewConflict_Click(object sender, RoutedEventArgs e)
     {
-        if (item is LibraryGameRow row)
-        {
-            Frame?.Navigate(typeof(GameDetailsPage), row.InstanceId.ToString("D"));
-        }
+        var row = _viewModel?.AllGames.FirstOrDefault(game => game.IsConflict);
+        if (row is not null) await OpenComparisonAsync(row);
     }
 
     private void RefreshButton_Click(object sender, RoutedEventArgs e)
@@ -126,19 +129,9 @@ public sealed partial class HomePage : Page
         _ = _viewModel?.LoadAsync();
     }
 
-    private async void SortButton_Click(object sender, RoutedEventArgs e)
+    private void SortButton_Click(object sender, RoutedEventArgs e)
     {
         _viewModel?.ToggleSort();
-        var dialog = DialogStyler.Apply(new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = _viewModel?.IsChinese == true ? "排序已切换" : "Sort toggled",
-            Content = _viewModel?.IsChinese == true
-                ? "当前已在名称升序和降序之间切换。"
-                : "The current sort has been toggled between ascending and descending by name.",
-            CloseButtonText = _viewModel?.IsChinese == true ? "关闭" : "Close",
-        });
-        await dialog.ShowAsync();
     }
 
     private async void SyncNowButton_Click(object sender, RoutedEventArgs e)
@@ -148,39 +141,94 @@ public sealed partial class HomePage : Page
             return;
         }
 
-        await _viewModel.SyncAllAsync();
+        var isChinese = _viewModel.IsChinese;
+        var confirm = DialogStyler.Apply(new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = isChinese ? "上传所有游戏" : "Upload all games",
+            Content = isChinese
+                ? "将为所有游戏提交上传任务。如果远端有不同或额外的文件，该游戏的上传会停止，请先比较并处理差异。"
+                : "An upload will be queued for every game. Uploads stop when remote files differ or contain extra files; compare and resolve those differences first.",
+            PrimaryButtonText = isChinese ? "加入队列" : "Queue uploads",
+            CloseButtonText = isChinese ? "取消" : "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+        });
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+
+        var (queuedCount, error) = await _viewModel.SyncAllAsync();
         await _viewModel.LoadAsync();
+        await ShowQueueResultAsync(queuedCount, error);
     }
 
-    private async void ShowRowActions_Click(object sender, RoutedEventArgs e)
+    private async void CheckAndSyncButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_viewModel is null || sender is not Button { DataContext: LibraryGameRow row })
+        if (_viewModel is null) return;
+        var games = _viewModel.AllGames;
+        var isChinese = _viewModel.IsChinese;
+        if (games.Count == 0)
         {
+            Frame?.Navigate(typeof(AddGameWizardPage));
             return;
         }
+        var row = games[0];
+        if (games.Count > 1)
+        {
+            var selector = new ComboBox { ItemsSource = games, DisplayMemberPath = nameof(LibraryGameRow.Name), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+            var panel = new StackPanel { Spacing = 12 };
+            panel.Children.Add(new TextBlock { Text = isChinese ? "选择要比较的游戏。比较后可决定上传、下载或暂不处理。" : "Choose a game to compare, then decide what to upload, download, or leave unchanged.", TextWrapping = TextWrapping.Wrap });
+            panel.Children.Add(selector);
+            var dialog = DialogStyler.Apply(new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = isChinese ? "检查并同步" : "Check and sync",
+                Content = panel,
+                PrimaryButtonText = isChinese ? "比较" : "Compare",
+                CloseButtonText = isChinese ? "取消" : "Cancel",
+            });
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary || selector.SelectedItem is not LibraryGameRow selected) return;
+            row = selected;
+        }
+        await OpenComparisonAsync(row);
+    }
 
-        var isChinese = _viewModel.IsChinese;
+    private async void CompareGame_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: LibraryGameRow row }) await OpenComparisonAsync(row);
+    }
+
+    private async Task OpenComparisonAsync(LibraryGameRow row)
+    {
+        if (_viewModel is null) return;
+        var (context, error) = await _viewModel.CompareGameAsync(row);
+        if (context is not null) { Frame?.Navigate(typeof(ConflictResolutionPage), context); return; }
         var dialog = DialogStyler.Apply(new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = row.Name,
-            Content = isChinese ? "选择要执行的操作。" : "Choose an action.",
-            PrimaryButtonText = isChinese ? "打开详情" : "Open Details",
-            SecondaryButtonText = isChinese ? "排队上传" : "Queue Upload",
-            CloseButtonText = isChinese ? "取消" : "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
+            Title = _viewModel.IsChinese ? "无法比较存档" : "Could not compare saves",
+            Content = error ?? string.Empty,
+            CloseButtonText = _viewModel.IsChinese ? "关闭" : "Close",
         });
+        await dialog.ShowAsync();
+    }
 
-        var result = await dialog.ShowAsync();
-        if (result == ContentDialogResult.Primary)
+    private async Task ShowQueueResultAsync(int queuedCount, string? error)
+    {
+        if (_viewModel is null) return;
+        var isChinese = _viewModel.IsChinese;
+        var message = error is not null
+            ? (isChinese ? $"已加入 {queuedCount} 个任务。提交失败：{error}" : $"{queuedCount} jobs queued. Submission failed: {error}")
+            : queuedCount == 0
+                ? (isChinese ? "没有可上传的游戏。请先添加游戏。" : "There are no games to upload. Add a game first.")
+                : (isChinese ? $"{queuedCount} 个上传任务已加入队列。完成结果会显示在历史中。" : $"{queuedCount} upload jobs were queued. Results will appear in History.");
+        var dialog = DialogStyler.Apply(new ContentDialog
         {
-            Frame?.Navigate(typeof(GameDetailsPage), row.InstanceId.ToString("D"));
-            return;
-        }
-
-        if (result == ContentDialogResult.Secondary)
-        {
-            await _viewModel.QueueSyncForGameAsync(row.InstanceId, SyncDirection.Upload, row.Name);
-        }
+            XamlRoot = XamlRoot,
+            Title = error is null ? (isChinese ? "上传任务" : "Upload jobs") : (isChinese ? "提交未完成" : "Submission incomplete"),
+            Content = message,
+            PrimaryButtonText = queuedCount > 0 ? (isChinese ? "查看队列" : "View queue") : string.Empty,
+            CloseButtonText = isChinese ? "关闭" : "Close",
+        });
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            Frame?.Navigate(typeof(QueuePage));
     }
 }

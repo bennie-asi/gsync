@@ -34,40 +34,35 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Grid ColumnSpacing="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <primitives:SearchField Width="220" PlaceholderText="{Binding SearchPlaceholder}" Text="{Binding SearchText, Mode=TwoWay}" />
-                    <primitives:FilterDropdown Width="150" ItemsSource="{Binding GameFilters}" Placeholder="{Binding GameFilterPlaceholder}" SelectedItem="{Binding SelectedGameFilter, Mode=TwoWay}" />
-                    <primitives:FilterDropdown Width="150" ItemsSource="{Binding ResultFilters}" Placeholder="{Binding ResultFilterPlaceholder}" SelectedItem="{Binding SelectedResultFilter, Mode=TwoWay}" />
-                    <primitives:FilterDropdown Width="150" ItemsSource="{Binding TimeRangeFilters}" Placeholder="{Binding TimeRangePlaceholder}" SelectedItem="{Binding SelectedHistoryFilter, Mode=TwoWay}" />
+            <Grid RowSpacing="10">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+                    <primitives:SearchField Width="180" PlaceholderText="{Binding SearchPlaceholder}" Text="{Binding SearchText, Mode=TwoWay}" />
+                    <primitives:FilterDropdown Width="130" ItemsSource="{Binding GameFilters}" Placeholder="{Binding GameFilterPlaceholder}" SelectedItem="{Binding SelectedGameFilter, Mode=TwoWay}" />
+                    <primitives:FilterDropdown Width="130" ItemsSource="{Binding ResultFilters}" Placeholder="{Binding ResultFilterPlaceholder}" SelectedItem="{Binding SelectedResultFilter, Mode=TwoWay}" />
+                    <primitives:FilterDropdown Width="130" ItemsSource="{Binding TimeRangeFilters}" Placeholder="{Binding TimeRangePlaceholder}" SelectedItem="{Binding SelectedHistoryFilter, Mode=TwoWay}" />
                 </StackPanel>
-
-                <Button Grid.Column="1" Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+                <Button Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding RefreshButtonText}" />
                 </Button>
-                <Button Grid.Column="2" Click="RestoreLatestSnapshotButton_Click" IsEnabled="{Binding CanRestore}" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                <Button Click="RestoreLatestSnapshotButton_Click" IsEnabled="{Binding CanRestore}" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconRestore}" Text="{Binding RestoreSnapshotButtonText}" />
                 </Button>
-                <Button Grid.Column="3" Click="OpenLogsButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                <Button Click="OpenLogsButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconDescription}" Text="{Binding LogsButtonText}" />
                 </Button>
-                <Button Grid.Column="4" Click="OpenHelpButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                <Button Click="OpenHelpButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconHelp}" Text="{Binding HelpButtonText}" />
                 </Button>
+                </StackPanel>
             </Grid>
 
-            <Grid Grid.Row="1" ColumnSpacing="14">
+            <Grid x:Name="HistoryPanes" Grid.Row="1" ColumnSpacing="14" RowSpacing="12">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" MinWidth="720" />
-                    <ColumnDefinition Width="360" MinWidth="320" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="360" />
                 </Grid.ColumnDefinitions>
 
                 <Grid>
@@ -103,7 +98,7 @@
                     </Border>
                 </Grid>
 
-                <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
+                <Border x:Name="HistoryDetailPane" Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />

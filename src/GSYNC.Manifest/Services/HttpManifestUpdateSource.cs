@@ -24,10 +24,8 @@ public sealed class HttpManifestUpdateSource : IManifestUpdateSource
         }
 
         using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return null;
-        }
+        if (response.StatusCode == System.Net.HttpStatusCode.NotModified) return null;
+        response.EnsureSuccessStatusCode();
 
         const int limit = 32 * 1024 * 1024;
         if (response.Content.Headers.ContentLength > limit) throw new InvalidDataException("The downloaded manifest is too large.");

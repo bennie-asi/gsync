@@ -8,7 +8,8 @@ using static GSYNC.Core.Services.Sync.SyncFileService;
 
 namespace GSYNC.Core.Services.Sync;
 
-internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryRepository history, SyncSnapshotService snapshots, Func<bool> autoSnapshot, string transactionDirectory)
+internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryRepository history, SyncSnapshotService snapshots, Func<bool> autoSnapshot, string transactionDirectory,
+    Func<Guid, CancellationToken, Task<SyncExecutionContext>> freshContext)
 {
     private readonly ISyncQueue _syncQueue = queue;
     private readonly ISyncHistoryRepository _syncHistoryRepository = history;
@@ -123,6 +124,9 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
     internal async Task ResolveConflictsAsync(SyncJob job, SyncExecutionContext context, SyncOperationState state, CancellationToken cancellationToken)
     {
         if (job.ConflictResolutionPlan is null) throw new InvalidOperationException("A conflict plan is required.");
+        if (job.ConflictResolutionPlan.ExpectedConfigurationFingerprint is { } expectedFingerprint &&
+            !string.Equals(expectedFingerprint, context.ConfigurationFingerprint, StringComparison.Ordinal))
+            throw new InvalidOperationException("The sync destination changed after comparison. Compare the latest versions before resolving conflicts.");
         var preparedFiles = new List<AtomicFile.PreparedFile>();
         try
         {
@@ -141,6 +145,13 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
                 decisions.Select(decision => NormalizePlanPath(context.Binding.RemoteNamespace.Trim('/'), decision.RelativePath))
                     .Distinct(StringComparer.OrdinalIgnoreCase).Count() != decisions.Length)
                 throw new InvalidDataException("The conflict plan has invalid or duplicate decisions.");
+
+            if (job.ConflictResolutionPlan.ExpectedComparison is { } initialExpected)
+            {
+                // An automatic pull must not modify another logical save that maps to the same local file.
+                ValidateDownloadTargets(remoteFileSets);
+                await VerifyFullComparisonAsync(context, initialExpected, cancellationToken);
+            }
 
             var localUploads = new List<ResolvedLocalFile>();
             var uploadHashes = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
@@ -224,6 +235,9 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
                         prepared.ExpectedOriginalHash = originals[localPath];
                         preparedFiles.Add(prepared);
                         await VerifyPreparedDownloadAsync(prepared, remoteFile, cancellationToken);
+                        if (decision.VerifyComparedVersions && !string.Equals(decision.ExpectedRemoteHash,
+                            await ComputeFileHashAsync(prepared.TemporaryPath!, cancellationToken), StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidOperationException("The downloaded save changed after comparison.");
                         break;
                     }
                     default:
@@ -234,12 +248,34 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            if (job.ConflictResolutionPlan.ExpectedComparison is { } finalExpected)
+            {
+                var currentContext = await freshContext(job.GameInstanceId, cancellationToken);
+                await VerifyFullComparisonAsync(currentContext, finalExpected, cancellationToken);
+            }
             await ((RemoteSaveSession)context.StorageProvider).CommitAsync(cancellationToken);
             AtomicFile.Apply(preparedFiles, transactionDirectory);
             state.Processed += preparedFiles.Count;
             state.Summary = $"Resolved {state.Processed} conflict file decisions.";
         }
         finally { foreach (var prepared in preparedFiles) prepared.Dispose(); }
+    }
+
+    private static async Task VerifyFullComparisonAsync(SyncExecutionContext context, SyncComparison expected, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(expected.ConfigurationFingerprint) ||
+            !string.Equals(expected.ConfigurationFingerprint, context.ConfigurationFingerprint, StringComparison.Ordinal) ||
+            expected.Entries.Count == 0 || expected.Entries.Select(entry => entry.RelativePath).Distinct(StringComparer.OrdinalIgnoreCase).Count() != expected.Entries.Count)
+            throw new InvalidOperationException("The save configuration changed after comparison. Review the game before syncing.");
+        var current = await CompareContextAsync(context, cancellationToken);
+        var expectedByPath = expected.Entries.ToDictionary(entry => entry.RelativePath, StringComparer.OrdinalIgnoreCase);
+        if (current.Entries.Count != expectedByPath.Count ||
+            current.Entries.Select(entry => entry.RelativePath).Distinct(StringComparer.OrdinalIgnoreCase).Count() != current.Entries.Count ||
+            current.Entries.Any(entry =>
+            !expectedByPath.TryGetValue(entry.RelativePath, out var previous) ||
+            !string.Equals(entry.LocalHash, previous.LocalHash, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(entry.RemoteHash, previous.RemoteHash, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("The save changed after comparison. Review the latest versions before syncing.");
     }
     private static async Task WriteRootDescriptorsAsync(SyncExecutionContext context, IReadOnlyList<ResolvedLocalFile> files, CancellationToken cancellationToken)
     {

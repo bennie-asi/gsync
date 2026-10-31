@@ -40,7 +40,7 @@ public sealed partial class FilterDropdown : UserControl
         set => SetValue(ItemsSourceProperty, value);
     }
 
-    public object SelectedItem
+    public object? SelectedItem
     {
         get => GetValue(SelectedItemProperty);
         set => SetValue(SelectedItemProperty, value);

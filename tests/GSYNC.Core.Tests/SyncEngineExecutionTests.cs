@@ -731,6 +731,179 @@ public sealed class SyncEngineExecutionTests
         Assert.Equal(SyncJobStatus.Failed, Assert.Single(fixture.SyncHistoryRepository.Records).Status);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FullComparisonPrecondition_RejectsUnrelatedChangesDuringDownload(bool remoteChanged)
+    {
+        var fixture = new SyncEngineFixture(autoSnapshotBeforeDownloadEnabled: false);
+        var folder = fixture.GameInstance.InstallDirectory!;
+        Directory.CreateDirectory(folder);
+        var first = Path.Combine(folder, "one.sav");
+        var other = Path.Combine(folder, "two.sav");
+        await File.WriteAllTextAsync(first, "old");
+        await File.WriteAllTextAsync(other, "unchanged");
+        fixture.StorageProvider.RemoteFiles["games/game-a/default/one.sav"] = "new"u8.ToArray();
+        fixture.StorageProvider.RemoteFiles["games/game-a/default/two.sav"] = "unchanged"u8.ToArray();
+        var comparison = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Compare }, CancellationToken.None);
+        var entry = comparison.Entries.Single(e => e.RelativePath.EndsWith("one.sav"));
+        var plan = new ConflictResolutionPlan { GameInstanceId = fixture.GameInstance.Id, ExpectedComparison = comparison, Decisions = new[]
+        {
+            new ConflictResolutionDecision { RelativePath = entry.RelativePath, Action = ConflictResolutionAction.KeepRemote,
+                VerifyComparedVersions = true, ExpectedLocalHash = entry.LocalHash, ExpectedRemoteHash = entry.RemoteHash }
+        } };
+        fixture.StorageProvider.DownloadStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.StorageProvider.DownloadGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var operation = fixture.Engine.ResolveConflictsAsync(plan, CancellationToken.None);
+        await fixture.StorageProvider.DownloadStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        if (remoteChanged) fixture.StorageProvider.RemoteFiles["games/game-a/default/two.sav"] = "new-other"u8.ToArray();
+        else await File.WriteAllTextAsync(other, "new-other");
+        fixture.StorageProvider.DownloadGate.SetResult();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => operation);
+        Assert.Equal("old", await File.ReadAllTextAsync(first));
+        Assert.Single(fixture.SyncHistoryRepository.Snapshots);
+    }
+
+    [Fact]
+    public async Task FullComparisonPrecondition_RejectsTargetConfigurationChange()
+    {
+        IReadOnlyDictionary<string, string> configuration = new Dictionary<string, string> { ["rootPath"] = "first" };
+        var fixture = new SyncEngineFixture(storageConfigurationResolver: _ => configuration);
+        Directory.CreateDirectory(fixture.GameInstance.InstallDirectory!);
+        var local = Path.Combine(fixture.GameInstance.InstallDirectory!, "one.sav");
+        await File.WriteAllTextAsync(local, "old");
+        fixture.StorageProvider.RemoteFiles["games/game-a/default/one.sav"] = "new"u8.ToArray();
+        var comparison = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Compare }, CancellationToken.None);
+        var entry = Assert.Single(comparison.Entries);
+        configuration = new Dictionary<string, string> { ["rootPath"] = "second" };
+        var plan = new ConflictResolutionPlan { GameInstanceId = fixture.GameInstance.Id, ExpectedComparison = comparison, Decisions = new[]
+        {
+            new ConflictResolutionDecision { RelativePath = entry.RelativePath, Action = ConflictResolutionAction.KeepRemote,
+                VerifyComparedVersions = true, ExpectedLocalHash = entry.LocalHash, ExpectedRemoteHash = entry.RemoteHash }
+        } };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Engine.ResolveConflictsAsync(plan, CancellationToken.None));
+        Assert.Equal("old", await File.ReadAllTextAsync(local));
+    }
+
+    [Fact]
+    public async Task AutomaticPull_RejectsOverlappingContentRoots()
+    {
+        var fixture = new SyncEngineFixture(contentItems: new[]
+        {
+            new ContentItem { ContentId = "first", Category = ContentCategory.Save, PathTemplates = new[] { "%GAME_INSTALL_DIR%" } },
+            new ContentItem { ContentId = "second", Category = ContentCategory.Save, PathTemplates = new[] { "%GAME_INSTALL_DIR%" } },
+        });
+        Directory.CreateDirectory(fixture.GameInstance.InstallDirectory!);
+        var local = Path.Combine(fixture.GameInstance.InstallDirectory!, "slot.sav");
+        await File.WriteAllTextAsync(local, "common");
+        fixture.StorageProvider.RemoteFiles["games/game-a/first/slot.sav"] = "common"u8.ToArray();
+        fixture.StorageProvider.RemoteFiles["games/game-a/second/slot.sav"] = "common"u8.ToArray();
+        var initial = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Compare }, CancellationToken.None);
+        var baseline = AutoPullPlanner.ConfirmBaseline(fixture.GameInstance.Id, initial);
+        fixture.StorageProvider.RemoteFiles["games/game-a/first/slot.sav"] = "changed"u8.ToArray();
+        var current = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Compare }, CancellationToken.None);
+        var evaluation = AutoPullPlanner.Evaluate(fixture.GameInstance.Id, current, baseline);
+        Assert.Equal(AutoPullDisposition.Pull, evaluation.Disposition);
+        await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Engine.ResolveConflictsAsync(evaluation.Plan!, CancellationToken.None));
+        Assert.Equal("common", await File.ReadAllTextAsync(local));
+    }
+
+    [Fact]
+    public async Task AutomaticPull_RequiresBaselineAvoidsDuplicatesSnapshotsAndStopsForLocalEdits()
+    {
+        var fixture = new SyncEngineFixture(autoSnapshotBeforeDownloadEnabled: false);
+        var game = fixture.GameInstance;
+        Directory.CreateDirectory(game.InstallDirectory!);
+        var local = Path.Combine(game.InstallDirectory!, "one.sav");
+        const string remote = "games/game-a/default/one.sav";
+        await File.WriteAllTextAsync(local, "common");
+        fixture.StorageProvider.RemoteFiles[remote] = "common"u8.ToArray();
+        var store = new AutoPullBaselineStore(new FakeAppPathService(fixture.RootPath));
+        var coordinator = new AutoPullCoordinator(new FakeGameInstanceRepository(game), fixture.Engine, fixture.Queue, store, NullLogger<AutoPullCoordinator>.Instance);
+        await coordinator.ScanAsync(CancellationToken.None);
+        Assert.Empty(fixture.Queue.PendingJobs);
+        coordinator.SetEnabled(true);
+        await coordinator.ScanAsync(CancellationToken.None);
+        Assert.Equal("baseline-required", Assert.Single(coordinator.Statuses).State);
+        await coordinator.ConfirmBaselineAsync(game.Id, CancellationToken.None);
+        fixture.StorageProvider.RemoteFiles[remote] = "remote-new"u8.ToArray();
+        await coordinator.ScanAsync(CancellationToken.None);
+        var job = Assert.Single(fixture.Queue.PendingJobs);
+        await coordinator.ScanAsync(CancellationToken.None);
+        Assert.Single(fixture.Queue.PendingJobs);
+        using var cts = new CancellationTokenSource();
+        var worker = fixture.RunQueueAsync(cts.Token);
+        for (var i = 0; i < 150 && job.Status is SyncJobStatus.Queued or SyncJobStatus.Running; i++) await Task.Delay(20);
+        Assert.Equal(SyncJobStatus.Completed, job.Status);
+        Assert.Equal("remote-new", await File.ReadAllTextAsync(local));
+        Assert.Single(fixture.SyncHistoryRepository.Snapshots);
+        Assert.Empty(fixture.StorageProvider.UploadedPaths);
+        await coordinator.ScanAsync(CancellationToken.None);
+        Assert.Equal("ready", Assert.Single(coordinator.Statuses).State);
+        await File.WriteAllTextAsync(local, "local-new");
+        fixture.StorageProvider.RemoteFiles[remote] = "remote-newer"u8.ToArray();
+        await coordinator.ScanAsync(CancellationToken.None);
+        Assert.Empty(fixture.Queue.PendingJobs);
+        Assert.Equal("review", Assert.Single(coordinator.Statuses).State);
+        Assert.Equal("local-new", await File.ReadAllTextAsync(local));
+        coordinator.SetEnabled(false);
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+    }
+
+    [Fact]
+    public async Task DisablingAutomaticPullRemovesPendingWork()
+    {
+        var fixture = new SyncEngineFixture();
+        var game = fixture.GameInstance;
+        Directory.CreateDirectory(game.InstallDirectory!);
+        var local = Path.Combine(game.InstallDirectory!, "one.sav");
+        await File.WriteAllTextAsync(local, "common");
+        const string remote = "games/game-a/default/one.sav";
+        fixture.StorageProvider.RemoteFiles[remote] = "common"u8.ToArray();
+        var coordinator = new AutoPullCoordinator(new FakeGameInstanceRepository(game), fixture.Engine, fixture.Queue,
+            new AutoPullBaselineStore(new FakeAppPathService(fixture.RootPath)), NullLogger<AutoPullCoordinator>.Instance);
+        coordinator.SetEnabled(true);
+        await coordinator.ConfirmBaselineAsync(game.Id, CancellationToken.None);
+        fixture.StorageProvider.RemoteFiles[remote] = "changed"u8.ToArray();
+        await coordinator.ScanAsync(CancellationToken.None);
+        var job = Assert.Single(fixture.Queue.PendingJobs);
+        coordinator.SetEnabled(false);
+        Assert.Empty(fixture.Queue.PendingJobs);
+        Assert.Equal(SyncJobStatus.Cancelled, job.Status);
+        Assert.Equal("common", await File.ReadAllTextAsync(local));
+    }
+
+    [Fact]
+    public async Task DisablingAutomaticPullCancelsActiveDownloadBeforeApplyingIt()
+    {
+        var fixture = new SyncEngineFixture();
+        var game = fixture.GameInstance;
+        Directory.CreateDirectory(game.InstallDirectory!);
+        var local = Path.Combine(game.InstallDirectory!, "one.sav");
+        await File.WriteAllTextAsync(local, "common");
+        const string remote = "games/game-a/default/one.sav";
+        fixture.StorageProvider.RemoteFiles[remote] = "common"u8.ToArray();
+        var coordinator = new AutoPullCoordinator(new FakeGameInstanceRepository(game), fixture.Engine, fixture.Queue,
+            new AutoPullBaselineStore(new FakeAppPathService(fixture.RootPath)), NullLogger<AutoPullCoordinator>.Instance);
+        coordinator.SetEnabled(true);
+        await coordinator.ConfirmBaselineAsync(game.Id, CancellationToken.None);
+        fixture.StorageProvider.RemoteFiles[remote] = "changed"u8.ToArray();
+        await coordinator.ScanAsync(CancellationToken.None);
+        var job = Assert.Single(fixture.Queue.PendingJobs);
+        fixture.StorageProvider.DownloadStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.StorageProvider.DownloadGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cts = new CancellationTokenSource();
+        var worker = fixture.RunQueueAsync(cts.Token);
+        await fixture.StorageProvider.DownloadStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        coordinator.SetEnabled(false);
+        for (var i = 0; i < 150 && job.Status is SyncJobStatus.Queued or SyncJobStatus.Running; i++) await Task.Delay(20);
+        Assert.Equal(SyncJobStatus.Cancelled, job.Status);
+        Assert.Equal("common", await File.ReadAllTextAsync(local));
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+    }
+
     [Fact]
     public async Task UploadCapturesAllLocalFilesBeforeNetworkWritesCanObserveLaterGameProgress()
     {

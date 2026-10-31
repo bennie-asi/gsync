@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Serilog" />
+    <PackageReference Include="System.Drawing.Common" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
@@ -22,6 +23,7 @@
   <ItemGroup>
     <Compile Include="../../src/GSYNC.App/ViewModels/AddGameWizardViewModel.cs" Link="App/AddGameWizardViewModel.cs" />
     <Compile Include="../../src/GSYNC.App/ViewModels/GameDetailsViewModel.cs" Link="App/GameDetailsViewModel.cs" />
+    <Compile Include="../../src/GSYNC.App/ViewModels/ConflictResolutionViewModel.cs" Link="App/ConflictResolutionViewModel.cs" />
     <Compile Include="../../src/GSYNC.App/ViewModels/HistoryPageViewModel.cs" Link="App/HistoryPageViewModel.cs" />
     <Compile Include="../../src/GSYNC.App/ViewModels/VariablesPageViewModel.cs" Link="App/VariablesPageViewModel.cs" />
     <Compile Include="../../src/GSYNC.App/ViewModels/SyncTargetsPageViewModel.cs" Link="App/SyncTargetsPageViewModel.cs" />

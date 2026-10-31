@@ -25,4 +25,20 @@ public static class PathPickerService
         var file = await picker.PickSingleFileAsync();
         return file?.Path;
     }
+
+    public static async Task<string?> PickGameProgramAsync(Window window)
+    {
+        var picker = new FileOpenPicker { SuggestedStartLocation = PickerLocationId.ComputerFolder };
+        foreach (var extension in new[] { ".exe", ".lnk", ".url" }) picker.FileTypeFilter.Add(extension);
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(window));
+        return (await picker.PickSingleFileAsync())?.Path;
+    }
+
+    public static async Task<string?> PickArtworkAsync(Window window)
+    {
+        var picker = new FileOpenPicker { SuggestedStartLocation = PickerLocationId.PicturesLibrary };
+        foreach (var extension in new[] { ".jpg", ".jpeg", ".png", ".webp", ".bmp" }) picker.FileTypeFilter.Add(extension);
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(window));
+        return (await picker.PickSingleFileAsync())?.Path;
+    }
 }

@@ -1,4 +1,6 @@
 using GSYNC.App.Infrastructure.Localization;
+using GSYNC.App.Infrastructure.Configuration;
+using GSYNC.App.Infrastructure;
 using GSYNC.App.Primitives;
 using GSYNC.App.ViewModels;
 using GSYNC.Core.Abstractions.Sync;
@@ -14,13 +16,19 @@ public partial class MainWindow : Window
     private readonly ILocalizationService _localizationService;
     private readonly ISyncQueue _syncQueue;
     private readonly MainWindowViewModel _viewModel;
+    private readonly ImeCandidatePresenter _imeCandidates;
     private bool _isNavigating;
+    private bool? _narrowNavigation;
 
     public MainWindow()
     {
         InitializeComponent();
+        var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "GSYNC.ico");
+        if (System.IO.File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBarControl);
+        _imeCandidates = new ImeCandidatePresenter(RootLayout, WinRT.Interop.WindowNative.GetWindowHandle(this));
+        Closed += (_, _) => _imeCandidates.Dispose();
 
         _localizationService = App.GetService<ILocalizationService>();
         _syncQueue = App.GetService<ISyncQueue>();
@@ -32,6 +40,7 @@ public partial class MainWindow : Window
         ContentFrame.NavigationFailed += ContentFrame_OnNavigationFailed;
         _localizationService.LanguageChanged += LocalizationService_OnLanguageChanged;
         _syncQueue.QueueChanged += SyncQueue_QueueChanged;
+        App.GetService<SyncTargetStore>().ConnectionChecksChanged += TargetChecksChanged;
 
         ApplyLocalizedShellText();
         UpdateQueueBadge();
@@ -45,9 +54,18 @@ public partial class MainWindow : Window
         BeginStartupNavigation();
     }
 
+    private void RootLayout_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var narrow = e.NewSize.Width < 900;
+        if (_narrowNavigation == narrow || NavRailControl is null) return;
+        _narrowNavigation = narrow;
+        NavRailControl.SetExpanded(!narrow);
+    }
+
     private void NavRailControl_OnNavigationRequested(object? sender, NavigationRequestedEventArgs e)
     {
-        if (string.Equals(_viewModel.SelectedPageKey, e.Key, StringComparison.Ordinal))
+        if (string.Equals(_viewModel.SelectedPageKey, e.Key, StringComparison.Ordinal) &&
+            ContentFrame.CurrentSourcePageType == _viewModel.ResolvePageType())
         {
             return;
         }
@@ -104,6 +122,11 @@ public partial class MainWindow : Window
         });
     }
 
+    private void TargetChecksChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(_viewModel.ApplyStatusToProperties);
+    }
+
     private void ApplyLocalizedShellText()
     {
         NavRailControl.ApplyLocalization(_localizationService);
@@ -114,6 +137,7 @@ public partial class MainWindow : Window
     {
         var count = _syncQueue.QueueDepth + (_syncQueue.ActiveJob is null ? 0 : 1);
         NavRailControl.SetQueueBadge(count);
+        _viewModel.SetQueueActivity(count);
     }
 
     private async void BeginStartupNavigation()

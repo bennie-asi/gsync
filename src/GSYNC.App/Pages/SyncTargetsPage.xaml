@@ -7,15 +7,15 @@
     xmlns:vm="using:GSYNC.App.ViewModels">
     <Page.Resources>
         <DataTemplate x:Key="SyncTargetRowTemplate" x:DataType="vm:SyncTargetRow">
-            <Border Background="Transparent" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1" Padding="12,10" Tapped="TargetRow_Tapped">
+            <Button Background="Transparent" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1" Padding="12,12" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Click="TargetRow_Click" AutomationProperties.Name="{x:Bind Name}">
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <Border Width="24" Height="24" Background="{StaticResource AppSurfaceRaisedBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="6" VerticalAlignment="Top">
-                        <FontIcon FontFamily="{StaticResource MaterialSymbolsFont}" FontSize="14" Foreground="{StaticResource AppTextSecondaryBrush}" Glyph="{x:Bind ProviderGlyph}" />
+                    <Border Width="40" Height="40" Background="{StaticResource AppSurfaceRaisedBrush}" CornerRadius="8" VerticalAlignment="Top">
+                        <FontIcon FontFamily="{StaticResource MaterialSymbolsFont}" FontSize="19" Foreground="{StaticResource AppPrimaryBrush}" Glyph="{x:Bind ProviderGlyph}" />
                     </Border>
 
                     <StackPanel Grid.Column="1" Spacing="6">
@@ -24,13 +24,14 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="13" FontWeight="SemiBold" Text="{x:Bind Name}" />
+                            <TextBlock FontSize="15" FontWeight="SemiBold" Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
                             <primitives:Badge Grid.Column="1" Text="{x:Bind Status}" Variant="{x:Bind StatusVariant}" />
                         </Grid>
-                        <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Detail}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Detail}" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
+                    <Border Grid.ColumnSpan="2" Margin="-6" BorderBrush="{StaticResource AppPrimaryBrush}" BorderThickness="1" CornerRadius="8" IsHitTestVisible="False" Visibility="{x:Bind IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </Grid>
-            </Border>
+            </Button>
         </DataTemplate>
         <DataTemplate x:Key="ConnectionFieldTemplate" x:DataType="vm:UiPropertyRow">
             <StackPanel Spacing="5">
@@ -65,47 +66,47 @@
     </Page.Resources>
 
     <Grid>
-        <Grid x:Name="MainContentRoot" Padding="16" RowSpacing="12">
+        <Grid x:Name="MainContentRoot" Padding="{StaticResource AppPagePadding}" RowSpacing="16">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Grid ColumnSpacing="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Orientation="Horizontal" Spacing="8">
+            <Grid x:Name="TargetsHeader" RowSpacing="12" ColumnSpacing="12" SizeChanged="TargetsHeader_SizeChanged">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button x:Name="ReturnToWizardButton" Click="ReturnToWizard_Click" Visibility="Collapsed" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    <Button Click="AddTargetButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                        <primitives:IconText Glyph="{StaticResource IconAdd}" Text="{Binding AddTargetText}" />
+                    </Button>
+                </StackPanel>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
                     <primitives:SearchField Width="220" PlaceholderText="{Binding SearchPlaceholder}" Text="{Binding SearchText, Mode=TwoWay}" />
                     <primitives:FilterDropdown Width="150" ItemsSource="{Binding Filters}" Placeholder="{Binding FilterPlaceholder}" SelectedItem="{Binding SelectedTargetFilter, Mode=TwoWay}" />
                 </StackPanel>
 
-                <Button Grid.Column="1" Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                <StackPanel x:Name="TargetHeaderActions" Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding RefreshText}" />
                 </Button>
-                <Button Grid.Column="2" Click="TestSelectedButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                <Button Click="TestSelectedButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconTaskAlt}" Text="{Binding TestSelectedText}" />
                 </Button>
-                <Button Grid.Column="3" Click="AddTargetButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
-                    <primitives:IconText Glyph="{StaticResource IconAdd}" Text="{Binding AddTargetText}" />
-                </Button>
-                <Button Grid.Column="4" Click="OpenHelpButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                <Button Click="OpenHelpButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconHelp}" Text="{Binding HelpText}" />
                 </Button>
+                </StackPanel>
             </Grid>
 
-            <Grid Grid.Row="1" ColumnSpacing="14">
+            <Grid x:Name="TargetPanes" Grid.Row="1" ColumnSpacing="14" RowSpacing="12">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="320" MinWidth="280" />
-                    <ColumnDefinition Width="*" MinWidth="520" />
+                    <ColumnDefinition Width="320" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
+                <Border x:Name="TargetListPane" Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -139,7 +140,7 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
+                <Border x:Name="TargetDetailPane" Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -152,16 +153,18 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <StackPanel Spacing="4">
+                            <StackPanel x:Name="TargetDetailHeading" Spacing="4">
                                 <TextBlock FontSize="14" FontWeight="SemiBold" Text="{Binding PaneTitle}" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <primitives:Badge Text="{Binding SelectedTargetStatus}" Variant="{Binding SelectedTargetStatusVariant}" />
                                     <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding LastCheckedText}" />
                                 </StackPanel>
                             </StackPanel>
+                            <Button x:Name="SetDefaultTargetButton" Grid.Column="1" Click="SetDefaultTarget_Click" Content="{Binding SetDefaultText}" IsEnabled="{Binding CanSetSelectedDefault}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                            <TextBlock x:Name="TargetEditorHeading" FontSize="16" FontWeight="SemiBold" Visibility="Collapsed" />
                         </Grid>
 
-                        <ScrollViewer Grid.Row="1" Padding="14" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                        <ScrollViewer x:Name="TargetDetailsScroll" Grid.Row="1" Padding="14" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
                             <StackPanel Spacing="14">
                                 <StackPanel Visibility="{Binding ShowFailureState, Converter={StaticResource BooleanToVisibilityConverter}}" Spacing="14">
                                     <primitives:InfoCallout Severity="Error" Title="{Binding FailureTitle}" Message="{Binding FailureMessage}" />
@@ -169,7 +172,7 @@
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource AppDangerBrush}" Text="{Binding FailureCodeText}" />
                                             <Button Click="CopyCodeButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
-                                                <primitives:IconText Glyph="{StaticResource IconCopy}" GlyphSize="16" Text="Copy Code" />
+                                                <primitives:IconText Glyph="{StaticResource IconCopy}" GlyphSize="16" Text="{Binding CopyCodeText}" />
                                             </Button>
                                         </StackPanel>
                                     </Border>
@@ -204,7 +207,11 @@
                             </StackPanel>
                         </ScrollViewer>
 
-                        <Border Grid.Row="2" Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,1,0,0" Padding="14,10">
+                        <ScrollViewer x:Name="TargetEditorScroll" Grid.Row="1" Padding="14" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled" Visibility="Collapsed">
+                            <ContentPresenter x:Name="TargetEditorContent" />
+                        </ScrollViewer>
+
+                        <Border x:Name="TargetActionsFooter" Grid.Row="2" Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,1,0,0" Padding="14,10">
                             <Grid>
                                 <Grid Visibility="{Binding ShowFailureState, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}">
                                     <Grid.ColumnDefinitions>

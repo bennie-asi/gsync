@@ -3,162 +3,62 @@
     x:Class="GSYNC.App.Primitives.AppNavRail"
     x:Name="Root"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    HorizontalContentAlignment="Stretch">
     <Border Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,1,0">
-        <Grid x:Name="RootGrid" Width="{StaticResource AppNavRailWidth}" Padding="10,14,10,12">
+        <Grid x:Name="RootGrid" Padding="10,18,10,12" RowSpacing="16">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" HorizontalAlignment="Stretch" Spacing="6">
-                <Border
-                    Width="38"
-                    Height="38"
-                    Background="{StaticResource AppPrimaryBrush}"
-                    CornerRadius="10"
-                    HorizontalAlignment="Center">
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        FontSize="15"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource AppBackgroundBrush}"
-                        Text="G" />
+            <StackPanel x:Name="BrandPanel" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" Margin="3,0,0,0">
+                <Border Width="38" Height="38" Background="{StaticResource AppPrimaryBrush}" CornerRadius="9">
+                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16" FontWeight="Bold" Foreground="#FF0B1715" Text="G" />
                 </Border>
-
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    FontSize="11"
-                    FontWeight="SemiBold"
-                    Foreground="{StaticResource AppTextPrimaryBrush}"
-                    Text="GSYNC" />
-
-                <TextBlock
-                    x:Name="AppVersionTextBlock"
-                    HorizontalAlignment="Center"
-                    FontSize="9"
-                    Foreground="{StaticResource AppTextDimBrush}"
-                    Text="" />
+                <StackPanel x:Name="BrandTextPanel" Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="GSYNC" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock x:Name="BrandSubtitleTextBlock" FontSize="11" Foreground="{StaticResource AppTextDimBrush}" />
+                </StackPanel>
             </StackPanel>
 
-            <StackPanel Grid.Row="1" Margin="0,20,0,0" Spacing="8" VerticalAlignment="Top">
+            <StackPanel Grid.Row="1" Spacing="4" VerticalAlignment="Top">
                 <Button x:Name="LibraryButton" Tag="library" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
-                    <StackPanel HorizontalAlignment="Center" Spacing="5">
-                        <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                            <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconLibrary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Grid>
-                        <TextBlock
-                            x:Name="LibraryTextBlock"
-                            Width="72"
-                            FontSize="10"
-                            Text="Library"
-                            TextAlignment="Center"
-                            TextTrimming="CharacterEllipsis"
-                            TextWrapping="NoWrap" />
-                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="12"><FontIcon x:Name="LibraryIcon" Style="{StaticResource AppIcon}" Glyph="{StaticResource IconLibrary}" /><TextBlock x:Name="LibraryTextBlock" Text="Library" FontSize="14" VerticalAlignment="Center" /></StackPanel>
                 </Button>
-
                 <Button x:Name="TargetsButton" Tag="targets" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
-                    <StackPanel HorizontalAlignment="Center" Spacing="5">
-                        <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                            <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconTargets}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Grid>
-                        <TextBlock
-                            x:Name="TargetsTextBlock"
-                            Width="72"
-                            FontSize="10"
-                            Text="Targets"
-                            TextAlignment="Center"
-                            TextTrimming="CharacterEllipsis"
-                            TextWrapping="NoWrap" />
-                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="12"><FontIcon x:Name="TargetsIcon" Style="{StaticResource AppIcon}" Glyph="{StaticResource IconTargets}" /><TextBlock x:Name="TargetsTextBlock" Text="Targets" FontSize="14" VerticalAlignment="Center" /></StackPanel>
                 </Button>
-
                 <Button x:Name="VariablesButton" Tag="variables" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
-                    <StackPanel HorizontalAlignment="Center" Spacing="5">
-                        <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                            <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconVariables}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Grid>
-                        <TextBlock
-                            x:Name="VariablesTextBlock"
-                            Width="72"
-                            FontSize="10"
-                            Text="Variables"
-                            TextAlignment="Center"
-                            TextTrimming="CharacterEllipsis"
-                            TextWrapping="NoWrap" />
-                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="12"><FontIcon x:Name="VariablesIcon" Style="{StaticResource AppIcon}" Glyph="{StaticResource IconVariables}" /><TextBlock x:Name="VariablesTextBlock" Text="Variables" FontSize="14" VerticalAlignment="Center" /></StackPanel>
                 </Button>
-
                 <Button x:Name="HistoryButton" Tag="history" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
-                    <StackPanel HorizontalAlignment="Center" Spacing="5">
-                        <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                            <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconHistory}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Grid>
-                        <TextBlock
-                            x:Name="HistoryTextBlock"
-                            Width="72"
-                            FontSize="10"
-                            Text="History"
-                            TextAlignment="Center"
-                            TextTrimming="CharacterEllipsis"
-                            TextWrapping="NoWrap" />
-                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="12"><FontIcon x:Name="HistoryIcon" Style="{StaticResource AppIcon}" Glyph="{StaticResource IconHistory}" /><TextBlock x:Name="HistoryTextBlock" Text="History" FontSize="14" VerticalAlignment="Center" /></StackPanel>
                 </Button>
-
                 <Button x:Name="QueueButton" Tag="queue" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
-                    <Grid>
-                        <StackPanel HorizontalAlignment="Center" Spacing="5">
-                            <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                                <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconQueue}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Grid>
-                            <TextBlock
-                                x:Name="QueueTextBlock"
-                                Width="72"
-                                FontSize="10"
-                                Text="Queue"
-                                TextAlignment="Center"
-                                TextTrimming="CharacterEllipsis"
-                                TextWrapping="NoWrap" />
-                        </StackPanel>
-
-                        <Border
-                            x:Name="QueueBadgeBorder"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Top"
-                            Margin="0,-4,-4,0"
-                            Padding="5,1"
-                            Background="{StaticResource AppPrimaryBrush}"
-                            CornerRadius="8"
-                            Visibility="Collapsed">
-                            <TextBlock
-                                x:Name="QueueBadgeTextBlock"
-                                FontSize="9"
-                                FontWeight="SemiBold"
-                                Foreground="{StaticResource AppBackgroundBrush}"
-                                Text="0" />
+                    <Grid x:Name="QueueIconGrid" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <FontIcon x:Name="QueueIcon" Style="{StaticResource AppIcon}" Glyph="{StaticResource IconQueue}" />
+                        <TextBlock x:Name="QueueTextBlock" Grid.Column="1" Text="Queue" FontSize="14" VerticalAlignment="Center" />
+                        <Border x:Name="QueueBadgeBorder" Grid.Column="2" Padding="5,1" Background="{StaticResource AppPrimaryBrush}" CornerRadius="6" Visibility="Collapsed">
+                            <TextBlock x:Name="QueueBadgeTextBlock" FontSize="10" FontWeight="SemiBold" Foreground="#FF0B1715" Text="0" />
                         </Border>
                     </Grid>
                 </Button>
             </StackPanel>
 
-            <Button Grid.Row="2" x:Name="SettingsButton" Tag="settings" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
-                <StackPanel HorizontalAlignment="Center" Spacing="5">
-                    <Grid Width="20" Height="20" HorizontalAlignment="Center">
-                        <FontIcon Style="{StaticResource AppIcon}" Glyph="{StaticResource IconSettings}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Grid>
-                    <TextBlock
-                        x:Name="SettingsTextBlock"
-                        Width="72"
-                        FontSize="10"
-                        Text="Settings"
-                        TextAlignment="Center"
-                        TextTrimming="CharacterEllipsis"
-                        TextWrapping="NoWrap" />
-                </StackPanel>
-            </Button>
+            <StackPanel Grid.Row="2" Spacing="6">
+                <Border x:Name="TargetStatusCard" Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,6">
+                    <TextBlock Text="{Binding TargetStatusText, ElementName=Root}" FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
+                </Border>
+                <Button x:Name="SettingsButton" Tag="settings" Click="NavButton_Click" Style="{StaticResource RailNavButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="12"><FontIcon x:Name="SettingsIcon" Style="{StaticResource AppIcon}" Glyph="{StaticResource IconSettings}" /><TextBlock x:Name="SettingsTextBlock" Text="Settings" FontSize="14" VerticalAlignment="Center" /></StackPanel>
+                </Button>
+                <Button x:Name="ToggleRailButton" Click="ToggleRail_Click" Style="{StaticResource RailNavButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="12"><FontIcon x:Name="ToggleRailIcon" Style="{StaticResource AppIcon}" Glyph="&#xE5CB;" /><TextBlock x:Name="ToggleRailTextBlock" FontSize="12" VerticalAlignment="Center" /></StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
     </Border>
 </UserControl>

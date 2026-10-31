@@ -14,7 +14,8 @@ internal sealed record SyncExecutionContext(
     StorageBinding Binding,
     ISourceProvider SourceProvider,
     IStorageProvider StorageProvider,
-    IReadOnlyList<ResolvedContentRoot> ContentRoots);
+    IReadOnlyList<ResolvedContentRoot> ContentRoots,
+    string ConfigurationFingerprint);
 
 internal sealed class ResolvedContentRoot(ContentItem contentItem, string localRootPath, bool treatAsDirectory, string storageKey)
 {

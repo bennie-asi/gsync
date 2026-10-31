@@ -15,6 +15,7 @@ public sealed partial class HistoryPage : Page
     public HistoryPage()
     {
         InitializeComponent();
+        ResponsiveSplitLayout.Attach(HistoryPanes, HistoryDetailPane, 1000, new GridLength(1, GridUnitType.Star), new GridLength(360));
         TryInitializePage();
     }
 
@@ -223,9 +224,7 @@ public sealed partial class HistoryPage : Page
         {
             XamlRoot = XamlRoot,
             Title = isChinese ? "恢复快照" : "Restore Snapshot",
-            Content = isChinese
-                ? $"将使用快照 {snapshotRow.Name}（{snapshotRow.Timestamp}）覆盖本地存档文件。是否继续？"
-                : $"Local save files will be overwritten with snapshot {snapshotRow.Name} ({snapshotRow.Timestamp}). Continue?",
+            Content = UiFormat.RestoreConfirmationText(_viewModel.DetailGameName, snapshotRow.Name, snapshotRow.Timestamp, snapshotRow.FileCount, isChinese),
             PrimaryButtonText = isChinese ? "恢复" : "Restore",
             CloseButtonText = isChinese ? "取消" : "Cancel",
             DefaultButton = ContentDialogButton.Close,

@@ -35,17 +35,18 @@
     </Page.Resources>
 
     <Grid>
-        <Grid x:Name="MainContentRoot" Padding="16" RowSpacing="12">
+        <Grid x:Name="MainContentRoot" Padding="{StaticResource AppPagePadding}" RowSpacing="14">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Grid ColumnSpacing="10">
+            <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
+            <Grid x:Name="VariableHeader" Grid.Row="1" ColumnSpacing="10" RowSpacing="8" SizeChanged="VariableHeader_SizeChanged">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
@@ -54,24 +55,26 @@
                     <primitives:FilterDropdown Width="150" ItemsSource="{Binding Filters}" Placeholder="{Binding ScopeFilterPlaceholder}" SelectedItem="{Binding SelectedScopeFilter, Mode=TwoWay}" />
                 </StackPanel>
 
-                <Button Grid.Column="1" Click="AddVariableButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                <StackPanel x:Name="VariableActions" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Click="AddVariableButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconAdd}" Text="{Binding AddVariableText}" />
                 </Button>
-                <Button Grid.Column="2" Click="TestTemplateButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                <Button Click="TestTemplateButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconTaskAlt}" Text="{Binding TestTemplateText}" />
                 </Button>
-                <Button Grid.Column="3" Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                <Button Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding RefreshText}" />
                 </Button>
+                </StackPanel>
             </Grid>
 
-            <Grid Grid.Row="1" ColumnSpacing="14">
+            <Grid x:Name="VariablePanes" Grid.Row="2" ColumnSpacing="14" RowSpacing="12">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="320" MinWidth="280" />
-                    <ColumnDefinition Width="*" MinWidth="520" />
+                    <ColumnDefinition Width="320" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
+                <Border x:Name="VariableListPane" Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -84,9 +87,9 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="Name" />
-                            <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="Value (Resolved)" />
-                            <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="Type" />
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding NameColumnText}" />
+                            <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ValueColumnText}" />
+                            <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TypeColumnText}" />
                         </Grid>
 
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
@@ -95,7 +98,7 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Column="1" Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
+                <Border x:Name="VariableDetailPane" Grid.Column="1" Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -104,7 +107,7 @@
                         </Grid.RowDefinitions>
 
                         <Grid Background="{StaticResource AppSurfaceAltBrush}" Padding="14,12">
-                            <StackPanel Spacing="6">
+                            <StackPanel x:Name="VariableDetailHeading" Spacing="6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Border Background="{StaticResource AppPrimaryBrush}" CornerRadius="6" Padding="8,3">
                                         <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppBackgroundBrush}" Text="{Binding VariableScopeText}" />
@@ -113,17 +116,18 @@
                                 </StackPanel>
                                 <TextBlock FontSize="22" FontWeight="SemiBold" Text="{Binding SelectedVariableName}" />
                             </StackPanel>
+                            <TextBlock x:Name="VariableEditorHeading" FontSize="18" FontWeight="SemiBold" Visibility="Collapsed" />
                         </Grid>
 
-                        <ScrollViewer Grid.Row="1" Padding="14" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                        <ScrollViewer x:Name="VariableDetailsScroll" Grid.Row="1" Padding="14" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
                             <StackPanel Spacing="16">
-                                <primitives:PropertySheet Title="Details">
+                                <primitives:PropertySheet Title="{Binding DetailsTitle}">
                                     <primitives:PropertySheet.PanelContent>
                                         <ItemsControl ItemTemplate="{StaticResource VariablePropertyTemplate}" ItemsSource="{Binding VariableProperties}" />
                                     </primitives:PropertySheet.PanelContent>
                                 </primitives:PropertySheet>
 
-                                <primitives:PropertySheet Title="{Binding PathTemplateTesterText}">
+                                <primitives:PropertySheet x:Name="TemplateTesterSheet" Title="{Binding PathTemplateTesterText}">
                                     <primitives:PropertySheet.PanelContent>
                                         <StackPanel Spacing="12">
                                             <StackPanel Spacing="5">
@@ -178,7 +182,11 @@
                             </StackPanel>
                         </ScrollViewer>
 
-                        <Border Grid.Row="2" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,1,0,0" Padding="14,10">
+                        <ScrollViewer x:Name="VariableEditorScroll" Grid.Row="1" Padding="14" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled" Visibility="Collapsed">
+                            <ContentPresenter x:Name="VariableEditorContent" />
+                        </ScrollViewer>
+
+                        <Border x:Name="VariableActionsFooter" Grid.Row="2" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,1,0,0" Padding="14,10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />

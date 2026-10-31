@@ -14,6 +14,7 @@ public sealed partial class QueuePage : Page
     public QueuePage()
     {
         InitializeComponent();
+        ResponsiveSplitLayout.Attach(QueuePanes, QueueDetailPane, 1000, new GridLength(1, GridUnitType.Star), new GridLength(360));
         Unloaded += QueuePage_Unloaded;
         TryInitializePage();
     }

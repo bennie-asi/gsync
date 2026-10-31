@@ -16,7 +16,7 @@ public partial class SyncTargetsPageViewModel : ObservableObject
     private readonly IEnumerable<IStorageProvider> _storageProviders;
     private readonly IGameInstanceRepository _gameInstanceRepository;
     private readonly IStorageBindingRepository _storageBindingRepository;
-    private readonly Dictionary<Guid, (bool Success, string? Error, DateTimeOffset CheckedAt)> _testResults = [];
+    private IReadOnlyDictionary<Guid, TargetConnectionCheck> _testResults => _syncTargetStore.GetConnectionChecks();
     private long _selectionVersion;
 
     private IReadOnlyList<SyncTargetRow> _allTargets = [];
@@ -89,7 +89,7 @@ public partial class SyncTargetsPageViewModel : ObservableObject
         _storageBindingRepository = storageBindingRepository;
 
         PageTitle = Pick("同步目标", "Sync Targets");
-        PageSubtitle = Pick("精炼后的桌面目标管理布局，保留固定详情面板与批量操作。", "Static desktop-refined target management layout with persistent detail panel and bulk actions.");
+        PageSubtitle = Pick("管理存档的保存位置，检查连接并查看绑定的游戏。", "Manage save destinations, check connections, and review linked games.");
         SearchPlaceholder = Pick("搜索目标", "Search targets");
         FilterPlaceholder = Pick("状态", "Status");
         RefreshText = Pick("刷新", "Refresh");
@@ -146,6 +146,9 @@ public partial class SyncTargetsPageViewModel : ObservableObject
 
     public string PageTitle { get; }
     public string PageSubtitle { get; }
+    public string CopyCodeText => Pick("复制错误代码", "Copy error code");
+    public string SetDefaultText => Pick("设为默认", "Set as default");
+    public bool CanSetSelectedDefault => SelectedTargetId is { } id && _syncTargetStore.GetDefault()?.Id != id;
     public string SearchPlaceholder { get; }
     public string FilterPlaceholder { get; }
     public string RefreshText { get; }
@@ -193,7 +196,8 @@ public partial class SyncTargetsPageViewModel : ObservableObject
 
             TargetsCountText = Pick($"目标 ({configs.Count})", $"Targets ({configs.Count})");
             TargetsFooterLeftText = Pick($"已配置 {configs.Count} 个", $"{configs.Count} configured");
-            var lastCheck = _testResults.Count > 0 ? _testResults.Values.Max(result => result.CheckedAt) : (DateTimeOffset?)null;
+            var checks = _testResults;
+            var lastCheck = checks.Count > 0 ? checks.Values.Max(result => result.CheckedAt) : (DateTimeOffset?)null;
             TargetsFooterRightText = Pick(
                 $"最近检查：{UiFormat.RelativeTime(lastCheck, true)}",
                 $"Last check: {UiFormat.RelativeTime(lastCheck, false)}");
@@ -224,6 +228,9 @@ public partial class SyncTargetsPageViewModel : ObservableObject
 
         var selectionVersion = Interlocked.Increment(ref _selectionVersion);
         SelectedTargetId = config.Id;
+        OnPropertyChanged(nameof(CanSetSelectedDefault));
+        _allTargets = _allTargets.Select(candidate => candidate with { IsSelected = candidate.TargetId == config.Id }).ToArray();
+        ApplyFilters();
         SelectedTargetName = config.Name;
         PaneTitle = Pick($"目标属性：{config.Name}", $"Target Properties: {config.Name}");
 
@@ -273,6 +280,14 @@ public partial class SyncTargetsPageViewModel : ObservableObject
         return success;
     }
 
+    public async Task SetSelectedDefaultAsync(CancellationToken cancellationToken = default)
+    {
+        if (SelectedTargetId is not { } id) return;
+        _syncTargetStore.SetDefault(id);
+        OnPropertyChanged(nameof(CanSetSelectedDefault));
+        await LoadAsync(cancellationToken: cancellationToken);
+    }
+
     public async Task RemoveSelectedAsync(CancellationToken cancellationToken = default)
     {
         if (SelectedTargetId is not { } id)
@@ -281,7 +296,6 @@ public partial class SyncTargetsPageViewModel : ObservableObject
         }
 
         _syncTargetStore.Remove(id);
-        _testResults.Remove(id);
         ClearSelection();
         await LoadAsync(testConnections: false, cancellationToken);
     }
@@ -340,24 +354,29 @@ public partial class SyncTargetsPageViewModel : ObservableObject
 
     private async Task<bool> TestTargetInternalAsync(SyncTargetConfig config, CancellationToken cancellationToken)
     {
+        var startedAt = DateTimeOffset.UtcNow;
         var provider = _storageProviders.FirstOrDefault(candidate =>
             string.Equals(candidate.ProviderId, config.ProviderId, StringComparison.OrdinalIgnoreCase));
         if (provider is null)
         {
-            _testResults[config.Id] = (false, Pick($"存储提供程序 '{config.ProviderId}' 未注册。", $"Storage provider '{config.ProviderId}' is not registered."), DateTimeOffset.Now);
+            _syncTargetStore.SetConnectionCheck(config, false, Pick($"存储提供程序 '{config.ProviderId}' 未注册。", $"Storage provider '{config.ProviderId}' is not registered."), startedAt);
             return false;
         }
 
         try
         {
             var result = await provider.TestConnectionAsync(_syncTargetStore.ResolveSettings(config.Settings), cancellationToken);
-            _testResults[config.Id] = (result.IsSuccess, result.ErrorMessage, DateTimeOffset.Now);
+            _syncTargetStore.SetConnectionCheck(config, result.IsSuccess, result.ErrorMessage, startedAt);
             return result.IsSuccess;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {
             Log.Error(exception, "Connection test threw for target {TargetName}.", config.Name);
-            _testResults[config.Id] = (false, exception.Message, DateTimeOffset.Now);
+            _syncTargetStore.SetConnectionCheck(config, false, exception.Message, startedAt);
             return false;
         }
     }
@@ -389,6 +408,7 @@ public partial class SyncTargetsPageViewModel : ObservableObject
     {
         Interlocked.Increment(ref _selectionVersion);
         SelectedTargetId = null;
+        OnPropertyChanged(nameof(CanSetSelectedDefault));
         SelectedTargetName = string.Empty;
         PaneTitle = string.Empty;
         SelectedTargetStatus = string.Empty;

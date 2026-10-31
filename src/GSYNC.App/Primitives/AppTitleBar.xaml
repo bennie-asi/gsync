@@ -5,7 +5,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Border Background="{StaticResource AppBackgroundBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="0,0,0,1" Opacity="0.85">
-        <Grid Height="48" Padding="16,0" ColumnSpacing="12">
+        <Grid Padding="16,0,150,0" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />

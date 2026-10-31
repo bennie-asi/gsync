@@ -18,6 +18,10 @@ public sealed class SyncJob
 
     public bool ProtectRemoteChanges { get; init; }
 
+    internal bool BindingCaptured { get; set; }
+    internal Guid? CapturedBindingId { get; set; }
+    internal DateTimeOffset? CapturedBindingUpdatedAtUtc { get; set; }
+
     public CancellationToken CancellationToken { get; init; }
 
     public IProgress<SyncProgress>? Progress { get; init; }

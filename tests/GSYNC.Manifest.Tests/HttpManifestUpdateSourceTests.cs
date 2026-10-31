@@ -22,6 +22,16 @@ public sealed class HttpManifestUpdateSourceTests
         await Assert.ThrowsAsync<InvalidDataException>(() => source.TryFetchLatestManifestAsync(CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Fetch_SurfacesHttpFailureInsteadOfReportingACompletedRefresh()
+    {
+        var handler = new Handler { Status = HttpStatusCode.Forbidden };
+        var source = new HttpManifestUpdateSource(new HttpClient(handler),
+            Microsoft.Extensions.Options.Options.Create(new ManifestOptions { RemoteManifestUrl = "https://example.test/catalog" }));
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() => source.TryFetchLatestManifestAsync(CancellationToken.None));
+        Assert.Equal(HttpStatusCode.Forbidden, error.StatusCode);
+    }
+
     private sealed class LiveOptions : IOptions<ManifestOptions>
     {
         public ManifestOptions Value { get; set; } = new();
@@ -30,12 +40,13 @@ public sealed class HttpManifestUpdateSourceTests
     {
         public List<string> Paths { get; } = new();
         public bool Oversized { get; set; }
+        public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Paths.Add(request.RequestUri!.AbsolutePath);
             var content = new StringContent("manifest");
             if (Oversized) content.Headers.ContentLength = 32 * 1024 * 1024 + 1;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+            return Task.FromResult(new HttpResponseMessage(Status) { Content = content });
         }
     }
 }

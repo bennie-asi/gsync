@@ -72,7 +72,7 @@ public partial class VariablesPageViewModel : ObservableObject
         _sourceProviders = sourceProviders;
 
         PageTitle = Pick("变量", "Variables");
-        PageSubtitle = Pick("精炼后的变量工作区，集中提供路径模板测试与显式覆盖优先级。", "Static refined variable workspace with path template testing and explicit override precedence.");
+        PageSubtitle = Pick("管理路径变量并测试路径模板。", "Manage path variables and test path templates.");
         SearchPlaceholder = Pick("搜索变量", "Search variables");
         ScopeFilterPlaceholder = Pick("全部范围", "All scopes");
         AddVariableText = Pick("添加变量", "Add Variable");
@@ -118,6 +118,9 @@ public partial class VariablesPageViewModel : ObservableObject
 
     public string PageTitle { get; }
     public string PageSubtitle { get; }
+    public string NameColumnText => Pick("名称", "Name");
+    public string ValueColumnText => Pick("解析值", "Resolved value");
+    public string TypeColumnText => Pick("类型", "Type");
     public string SearchPlaceholder { get; }
     public string ScopeFilterPlaceholder { get; }
     public string AddVariableText { get; }
@@ -256,6 +259,11 @@ public partial class VariablesPageViewModel : ObservableObject
         });
         Load();
     }
+
+    public bool UserVariableExists(string name) => _userVariablesStore.List()
+        .Any(variable => string.Equals(NormalizeName(variable.Name), NormalizeName(name), StringComparison.OrdinalIgnoreCase));
+
+    public string DetailsTitle => Pick("详情", "Details");
 
     public void DeleteSelectedUserVariable()
     {

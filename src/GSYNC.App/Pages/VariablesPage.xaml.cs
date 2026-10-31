@@ -10,11 +10,21 @@ namespace GSYNC.App.Pages;
 public sealed partial class VariablesPage : Page
 {
     private VariablesPageViewModel? _viewModel;
+    private bool _isEditingVariable;
 
     public VariablesPage()
     {
         InitializeComponent();
+        ResponsiveSplitLayout.Attach(VariablePanes, VariableDetailPane, 900, new GridLength(320), new GridLength(1, GridUnitType.Star));
         TryInitializePage();
+    }
+
+    private void VariableHeader_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var narrow = e.NewSize.Width < 760;
+        Grid.SetRow(VariableActions, narrow ? 1 : 0);
+        Grid.SetColumn(VariableActions, narrow ? 0 : 1);
+        Grid.SetColumnSpan(VariableActions, narrow ? 2 : 1);
     }
 
     private void TryInitializePage()
@@ -56,7 +66,7 @@ public sealed partial class VariablesPage : Page
 
     private void VariableRow_Tapped(object sender, TappedRoutedEventArgs e)
     {
-        if (_viewModel is not null && sender is FrameworkElement { DataContext: VariableRow row })
+        if (!_isEditingVariable && _viewModel is not null && sender is FrameworkElement { DataContext: VariableRow row })
         {
             _viewModel.SelectVariable(row);
         }
@@ -77,9 +87,9 @@ public sealed partial class VariablesPage : Page
         _viewModel?.TestTemplate(_viewModel.TemplateInput);
     }
 
-    private async void AddVariableButton_Click(object sender, RoutedEventArgs e)
+    private void AddVariableButton_Click(object sender, RoutedEventArgs e)
     {
-        await ShowVariableEditorAsync(isEdit: false);
+        if (!_isEditingVariable) ShowVariableEditor(isEdit: false);
     }
 
     private async void EditVariableButton_Click(object sender, RoutedEventArgs e)
@@ -99,12 +109,12 @@ public sealed partial class VariablesPage : Page
             return;
         }
 
-        await ShowVariableEditorAsync(isEdit: true);
+        if (!_isEditingVariable) ShowVariableEditor(isEdit: true);
     }
 
     private async void DeleteVariableButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_viewModel is null)
+        if (_viewModel is null || _isEditingVariable)
         {
             return;
         }
@@ -138,39 +148,12 @@ public sealed partial class VariablesPage : Page
         }
     }
 
-    private async void TestTemplateButton_Click(object sender, RoutedEventArgs e)
+    private void TestTemplateButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_viewModel is null)
-        {
-            return;
-        }
-
-        var isChinese = _viewModel.IsChinese;
-        var templateBox = new TextBox
-        {
-            Header = isChinese ? "模板字符串" : "Template String",
-            PlaceholderText = "%APPDATA%/MyGame/Saves",
-            Text = _viewModel.TemplateInput,
-            MinWidth = 380,
-        };
-
-        var dialog = DialogStyler.Apply(new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = isChinese ? "测试路径模板" : "Test Path Template",
-            Content = templateBox,
-            PrimaryButtonText = isChinese ? "解析" : "Resolve",
-            CloseButtonText = isChinese ? "取消" : "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-        });
-
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-        {
-            _viewModel.TestTemplate(templateBox.Text);
-        }
+        TemplateTesterSheet.StartBringIntoView();
     }
 
-    private async Task ShowVariableEditorAsync(bool isEdit)
+    private void ShowVariableEditor(bool isEdit)
     {
         if (_viewModel is null)
         {
@@ -212,35 +195,76 @@ public sealed partial class VariablesPage : Page
             Text = existing?.Description ?? string.Empty,
         };
 
-        var panel = new StackPanel { Spacing = 12, MinWidth = 380 };
+        var panel = new StackPanel { Spacing = 12, MaxWidth = 680, HorizontalAlignment = HorizontalAlignment.Stretch };
         panel.Children.Add(nameBox);
         panel.Children.Add(valueBox);
         panel.Children.Add(browsePathButton);
         panel.Children.Add(descriptionBox);
 
-        var dialog = DialogStyler.Apply(new ContentDialog
+        var validation = new TextBlock { Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AppWarningBrush"], TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+        panel.Children.Add(validation);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var save = new Button
         {
-            XamlRoot = XamlRoot,
-            Title = isEdit
-                ? (isChinese ? "编辑自定义变量" : "Edit Custom Variable")
-                : (isChinese ? "添加自定义变量" : "Add Custom Variable"),
-            Content = panel,
-            PrimaryButtonText = isChinese ? "保存" : "Save",
-            CloseButtonText = isChinese ? "取消" : "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-        });
-
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            Content = isChinese ? "保存变量" : "Save variable",
+            Style = (Style)Application.Current.Resources["PrimaryToolbarButtonStyle"],
+        };
+        var cancel = new Button { Content = isChinese ? "取消" : "Cancel", Style = (Style)Application.Current.Resources["SecondaryToolbarButtonStyle"] };
+        buttons.Children.Add(save);
+        buttons.Children.Add(cancel);
+        panel.Children.Add(buttons);
+        cancel.Click += (_, _) => CloseVariableEditor();
+        save.Click += (_, _) =>
         {
-            return;
-        }
+            var name = nameBox.Text.Trim().Trim('%').Trim();
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(valueBox.Text))
+            {
+                validation.Text = isChinese ? "请填写变量名和变量值。" : "Enter a variable name and value.";
+                validation.Visibility = Visibility.Visible;
+                return;
+            }
+            if (!isEdit && _viewModel.UserVariableExists(name))
+            {
+                validation.Text = isChinese ? "该自定义变量已存在，请选择后编辑。" : "This custom variable already exists; select it to edit.";
+                validation.Visibility = Visibility.Visible;
+                return;
+            }
+            try
+            {
+                _viewModel.SaveUserVariable(nameBox.Text, valueBox.Text.Trim(), descriptionBox.Text);
+                CloseVariableEditor();
+            }
+            catch (Exception exception)
+            {
+                Log.Error(exception, "Failed to save variable.");
+                validation.Text = (isChinese ? "保存失败：" : "Could not save: ") + exception.Message;
+                validation.Visibility = Visibility.Visible;
+            }
+        };
+        VariableEditorHeading.Text = isEdit ? (isChinese ? "编辑自定义变量" : "Edit custom variable") : (isChinese ? "添加自定义变量" : "Add custom variable");
+        VariableEditorContent.Content = panel;
+        VariableDetailHeading.Visibility = Visibility.Collapsed;
+        VariableEditorHeading.Visibility = Visibility.Visible;
+        VariableDetailsScroll.Visibility = Visibility.Collapsed;
+        VariableActionsFooter.Visibility = Visibility.Collapsed;
+        VariableEditorScroll.Visibility = Visibility.Visible;
+        _isEditingVariable = true;
+        VariableHeader.IsHitTestVisible = false;
+        VariableListPane.IsHitTestVisible = false;
+        VariableDetailPane.StartBringIntoView();
+    }
 
-        if (string.IsNullOrWhiteSpace(nameBox.Text) || string.IsNullOrWhiteSpace(valueBox.Text))
-        {
-            return;
-        }
-
-        _viewModel.SaveUserVariable(nameBox.Text, valueBox.Text.Trim(), descriptionBox.Text);
+    private void CloseVariableEditor()
+    {
+        VariableEditorContent.Content = null;
+        VariableDetailHeading.Visibility = Visibility.Visible;
+        VariableEditorHeading.Visibility = Visibility.Collapsed;
+        VariableDetailsScroll.Visibility = Visibility.Visible;
+        VariableActionsFooter.Visibility = Visibility.Visible;
+        VariableEditorScroll.Visibility = Visibility.Collapsed;
+        _isEditingVariable = false;
+        VariableHeader.IsHitTestVisible = true;
+        VariableListPane.IsHitTestVisible = true;
     }
 
     private async Task ShowInfoAsync(string title, string message)
