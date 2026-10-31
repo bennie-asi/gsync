@@ -48,7 +48,7 @@ internal sealed class SyncFileService(PathResolver pathResolver, SystemVariableP
                 var templates = item.PathTemplates.Select(path => path.Replace('\\', '/')).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 var selection = binding.ContentSelections.FirstOrDefault(value =>
                     string.Equals(value.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase));
-                return templates.Select(template =>
+                return templates.Where(template => selection?.IsTemplateEnabled(template) != false).Select(template =>
                 {
                     var effectiveTemplate = selection?.EffectiveTemplate(template) ?? template;
                     var resolved = _pathResolver.Resolve(effectiveTemplate, systemVariables, sourceVariables, instanceVariables, userVariables, userOverrides);
@@ -139,7 +139,8 @@ internal sealed class SyncFileService(PathResolver pathResolver, SystemVariableP
 
     internal static bool MatchesRoot(ResolvedContentRoot root, string relativePath)
     {
-        return (root.TreatAsDirectory || string.Equals(relativePath, Path.GetFileName(root.LocalRootPath), StringComparison.OrdinalIgnoreCase)) &&
+        // A single-file root can be moved or renamed locally; retain visibility of the old remote filename.
+        return (root.TreatAsDirectory || !relativePath.Contains('/')) &&
                (root.GlobPattern is null || PathGlob.IsMatch(root.GlobPattern, relativePath, includeDescendants: true)) &&
                MatchesPatterns(root.ContentItem, relativePath);
     }

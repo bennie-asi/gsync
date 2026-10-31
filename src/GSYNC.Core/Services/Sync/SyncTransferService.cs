@@ -9,7 +9,7 @@ using static GSYNC.Core.Services.Sync.SyncFileService;
 namespace GSYNC.Core.Services.Sync;
 
 internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryRepository history, SyncSnapshotService snapshots, Func<bool> autoSnapshot, string transactionDirectory,
-    Func<Guid, CancellationToken, Task<SyncExecutionContext>> freshContext)
+    Func<Guid, Guid?, CancellationToken, Task<SyncExecutionContext>> freshContext)
 {
     private readonly ISyncQueue _syncQueue = queue;
     private readonly ISyncHistoryRepository _syncHistoryRepository = history;
@@ -131,9 +131,11 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
         try
         {
             var remoteFileSets = new Dictionary<ResolvedContentRoot, IReadOnlyDictionary<string, RemoteFileEntry>>();
+            var localFileSets = new Dictionary<ResolvedContentRoot, IReadOnlyDictionary<string, ResolvedLocalFile>>();
             foreach (var root in context.ContentRoots)
             {
                 remoteFileSets[root] = await ListRemoteFilesAsync(context, root, cancellationToken);
+                localFileSets[root] = EnumerateLocalFiles(root).ToDictionary(file => file.RelativePath, StringComparer.OrdinalIgnoreCase);
             }
 
             var decisions = job.ConflictResolutionPlan.Decisions
@@ -154,6 +156,7 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
             }
 
             var localUploads = new List<ResolvedLocalFile>();
+            var remoteRemovals = new List<ResolvedLocalFile>();
             var uploadHashes = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             var originals = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             var downloadTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -161,10 +164,10 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
             {
                 if (!TryResolvePlanPath(context, remoteFileSets, decision.RelativePath, out var root, out var relative, out var remote))
                     throw new InvalidDataException($"Conflict path '{decision.RelativePath}' is not part of the selected content.");
+                localFileSets[root].TryGetValue(relative, out var localFile);
                 if (decision.VerifyComparedVersions)
                 {
-                    var localPath = ResolveTargetLocalPath(root, relative);
-                    var localHash = File.Exists(localPath) ? await ComputeFileHashAsync(localPath, cancellationToken) : null;
+                    var localHash = localFile is not null ? await ComputeFileHashAsync(localFile.AbsolutePath, cancellationToken) : null;
                     var remoteHash = remote?.Hash;
                     if (remote is not null && string.IsNullOrWhiteSpace(remoteHash))
                     {
@@ -177,10 +180,15 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
                 }
                 if (decision.Action == ConflictResolutionAction.KeepLocal)
                 {
-                    var file = EnumerateLocalFiles(root).FirstOrDefault(file => string.Equals(file.RelativePath, relative, StringComparison.OrdinalIgnoreCase))
-                        ?? throw new InvalidDataException($"Local conflict file '{relative}' no longer exists.");
+                    var file = localFile ?? throw new InvalidDataException($"Local conflict file '{relative}' no longer exists.");
                     localUploads.Add(file);
                     if (decision.VerifyComparedVersions) uploadHashes[file.AbsolutePath] = decision.ExpectedLocalHash;
+                }
+                else if (decision.Action == ConflictResolutionAction.RemoveRemote)
+                {
+                    if (!decision.VerifyComparedVersions || decision.ExpectedLocalHash is not null || decision.ExpectedRemoteHash is null || remote is null)
+                        throw new InvalidDataException("Only a compared remote-only file can be removed from the target.");
+                    remoteRemovals.Add(new ResolvedLocalFile(root.ContentItem, string.Empty, relative, default) { StorageKey = root.StorageKey });
                 }
                 else if (remote is null || !downloadTargets.Add(SafePath.GetPhysicalPath(ResolveTargetLocalPath(root, relative))))
                     throw new InvalidDataException($"Remote conflict file '{relative}' is missing or has a duplicate local target.");
@@ -191,7 +199,7 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
                 }
             }
             using var sources = await SyncUploadSourceSet.CaptureAsync(localUploads, uploadHashes, cancellationToken);
-            state.Snapshot = await _snapshots.BackupRemoteFilesAsync(context, localUploads, cancellationToken);
+            state.Snapshot = await _snapshots.BackupRemoteFilesAsync(context, localUploads.Concat(remoteRemovals).ToArray(), cancellationToken);
             await WriteRootDescriptorsAsync(context, localUploads, cancellationToken);
             var remoteOverwriteTargets = decisions
                 .Where(decision => decision.Action == ConflictResolutionAction.KeepRemote)
@@ -215,8 +223,7 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
                 {
                     case ConflictResolutionAction.KeepLocal:
                     {
-                        var localFile = EnumerateLocalFiles(root).FirstOrDefault(file => string.Equals(file.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase));
-                        if (localFile is null)
+                        if (!localFileSets[root].TryGetValue(relativePath, out var localFile))
                         {
                             throw new IOException($"Local conflict file '{relativePath}' no longer exists.");
                         }
@@ -240,6 +247,13 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
                             throw new InvalidOperationException("The downloaded save changed after comparison.");
                         break;
                     }
+                    case ConflictResolutionAction.RemoveRemote when remoteFile is not null:
+                        if ((root.TreatAsDirectory || string.Equals(Path.GetFileName(root.LocalRootPath), relativePath, StringComparison.OrdinalIgnoreCase)) &&
+                            File.Exists(ResolveTargetLocalPath(root, relativePath)))
+                            throw new InvalidOperationException("A local save appeared after comparison. Compare again before removing the remote file.");
+                        await context.StorageProvider.DeleteAsync(remoteFile.StoragePath, cancellationToken);
+                        state.Processed++;
+                        break;
                     default:
                         continue;
                 }
@@ -250,7 +264,7 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
             cancellationToken.ThrowIfCancellationRequested();
             if (job.ConflictResolutionPlan.ExpectedComparison is { } finalExpected)
             {
-                var currentContext = await freshContext(job.GameInstanceId, cancellationToken);
+                var currentContext = await freshContext(job.GameInstanceId, job.TargetId, cancellationToken);
                 await VerifyFullComparisonAsync(currentContext, finalExpected, cancellationToken);
             }
             await ((RemoteSaveSession)context.StorageProvider).CommitAsync(cancellationToken);

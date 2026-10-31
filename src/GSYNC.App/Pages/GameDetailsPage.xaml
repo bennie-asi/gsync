@@ -21,6 +21,8 @@
                             <Button Click="TestPathButton_Click" Content="{x:Bind TestPathText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                             <Button Click="SelectItemDetails_Click" Content="{x:Bind DetailsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                             <Button Click="EditContentPath_Click" Content="{x:Bind EditText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                            <Button Click="ToggleContentItem_Click" Content="{x:Bind ToggleText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                            <Button Click="RemoveContentItem_Click" Content="{x:Bind RemoveText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                         </StackPanel>
                     </ScrollViewer>
                 </StackPanel>
@@ -68,12 +70,25 @@
                             <TextBlock Text="{Binding SyncDestinationTitle}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
                             <Button Grid.Column="1" Click="ChangeDestination_Click" Content="{Binding ChangeDestinationText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                         </Grid>
-                        <TextBlock Text="{Binding ActiveTarget}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding CurrentTargetLocation}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-                        <StackPanel Spacing="3">
-                            <TextBlock Text="{Binding RemoteNamespaceText}" Foreground="{StaticResource AppTextDimBrush}" />
-                            <TextBlock Text="{Binding CurrentRemoteNamespace}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-                        </StackPanel>
+                        <Grid x:Name="DestinationOverview" ColumnSpacing="12" RowSpacing="10" SizeChanged="DestinationOverview_SizeChanged">
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="DestinationArrowColumn" Width="Auto" /><ColumnDefinition x:Name="DestinationTargetColumn" Width="*" /></Grid.ColumnDefinitions>
+                            <Border Padding="12" Background="{StaticResource AppSurfaceAltBrush}" CornerRadius="8">
+                                <StackPanel Spacing="6"><TextBlock Text="{Binding LocalDeviceLabel}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding LocalPathSummary}" TextWrapping="Wrap" Foreground="{StaticResource AppTextSecondaryBrush}" IsTextSelectionEnabled="True" /></StackPanel>
+                            </Border>
+                            <StackPanel x:Name="DestinationArrow" Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                                <TextBlock Text="→" HorizontalAlignment="Center" FontSize="20" Foreground="{StaticResource AppPrimaryBrush}" />
+                                <primitives:Badge Text="{Binding OverallStatusText}" Variant="{Binding OverallStatusVariant}" />
+                            </StackPanel>
+                            <Border x:Name="DestinationTargetCard" Grid.Column="2" Padding="12" Background="{StaticResource AppSurfaceAltBrush}" CornerRadius="8">
+                                <StackPanel Spacing="6"><TextBlock Text="{Binding TargetLabel}" Foreground="{StaticResource AppTextDimBrush}" />
+                                    <TextBlock Text="{Binding ActiveTarget}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding CurrentTargetLocation}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                    <TextBlock Text="{Binding CurrentRemoteNamespace}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                         <TextBlock x:Name="DestinationMessage" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel x:Name="DestinationEditor" Spacing="10" Visibility="Collapsed">
                             <TextBlock Text="{Binding DestinationHelp}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
@@ -145,7 +160,6 @@
                         <StackPanel Spacing="12">
                             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding SnapshotFeedTitle}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                <Button Grid.Column="1" Click="OpenSnapshotInfoButton_Click" Content="{Binding SnapshotsTabText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                             </Grid>
                             <primitives:SnapshotFeed ContentMaxHeight="190" ItemsSource="{Binding Snapshots}" ActionText="{Binding RestoreSnapshotText}" ActionInvoked="SnapshotFeed_ActionInvoked" />
                             <TextBlock Text="{Binding EmptySnapshotsText}" Foreground="{StaticResource AppTextSecondaryBrush}" Visibility="{Binding HasSnapshots, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}" />

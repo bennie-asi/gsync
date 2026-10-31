@@ -4,6 +4,7 @@ using GSYNC.App.ViewModels;
 using GSYNC.App.Infrastructure;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 using Serilog;
 
 namespace GSYNC.App.Pages;
@@ -28,25 +29,8 @@ public sealed partial class HistoryPage : Page
             _viewModel = App.GetService<HistoryPageViewModel>();
             DataContext = _viewModel;
 
-            HistoryTable.Columns =
-            [
-                new ResizableTableColumn { Key = "time", Header = _viewModel.IsChinese ? "时间" : "Time", BindingPath = nameof(HistoryRow.Time), Width = 112, MinWidth = 92 },
-                new ResizableTableColumn { Key = "game", Header = _viewModel.IsChinese ? "游戏" : "Game", BindingPath = nameof(HistoryRow.Game), Width = 180, MinWidth = 140, IsBold = true },
-                new ResizableTableColumn { Key = "direction", Header = _viewModel.IsChinese ? "方向" : "Direction", BindingPath = nameof(HistoryRow.Direction), Width = 110, MinWidth = 96 },
-                new ResizableTableColumn { Key = "result", Header = _viewModel.IsChinese ? "结果" : "Result", BindingPath = nameof(HistoryRow.Result), Width = 110, MinWidth = 90, CellTemplate = (DataTemplate)Resources["HistoryResultTemplate"] },
-                new ResizableTableColumn { Key = "target", Header = _viewModel.IsChinese ? "目标" : "Target", BindingPath = nameof(HistoryRow.Target), Width = 180, MinWidth = 130, IsFillColumn = true },
-                new ResizableTableColumn { Key = "source", Header = _viewModel.IsChinese ? "来源" : "Source", BindingPath = nameof(HistoryRow.Source), Width = 140, MinWidth = 120 },
-                new ResizableTableColumn { Key = "files", Header = _viewModel.IsChinese ? "文件" : "Files", BindingPath = nameof(HistoryRow.Files), Width = 92, MinWidth = 76 },
-            ];
-
-            HistoryTable.RowInvoked -= HistoryTable_RowInvoked;
-            HistoryTable.RowInvoked += HistoryTable_RowInvoked;
-            HistoryTable.RowDoubleInvoked -= HistoryTable_RowDoubleInvoked;
-            HistoryTable.RowDoubleInvoked += HistoryTable_RowDoubleInvoked;
-
             MainContentRoot.Visibility = Visibility.Visible;
             InitializationErrorPanel.Visibility = Visibility.Collapsed;
-            _ = _viewModel.LoadAsync();
             Log.Information("HistoryPage initialized successfully.");
         }
         catch (Exception exception)
@@ -70,28 +54,30 @@ public sealed partial class HistoryPage : Page
     private void RetryInitialization_Click(object sender, RoutedEventArgs e)
     {
         TryInitializePage();
+        if (_viewModel is not null) _ = _viewModel.LoadAsync();
     }
 
-    private void HistoryTable_RowInvoked(object? sender, object item)
+    protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
-        if (_viewModel is not null && item is HistoryRow row)
+        base.OnNavigatedTo(e);
+        if (_viewModel is null) return;
+        await _viewModel.LoadAsync();
+        if (e.Parameter is Guid gameId)
         {
-            _ = _viewModel.SelectRecordAsync(row);
+            _viewModel.FilterForGame(gameId);
+            if (_viewModel.Entries.FirstOrDefault() is { } first) await _viewModel.SelectRecordAsync(first);
         }
     }
 
-    private async void HistoryTable_RowDoubleInvoked(object? sender, object item)
+    private async void HistoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_viewModel is null || item is not HistoryRow row)
-        {
-            return;
-        }
+        if (_viewModel is not null && HistoryList.SelectedItem is HistoryRow row && !_viewModel.IsRecordSelected(row))
+            await _viewModel.SelectRecordAsync(row);
+    }
 
-        await _viewModel.SelectRecordAsync(row);
-        if (_viewModel.IsRecordSelected(row))
-        {
-            await ShowRecordDetailAsync(row);
-        }
+    private async void ViewRecordFiles_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel?.SelectedEntry is { } row) await ShowRecordDetailAsync(row);
     }
 
     private async Task ShowRecordDetailAsync(HistoryRow row)
@@ -127,7 +113,7 @@ public sealed partial class HistoryPage : Page
 
         var filesHeader = new TextBlock
         {
-            Text = isChinese ? $"同步文件（{files.Count}）" : $"Synced Files ({files.Count})",
+            Text = isChinese ? $"快照文件（{files.Count}）" : $"Snapshot files ({files.Count})",
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
         };
         panel.Children.Add(filesHeader);
@@ -137,8 +123,8 @@ public sealed partial class HistoryPage : Page
             panel.Children.Add(new TextBlock
             {
                 Text = isChinese
-                    ? "该记录未保留逐文件清单（仅在生成快照的操作中可用）。"
-                    : "No per-file list was retained for this record (available only for operations that captured a snapshot).",
+                    ? "该记录没有可用的关联快照。"
+                    : "No associated snapshot is available for this record.",
                 TextWrapping = TextWrapping.Wrap,
                 Opacity = 0.8,
             });
@@ -249,29 +235,20 @@ public sealed partial class HistoryPage : Page
         }
     }
 
-    private void OpenLogsButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenLogsButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             var logsDirectory = new GSYNC.Data.Services.AppPathService().GetLogsDirectory();
+            Directory.CreateDirectory(logsDirectory);
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{logsDirectory}\""));
         }
-        catch
+        catch (Exception exception)
         {
+            await DialogStyler.Apply(new ContentDialog { XamlRoot = XamlRoot,
+                Title = _viewModel?.IsChinese == true ? "无法打开日志目录" : "Cannot open log folder", Content = exception.Message,
+                CloseButtonText = _viewModel?.IsChinese == true ? "关闭" : "Close" }).ShowAsync();
         }
     }
 
-    private async void OpenHelpButton_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = DialogStyler.Apply(new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = _viewModel?.IsChinese == true ? "历史与快照说明" : "History & Snapshots Help",
-            Content = _viewModel?.IsChinese == true
-                ? "此页用于查看同步记录、恢复快照，以及排查历史同步问题。"
-                : "Use this page to review sync records, restore snapshots, and investigate previous sync issues.",
-            CloseButtonText = _viewModel?.IsChinese == true ? "关闭" : "Close",
-        });
-        await dialog.ShowAsync();
-    }
 }

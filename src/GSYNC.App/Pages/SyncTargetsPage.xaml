@@ -94,9 +94,6 @@
                 <Button Click="TestSelectedButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconTaskAlt}" Text="{Binding TestSelectedText}" />
                 </Button>
-                <Button Click="OpenHelpButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
-                    <primitives:IconText Glyph="{StaticResource IconHelp}" Text="{Binding HelpText}" />
-                </Button>
                 </StackPanel>
             </Grid>
 

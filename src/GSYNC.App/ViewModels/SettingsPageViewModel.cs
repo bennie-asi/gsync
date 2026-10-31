@@ -154,9 +154,31 @@ public partial class SettingsPageViewModel : ObservableObject
     public string DensityLabel { get; }
     public string AutoSnapshotLabel { get; }
     public string AutoPullLabel => Pick("安全自动拉取", "Safe automatic pull");
+    public string OnText => Pick("开", "On");
+    public string OffText => Pick("关", "Off");
+    public bool AutoPullEnabled
+    {
+        get => SelectedAutoPullOption?.Key == "on";
+        set => SelectedAutoPullOption = ToggleOptions.First(option => option.Key == (value ? "on" : "off"));
+    }
+    public bool AutoSnapshotEnabled
+    {
+        get => SelectedAutoSnapshotOption?.Key == "on";
+        set => SelectedAutoSnapshotOption = ToggleOptions.First(option => option.Key == (value ? "on" : "off"));
+    }
+    public bool RefreshManifestEnabled
+    {
+        get => SelectedRefreshManifestOption?.Key == "on";
+        set => SelectedRefreshManifestOption = ToggleOptions.First(option => option.Key == (value ? "on" : "off"));
+    }
+
+    partial void OnSelectedAutoPullOptionChanged(UiOption? value) => OnPropertyChanged(nameof(AutoPullEnabled));
+    partial void OnSelectedAutoSnapshotOptionChanged(UiOption? value) => OnPropertyChanged(nameof(AutoSnapshotEnabled));
+    partial void OnSelectedRefreshManifestOptionChanged(UiOption? value) => OnPropertyChanged(nameof(RefreshManifestEnabled));
+
     public string AutoPullDescription => Pick(
-        "默认关闭。开启后，应用运行时每分钟检查远端；仅当本地仍与已确认的共同版本一致时下载，并始终创建快照。请先关闭游戏，避免游戏内未写入磁盘的进度被覆盖。",
-        "Off by default. While the app is running, checks the remote every minute and downloads only when local files still match the confirmed common version; always creates a snapshot. Close the game first to protect progress not yet written to disk.");
+        "每分钟检查远端；仅在本地与已确认版本一致时拉取，并创建快照。请先关闭游戏。",
+        "Checks the target every minute and creates a snapshot before pulling changes when local files match the confirmed version. Close the game first.");
     public string AutoPullIdentityNote => Pick(
         "两台电脑需使用相同的游戏 ID、远端命名空间和内容项；不同来源的同名游戏不一定对应同一存档。首次关联、配置变更或双端改动时，请到游戏详情比较并确认基线。",
         "Both computers must use the same game ID, remote namespace, and content items; games with the same name from different sources may not share saves. On first connection, configuration changes, or changes on both sides, compare and confirm the baseline in game details.");
@@ -311,13 +333,6 @@ public partial class SettingsPageViewModel : ObservableObject
                 SelectedLogLevel?.Label ?? AppUiSettings.DefaultLogLevel,
                 "ready",
                 "logging"),
-            new UiSettingOption(
-                GamesTitle,
-                Pick("手动编辑游戏的名称、路径与变量", "Manually edit game names, paths, and variables"),
-                "G",
-                Pick($"{GameEntries.Count} 个游戏", $"{GameEntries.Count} game{(GameEntries.Count == 1 ? "" : "s")}"),
-                GameEntries.Count > 0 ? "ready" : "disabled",
-                "games"),
         ];
     }
 

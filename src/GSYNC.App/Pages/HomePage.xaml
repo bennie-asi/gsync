@@ -25,7 +25,20 @@
                                 <primitives:Badge Grid.Column="1" Text="{x:Bind SummaryStatus}" Variant="{x:Bind SummaryStatusVariant}" />
                             </Grid>
                             <TextBlock Text="{x:Bind Metadata}" Foreground="{StaticResource AppTextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{x:Bind PathDescription}" Foreground="{StaticResource AppTextDimBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind PathDescription}" />
+                            <Border Padding="10,8" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="6">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="{x:Bind LocalLabel}" Foreground="{StaticResource AppTextSecondaryBrush}" />
+                                        <TextBlock Text="{x:Bind SavePath}" Foreground="{StaticResource AppTextDimBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind PathDescription}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="→" Foreground="{StaticResource AppPrimaryBrush}" VerticalAlignment="Center" FontSize="18" />
+                                    <StackPanel Grid.Column="2" Spacing="2">
+                                        <TextBlock Text="{x:Bind Target}" Foreground="{StaticResource AppTextSecondaryBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Target}" />
+                                        <TextBlock Text="{x:Bind RemotePath}" Foreground="{StaticResource AppTextDimBrush}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind RemotePath}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
                         </StackPanel>
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <Button Click="OpenGameDetails_Click" Content="{x:Bind OpenLabel}" Style="{StaticResource SecondaryToolbarButtonStyle}" />

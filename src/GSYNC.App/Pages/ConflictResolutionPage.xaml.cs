@@ -50,24 +50,22 @@ public sealed partial class ConflictResolutionPage : Page
 
     private void KeepRemoteDecision_Click(object sender, RoutedEventArgs e) => SetDecision(sender, ConflictResolutionAction.KeepRemote);
 
+    private void RemoveRemoteDecision_Click(object sender, RoutedEventArgs e) => SetDecision(sender, ConflictResolutionAction.RemoveRemote);
+
     private void SkipDecision_Click(object sender, RoutedEventArgs e) => SetDecision(sender, ConflictResolutionAction.Skip);
+
+    private void SelectRemoteRemovals_Click(object sender, RoutedEventArgs e) => _viewModel.SelectRemoteOnlyForRemoval();
 
     private void SetDecision(object sender, ConflictResolutionAction action)
     {
         if (sender is MenuFlyoutItem { Tag: string filename }) _viewModel.SetAction(filename, action);
     }
 
-    private async void UseLocalButton_Click(object sender, RoutedEventArgs e)
-    {
-        _viewModel.SetAllActions(ConflictResolutionAction.KeepLocal);
-        await ResolveAsync();
-    }
+    private void UseLocalButton_Click(object sender, RoutedEventArgs e)
+        => _viewModel.SetAllActions(ConflictResolutionAction.KeepLocal);
 
-    private async void UseRemoteButton_Click(object sender, RoutedEventArgs e)
-    {
-        _viewModel.SetAllActions(ConflictResolutionAction.KeepRemote);
-        await ResolveAsync();
-    }
+    private void UseRemoteButton_Click(object sender, RoutedEventArgs e)
+        => _viewModel.SetAllActions(ConflictResolutionAction.KeepRemote);
 
     private async void ApplyRemoteDecisionsButton_Click(object sender, RoutedEventArgs e)
     {
@@ -84,8 +82,9 @@ public sealed partial class ConflictResolutionPage : Page
     {
         var local = _viewModel.ConflictFiles.Count(row => row.Action == ConflictResolutionAction.KeepLocal);
         var remote = _viewModel.ConflictFiles.Count(row => row.Action == ConflictResolutionAction.KeepRemote);
-        var remaining = _viewModel.ConflictFiles.Count - local - remote;
-        if (local + remote == 0)
+        var remove = _viewModel.ConflictFiles.Count(row => row.Action == ConflictResolutionAction.RemoveRemote);
+        var remaining = _viewModel.ConflictFiles.Count - local - remote - remove;
+        if (local + remote + remove == 0)
         {
             var nothing = DialogStyler.Apply(new ContentDialog
             {
@@ -100,8 +99,8 @@ public sealed partial class ConflictResolutionPage : Page
         if (!await ConfirmAsync(
             _viewModel.IsChinese ? "确认处理文件" : "Confirm file decisions",
             _viewModel.IsChinese
-                ? $"保留本地：{local} 个，将写入同步目标。\n保留远端：{remote} 个，将写入本地，覆盖前创建快照。\n暂不处理：{remaining} 个。"
-                : $"Keep local: {local} files will be written to the target.\nKeep remote: {remote} files will be written locally after a snapshot.\nUnchanged for now: {remaining} files.")) return;
+                ? $"保留本地：{local} 个，将写入同步目标。\n保留远端：{remote} 个，将写入本地。\n移除远端文件：{remove} 个，将先备份到本机快照。\n暂不处理：{remaining} 个。"
+                : $"Keep local: {local} files will be written to the target.\nKeep remote: {remote} files will be written locally.\nRemove remote-only files: {remove}, backed up to a local snapshot first.\nUnchanged for now: {remaining} files.")) return;
 
         var error = await _viewModel.ResolveAsync();
         var dialog = DialogStyler.Apply(new ContentDialog

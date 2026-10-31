@@ -26,6 +26,9 @@ public partial class LibraryPageViewModel : ObservableObject
     private IReadOnlyList<LibraryGameRow> _allGames = [];
     private bool _sortByNameAscending = true;
     private CancellationTokenSource? _statusRefreshCts;
+    private readonly object _statusGate = new();
+    private readonly List<Task> _statusTasks = [];
+    private long _loadVersion;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -151,6 +154,8 @@ public partial class LibraryPageViewModel : ObservableObject
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
+        StopStatusCheck();
+        var loadVersion = Interlocked.Read(ref _loadVersion);
         try
         {
             var instances = await _gameInstanceRepository.ListAsync(cancellationToken);
@@ -213,6 +218,9 @@ public partial class LibraryPageViewModel : ObservableObject
                     CompareLabel = CompareText,
                     SavePath = definition?.ContentItems.SelectMany(item => item.PathTemplates).FirstOrDefault() ?? Pick("未配置存档路径", "Save path not configured"),
                     PathLabel = Pick("路径模板", "Path template"),
+                    LocalLabel = Pick("本机", "Local"),
+                    RemoteLabel = Pick("同步目标", "Sync target"),
+                    RemotePath = binding?.RemoteNamespace ?? Pick("尚未配置", "Not configured"),
                     LastSyncLabel = Pick("上次同步", "Last sync"),
                     CoverUri = artwork.CoverUri ?? string.Empty,
                     LocalArtworkPath = artwork.LocalArtworkPath ?? string.Empty,
@@ -220,6 +228,7 @@ public partial class LibraryPageViewModel : ObservableObject
                 });
             }
 
+            if (loadVersion != Interlocked.Read(ref _loadVersion)) return;
             _allGames = rows.OrderBy(row => row.Name, StringComparer.OrdinalIgnoreCase).ToArray();
             ApplyFilters();
             IsEmptyState = rows.Count == 0;
@@ -248,19 +257,53 @@ public partial class LibraryPageViewModel : ObservableObject
             Activity = activityRecords
                 .Select((record, index) => new UiActivityItem(
                     DescribeActivityTitle(record, instanceNames),
-                    record.ErrorMessage ?? record.Summary ?? UiFormat.StatusText(record.Status, _isChinese),
+                    UiFormat.RecordMessage(record, _isChinese),
                     UiFormat.RelativeTime(record.CompletedAtUtc ?? record.StartedAtUtc, _isChinese),
                     UiFormat.StatusVariant(record.Status),
                     index == activityRecords.Length - 1))
                 .ToArray();
 
-            _statusRefreshCts?.Cancel();
-            _statusRefreshCts = new CancellationTokenSource();
-            _ = RefreshSyncStatusesAsync(comparableInstanceIds, _statusRefreshCts.Token);
+            var statusCancellation = new CancellationTokenSource();
+            lock (_statusGate)
+            {
+                if (loadVersion != Interlocked.Read(ref _loadVersion)) { statusCancellation.Dispose(); return; }
+                _statusRefreshCts = statusCancellation;
+                _statusTasks.RemoveAll(task => task.IsCompleted);
+                _statusTasks.Add(RefreshStatusTrackedAsync(comparableInstanceIds, statusCancellation));
+            }
         }
         catch (Exception exception)
         {
             Log.Error(exception, "Failed to load library page data.");
+        }
+    }
+
+    public void StopStatusCheck()
+    {
+        CancellationTokenSource? cancellation;
+        lock (_statusGate)
+        {
+            Interlocked.Increment(ref _loadVersion);
+            cancellation = Interlocked.Exchange(ref _statusRefreshCts, null);
+        }
+        try { cancellation?.Cancel(); } catch (ObjectDisposedException) { }
+    }
+
+    public async Task StopStatusCheckAsync()
+    {
+        StopStatusCheck();
+        Task[] tasks;
+        lock (_statusGate) tasks = _statusTasks.ToArray();
+        await Task.WhenAll(tasks);
+    }
+
+    private async Task RefreshStatusTrackedAsync(IReadOnlyList<Guid> instanceIds, CancellationTokenSource cancellation)
+    {
+        try { await RefreshSyncStatusesAsync(instanceIds, cancellation.Token); }
+        finally
+        {
+            Interlocked.CompareExchange(ref _statusRefreshCts, null, cancellation);
+            cancellation.Dispose();
         }
     }
 
@@ -600,6 +643,9 @@ public sealed record LibraryGameRow(
     public string CompareLabel { get; init; } = string.Empty;
     public string SavePath { get; init; } = string.Empty;
     public string PathLabel { get; init; } = string.Empty;
+    public string LocalLabel { get; init; } = string.Empty;
+    public string RemoteLabel { get; init; } = string.Empty;
+    public string RemotePath { get; init; } = string.Empty;
     public string LastSyncLabel { get; init; } = string.Empty;
     public string CoverUri { get; init; } = string.Empty;
     public string LocalArtworkPath { get; init; } = string.Empty;

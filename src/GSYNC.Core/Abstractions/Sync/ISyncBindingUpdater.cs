@@ -6,6 +6,9 @@ namespace GSYNC.Core.Abstractions.Sync;
 public interface ISyncBindingUpdater
 {
     Task UpdateBindingAsync(StorageBinding binding, Guid? expectedBindingId, DateTimeOffset? expectedUpdatedAtUtc, CancellationToken cancellationToken);
+
+    /// <summary>Runs a related configuration change while sync operations for this game are excluded.</summary>
+    Task RunConfigurationChangeAsync(Guid gameInstanceId, Func<CancellationToken, Task> change, CancellationToken cancellationToken);
 }
 
 public sealed class SyncBindingBusyException() : InvalidOperationException("Wait for this game's queued or running sync tasks before changing its destination.") { }

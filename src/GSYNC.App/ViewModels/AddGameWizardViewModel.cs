@@ -110,7 +110,7 @@ public partial class AddGameWizardViewModel : ObservableObject
         PageTitle = Pick("添加游戏", "Add Game");
         PageSubtitle = Pick("选择游戏和存档、设置同步目标，然后检查并完成。", "Choose a game and saves, set a sync target, then review and finish.");
         WizardRailTitle = Pick("配置流程", "Profile Flow");
-        WizardRailSubtitle = Pick("按六个步骤完成配置。", "Complete the setup in six steps.");
+        WizardRailSubtitle = Pick("按三个阶段完成配置。", "Complete setup in three stages.");
         Step2DetailsTitle = Pick("所选游戏详情", "Selected game details");
         Step4ReviewTitle = Pick("已解析路径检查", "Resolved path review");
         Step6ReadyTitle = Pick("准备添加游戏", "Ready to Add Game");
@@ -172,11 +172,24 @@ public partial class AddGameWizardViewModel : ObservableObject
         MakeStep(6, Pick("检查并完成", "Finish")),
     ];
     private WizardStepItem MakeStep(int index, string title) => new(index, title, CurrentStep == index, CurrentStep > index);
+    public IReadOnlyList<WizardStepItem> Stages =>
+    [
+        new(1, Pick("游戏与存档", "Game and saves"), CurrentStep <= 4, CurrentStep > 4),
+        new(2, Pick("同步目标", "Sync target"), CurrentStep == 5, CurrentStep > 5),
+        new(3, Pick("检查并完成", "Review and finish"), CurrentStep == 6, false),
+    ];
     public string ManageTargetsText => Pick("配置或测试目标", "Configure or test targets");
     private string _manualGameName = string.Empty;
     private string _manualSavePath = string.Empty;
     private string _manualProgramPath = string.Empty;
     private string _manualMatchMessage = string.Empty;
+    private string? _namespaceGameId;
+
+    [ObservableProperty]
+    private string _remoteNamespaceText = string.Empty;
+
+    public string RemoteNamespaceLabel => Pick("远端目录", "Remote directory");
+    public string RemoteNamespaceHelp => Pick("默认使用游戏资料名称；可改为英文目录。多台电脑同步同一存档时，目录必须一致。", "The default uses the game catalog name. You can enter an English directory; use the same directory on each computer.");
 
     public string ManualGameName
     {
@@ -244,14 +257,14 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     public string CurrentStepFooter => CurrentStep switch
     {
-        1 => Pick("步骤 1/6 · 选择来源后继续。", "Step 1/6 · Choose a source to continue."),
+        1 => Pick("选择来源后继续。", "Choose a source to continue."),
         2 => ShowNoResultsState
-            ? Pick("步骤 2/6 · 返回上一步或切换到手动配置。", "Step 2/6 · Go back or use manual setup.")
-            : Pick("步骤 2/6 · 确认选择的游戏。", "Step 2/6 · Confirm the selected game."),
-        3 => Pick("步骤 3/6 · 至少保留一个内容项。", "Step 3/6 · Keep at least one content item."),
-        4 => Pick("步骤 4/6 · 检查解析后的路径。", "Step 4/6 · Review the resolved paths."),
-        5 => Pick("步骤 5/6 · 选择同步目标。", "Step 5/6 · Choose a sync target."),
-        6 => Pick("步骤 6/6 · 检查配置后创建。", "Step 6/6 · Review and create the profile."),
+            ? Pick("返回上一步或切换到手动配置。", "Go back or use manual setup.")
+            : Pick("确认选择的游戏。", "Confirm the selected game."),
+        3 => Pick("至少保留一个内容项。", "Keep at least one content item."),
+        4 => Pick("检查解析后的路径。", "Review the resolved paths."),
+        5 => Pick("选择同步目标。", "Choose a sync target."),
+        6 => Pick("检查配置后创建。", "Review and create the profile."),
         _ => string.Empty,
     };
 
@@ -278,6 +291,7 @@ public partial class AddGameWizardViewModel : ObservableObject
 
         OnPropertyChanged(nameof(CurrentStepTitle));
         OnPropertyChanged(nameof(Steps));
+        OnPropertyChanged(nameof(Stages));
         OnPropertyChanged(nameof(CurrentStepDescription));
         OnPropertyChanged(nameof(CurrentStepFooter));
         OnPropertyChanged(nameof(IsStep1));
@@ -328,6 +342,7 @@ public partial class AddGameWizardViewModel : ObservableObject
             3 when _selectedContentIds.Count == 0 => Pick("至少保留一个启用的内容项。", "Keep at least one content item enabled."),
             4 when _pathValidationResults.Any(result => result.Severity == PathValidationSeverity.Blocking) => Pick("仍存在阻断性路径错误，请先修复后再继续。", "Blocking path validation errors remain. Fix them before continuing."),
             5 when SelectedTargetId is null => Pick("请先选择一个同步目标。", "Choose a sync target first."),
+            5 or 6 when !TryNormalizeRemoteNamespace(RemoteNamespaceText, out _) => Pick("远端目录必须是相对路径，不能包含空目录、.. 或保留目录。", "Enter a relative remote directory without empty segments, .., or reserved directories."),
             _ => null,
         };
     }
@@ -641,7 +656,7 @@ public partial class AddGameWizardViewModel : ObservableObject
             {
                 GameInstanceId = instance.Id,
                 StorageProviderId = target.ProviderId,
-                RemoteNamespace = GameIdentity.StorageNamespace(_selectedMatch.Definition.GameId),
+                RemoteNamespace = TryNormalizeRemoteNamespace(RemoteNamespaceText, out var normalizedNamespace) ? normalizedNamespace : throw new InvalidDataException("Invalid remote directory."),
                 Settings = bindingSettings,
                 ContentSelections = BuildContentSelections(),
             };
@@ -942,6 +957,11 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     private void BuildTargets()
     {
+        if (_selectedMatch is not null && !string.Equals(_namespaceGameId, _selectedMatch.Definition.GameId, StringComparison.OrdinalIgnoreCase))
+        {
+            _namespaceGameId = _selectedMatch.Definition.GameId;
+            RemoteNamespaceText = GameIdentity.NamedStorageNamespace(_selectedMatch.Definition.DisplayName, _selectedMatch.Definition.GameId);
+        }
         var configs = _syncTargetStore.List();
         SelectedTargetId ??= _syncTargetStore.GetDefault()?.Id;
 
@@ -977,8 +997,24 @@ public partial class AddGameWizardViewModel : ObservableObject
             new(Pick("启用内容项", "Enabled Content"), _selectedContentIds.Count.ToString()),
             new(Pick("路径预检", "Path Validation"), Pick($"{blockingCount} 个阻断 / {warningCount} 个警告", $"{blockingCount} blocking / {warningCount} warnings")),
             new(Pick("目标", "Target"), target?.Name ?? "--"),
-            new(Pick("远端命名空间", "Remote Namespace"), _selectedMatch is null ? "--" : GameIdentity.StorageNamespace(_selectedMatch.Definition.GameId)),
+            new(Pick("远端目录", "Remote directory"), RemoteNamespaceText),
         ];
+    }
+
+    private static bool TryNormalizeRemoteNamespace(string value, out string normalized)
+    {
+        normalized = string.Empty;
+        try
+        {
+            normalized = SafePath.ValidateRelative(value.Trim()).TrimEnd('/');
+            return normalized.Split('/').All(segment => !string.IsNullOrEmpty(segment) &&
+                !segment.Equals("__gsync_meta", StringComparison.OrdinalIgnoreCase) &&
+                !segment.Equals("__gsync_versions", StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception exception) when (exception is InvalidDataException or ArgumentException)
+        {
+            return false;
+        }
     }
 
     private GameContentDefinition CreateFallbackDefinition(DiscoveredGame game)

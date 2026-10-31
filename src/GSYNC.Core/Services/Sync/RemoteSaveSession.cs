@@ -21,6 +21,7 @@ public sealed class RemoteSaveSession : IStorageProvider
     private readonly bool _hasManifest;
     private readonly Dictionary<string, SaveFile> _files;
     private readonly Dictionary<string, SaveFile> _pending = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _removed = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _generation = Guid.NewGuid().ToString("N");
     private bool _committed;
 
@@ -85,6 +86,7 @@ public sealed class RemoteSaveSession : IStorageProvider
         // Providers may dispose the stream after sending; all metadata is captured first.
         await _storage.UploadAsync(blob, staged, cancellationToken);
         _pending[logical] = new SaveFile(logical, blob, size, hash, DateTimeOffset.UtcNow);
+        _removed.Remove(logical);
     }
 
     public Task<StorageDownloadResult> DownloadAsync(string remotePath, CancellationToken cancellationToken)
@@ -124,7 +126,7 @@ public sealed class RemoteSaveSession : IStorageProvider
     public async Task CommitAsync(CancellationToken cancellationToken)
     {
         if (_committed) throw new InvalidOperationException("This save generation was already committed.");
-        if (_pending.Count == 0) return;
+        if (_pending.Count == 0 && _removed.Count == 0) return;
         if (_hasManifest && string.IsNullOrWhiteSpace(_revision))
             throw new InvalidOperationException("The storage server did not supply a strong revision for the current save. Conditional commits are required.");
         if (!_hasManifest)
@@ -134,12 +136,13 @@ public sealed class RemoteSaveSession : IStorageProvider
             foreach (var entry in legacy.Where(entry => !entry.IsDirectory && !IsInternalBlob(entry.Path)))
             {
                 var logical = LogicalPath(entry.Path);
-                if (logical == "__gsync_meta/current.json" || logical == "__gsync_meta/current.json.lock" || _pending.ContainsKey(logical)) continue;
+                if (logical == "__gsync_meta/current.json" || logical == "__gsync_meta/current.json.lock" || _pending.ContainsKey(logical) || _removed.Contains(logical)) continue;
                 using var download = await _storage.DownloadAsync(entry.Path, cancellationToken);
                 await UploadAsync(entry.Path, download.Content, cancellationToken);
             }
         }
         var next = new Dictionary<string, SaveFile>(_files, StringComparer.OrdinalIgnoreCase);
+        foreach (var path in _removed) next.Remove(path);
         foreach (var pair in _pending) next[pair.Key] = pair.Value;
         if (next.Count > MaximumFiles) throw new InvalidDataException("The save contains too many files.");
         var bytes = JsonSerializer.SerializeToUtf8Bytes(new SaveManifest(1, _generation, next.Values.OrderBy(file => file.Path, StringComparer.Ordinal).ToArray()));
@@ -154,7 +157,17 @@ public sealed class RemoteSaveSession : IStorageProvider
     public Task<ConnectionResult> TestConnectionAsync(IReadOnlyDictionary<string, string> configuration, CancellationToken cancellationToken)
         => _storage.TestConnectionAsync(configuration, cancellationToken);
     public Task DeleteAsync(string remotePath, CancellationToken cancellationToken)
-        => throw new NotSupportedException("Committed save generations are immutable.");
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_committed) throw new InvalidOperationException("This save generation was already committed.");
+        var logical = LogicalPath(remotePath);
+        if (logical.StartsWith("__gsync_meta/", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Internal save metadata cannot be removed as a save file.");
+        if (_hasManifest && !_files.ContainsKey(logical)) throw new FileNotFoundException("The remote save no longer exists.");
+        _pending.Remove(logical);
+        _removed.Add(logical);
+        return Task.CompletedTask;
+    }
 
     private string LogicalPath(string remotePath)
     {

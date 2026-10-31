@@ -563,6 +563,43 @@ public sealed class SyncEngineExecutionTests
     }
 
     [Fact]
+    public async Task ChangedSaveHierarchyCanBeResolvedWithBackedUpRemoteRemovalAndUploadedAgain()
+    {
+        var fixture = new SyncEngineFixture();
+        var root = fixture.GameInstance.InstallDirectory!;
+        var original = Path.Combine(root, "old", "slot.sav");
+        Directory.CreateDirectory(Path.GetDirectoryName(original)!);
+        await File.WriteAllTextAsync(original, "previous-save");
+        using (var first = new CancellationTokenSource())
+            await RunQueuedJobAsync(fixture, new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Upload, ProtectRemoteChanges = true }, first);
+        var moved = Path.Combine(root, "new", "slot.sav");
+        Directory.CreateDirectory(Path.GetDirectoryName(moved)!);
+        File.Move(original, moved);
+        await File.WriteAllTextAsync(moved, "current-save");
+        var comparison = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Compare }, CancellationToken.None);
+        var oldEntry = Assert.Single(comparison.Entries, item => item.LocalHash is null && item.RemoteHash is not null);
+        var newEntry = Assert.Single(comparison.Entries, item => item.LocalHash is not null && item.RemoteHash is null);
+        await fixture.Engine.ResolveConflictsAsync(new ConflictResolutionPlan { GameInstanceId = fixture.GameInstance.Id,
+            ExpectedConfigurationFingerprint = comparison.ConfigurationFingerprint, Decisions = new[]
+            {
+                new ConflictResolutionDecision { RelativePath = oldEntry.RelativePath, Action = ConflictResolutionAction.RemoveRemote,
+                    VerifyComparedVersions = true, ExpectedLocalHash = oldEntry.LocalHash, ExpectedRemoteHash = oldEntry.RemoteHash },
+                new ConflictResolutionDecision { RelativePath = newEntry.RelativePath, Action = ConflictResolutionAction.KeepLocal,
+                    VerifyComparedVersions = true, ExpectedLocalHash = newEntry.LocalHash, ExpectedRemoteHash = newEntry.RemoteHash },
+            } }, CancellationToken.None);
+        var after = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Compare }, CancellationToken.None);
+        Assert.All(after.Entries, entry => Assert.Equal(SyncChangeKind.Unchanged, entry.ChangeKind));
+        var backup = Assert.Single(fixture.SyncHistoryRepository.Snapshots);
+        using (var retry = new CancellationTokenSource())
+            await RunQueuedJobAsync(fixture, new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Upload, ProtectRemoteChanges = true }, retry);
+        Assert.Equal(SyncJobStatus.Completed, fixture.SyncHistoryRepository.Records.Last().Status);
+        Assert.Equal("current-save", await File.ReadAllTextAsync(moved));
+        await fixture.Engine.RestoreSnapshotAsync(backup.Id, CancellationToken.None);
+        Assert.Equal("previous-save", await File.ReadAllTextAsync(original));
+        Assert.Equal("current-save", await File.ReadAllTextAsync(moved));
+    }
+
+    [Fact]
     public async Task ExplicitUpload_BacksUpOldRemoteVersionBeforeReplacement()
     {
         var fixture = new SyncEngineFixture();

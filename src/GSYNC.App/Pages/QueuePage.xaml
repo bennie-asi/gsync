@@ -6,179 +6,84 @@
     xmlns:primitives="using:GSYNC.App.Primitives"
     xmlns:vm="using:GSYNC.App.ViewModels">
     <Page.Resources>
-        <DataTemplate x:Key="QueueStatusTemplate" x:DataType="vm:QueueRow">
-            <primitives:Badge Text="{Binding Status}" Variant="{Binding StatusVariant}" />
+        <DataTemplate x:Key="ActiveJobTemplate" x:DataType="vm:QueueRow">
+            <Border Background="{StaticResource AppSurfaceRaisedBrush}" BorderBrush="{StaticResource AppPrimaryBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                <StackPanel Spacing="12">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding DisplayName}" FontSize="17" FontWeight="SemiBold" TextWrapping="WrapWholeWords" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <primitives:Badge Text="{Binding Direction}" Variant="ready" />
+                            <primitives:Badge Text="{Binding Status}" Variant="{Binding StatusVariant}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding EnqueuedText}" Foreground="{StaticResource AppTextSecondaryBrush}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding ProgressText}" Foreground="{StaticResource AppTextSecondaryBrush}" />
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercentage}" IsIndeterminate="{Binding IsProgressIndeterminate}" Foreground="{StaticResource AppPrimaryBrush}" />
+                    <TextBlock Text="{Binding CurrentFileText}" Foreground="{StaticResource AppTextDimBrush}" TextWrapping="WrapWholeWords" />
+                    <Button Content="{Binding ActionText}" Click="CancelJob_Click" HorizontalAlignment="Left" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                </StackPanel>
+            </Border>
         </DataTemplate>
-        <DataTemplate x:Key="QueueDetailRowTemplate" x:DataType="vm:UiPropertyRow">
-            <Grid Padding="0,4" ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock VerticalAlignment="Top" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
-                <TextBlock Grid.Column="1" FontFamily="Consolas" HorizontalAlignment="Right" TextAlignment="Right" Text="{x:Bind Value}" TextWrapping="WrapWholeWords" />
-            </Grid>
+        <DataTemplate x:Key="PendingJobTemplate" x:DataType="vm:QueueRow">
+            <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,8">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{Binding DisplayName}" FontSize="16" FontWeight="SemiBold" TextWrapping="WrapWholeWords" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <primitives:Badge Text="{Binding Direction}" Variant="ready" />
+                        <primitives:Badge Text="{Binding Status}" Variant="{Binding StatusVariant}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding EnqueuedText}" Foreground="{StaticResource AppTextSecondaryBrush}" />
+                    <Button Content="{Binding ActionText}" Click="RemoveJob_Click" HorizontalAlignment="Left" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                </StackPanel>
+            </Border>
         </DataTemplate>
     </Page.Resources>
 
     <Grid>
-        <Grid x:Name="MainContentRoot" Padding="{StaticResource AppPagePadding}" RowSpacing="12">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-
-            <Grid ColumnSpacing="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
+        <Grid x:Name="MainContentRoot" Padding="{StaticResource AppPagePadding}" RowSpacing="16">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
-
-                <Button Grid.Column="1" Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
-                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding RefreshButtonText}" />
-                </Button>
+                <Button Grid.Column="1" Content="{Binding HistoryText}" Click="GoToHistoryButton_Click" VerticalAlignment="Top" Style="{StaticResource SecondaryToolbarButtonStyle}" />
             </Grid>
-
-            <Grid x:Name="QueuePanes" Grid.Row="1" ColumnSpacing="14" RowSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="360" />
-                </Grid.ColumnDefinitions>
-
-                <Grid>
-                    <primitives:ResizableTableView
-                        x:Name="QueueTable"
-                        FooterText="{Binding SystemStatus}"
-                        ItemsSource="{Binding Jobs}"
-                        PersistedStateKey="queue-main-table"
-                        Subtitle="{Binding TableSubtitle}"
-                        Title="{Binding TableTitle}"
-                        Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}" />
-
-                    <Border
-                        Background="{StaticResource AppSurfaceBrush}"
-                        BorderBrush="{StaticResource AppDividerBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="20"
-                        Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <StackPanel Spacing="16">
-                            <primitives:InfoCallout Severity="Info" Title="{Binding EmptyStateTitle}" Message="{Binding EmptyStateMessage}" />
-                            <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding EmptyStateHint}" TextWrapping="WrapWholeWords" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Click="GoToLibraryButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
-                                    <primitives:IconText Glyph="{StaticResource IconLibrary}" Text="{Binding EmptyStateActionText}" />
-                                </Button>
-                                <Button Click="RefreshButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
-                                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding EmptyStateSecondaryActionText}" />
-                                </Button>
-                            </StackPanel>
-                            <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SystemStatus}" TextWrapping="WrapWholeWords" />
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                <StackPanel Spacing="18">
+                    <TextBlock Text="{Binding SystemStatus}" Foreground="{StaticResource AppTextSecondaryBrush}" />
+                    <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <TextBlock Text="{Binding QueueNote}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="WrapWholeWords" />
+                    </Border>
+                    <StackPanel Spacing="10" Visibility="{Binding HasActiveJobs, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="{Binding ActiveTitle}" FontSize="16" FontWeight="SemiBold" />
+                        <ItemsControl ItemsSource="{Binding ActiveJobs}" ItemTemplate="{StaticResource ActiveJobTemplate}" />
+                    </StackPanel>
+                    <StackPanel Spacing="10" Visibility="{Binding HasPendingJobs, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="{Binding PendingTitle}" FontSize="16" FontWeight="SemiBold" />
+                        <ItemsControl ItemsSource="{Binding PendingJobs}" ItemTemplate="{StaticResource PendingJobTemplate}" />
+                    </StackPanel>
+                    <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="{Binding EmptyTitle}" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding EmptyMessage}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="WrapWholeWords" />
+                            <Button Content="{Binding LibraryText}" Click="GoToLibraryButton_Click" HorizontalAlignment="Left" Style="{StaticResource PrimaryToolbarButtonStyle}" />
                         </StackPanel>
                     </Border>
-                </Grid>
-
-                <Border x:Name="QueueDetailPane" Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-
-                        <Grid Background="{StaticResource AppSurfaceBrush}" Padding="12,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding DetailTitle}" />
-                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding DetailSubtitle}" TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                            <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="6" Padding="8,4" Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <TextBlock FontFamily="Consolas" FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding SelectedJobIdText}" />
-                            </Border>
-                        </Grid>
-
-                        <ScrollViewer Grid.Row="1" Padding="12" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
-                            <Grid>
-                                <StackPanel Spacing="14" Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <primitives:PropertySheet Title="{Binding DetailSummaryTitle}">
-                                        <primitives:PropertySheet.PanelContent>
-                                            <StackPanel Spacing="10">
-                                                <StackPanel Spacing="4">
-                                                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding SelectedJob.DisplayName}" />
-                                                    <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding SelectedJob.CurrentFile}" TextWrapping="WrapWholeWords" />
-                                                    <primitives:Badge Text="{Binding SelectedJob.Status}" Variant="{Binding SelectedJob.StatusVariant}" />
-                                                </StackPanel>
-                                                <ItemsControl ItemTemplate="{StaticResource QueueDetailRowTemplate}" ItemsSource="{Binding JobDetails}" />
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <Button Click="CancelSelectedButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}" Visibility="{Binding SelectedJobIsActive, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <primitives:IconText Glyph="{StaticResource IconCancel}" GlyphSize="16" Text="{Binding CancelButtonText}" />
-                                                    </Button>
-                                                    <Button Click="RemoveSelectedButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" Visibility="{Binding SelectedJobIsPending, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <primitives:IconText Glyph="{StaticResource IconRemove}" GlyphSize="16" Text="{Binding RemoveButtonText}" />
-                                                    </Button>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </primitives:PropertySheet.PanelContent>
-                                    </primitives:PropertySheet>
-
-                                    <primitives:PropertySheet Title="{Binding ActivityTitle}">
-                                        <primitives:PropertySheet.PanelContent>
-                                            <StackPanel Spacing="10">
-                                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ActivitySubtitle}" TextWrapping="WrapWholeWords" />
-                                                <primitives:ActivityFeed ContentHeight="220" ItemsSource="{Binding JobActivity}" />
-                                            </StackPanel>
-                                        </primitives:PropertySheet.PanelContent>
-                                    </primitives:PropertySheet>
-                                </StackPanel>
-
-                                <StackPanel Spacing="14" Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}">
-                                    <primitives:InfoCallout Severity="Info" Title="{Binding EmptyInspectorTitle}" Message="{Binding EmptyInspectorMessage}" />
-                                </StackPanel>
-                            </Grid>
-                        </ScrollViewer>
-                    </Grid>
-                </Border>
-            </Grid>
-        </Grid>
-
-        <Border
-            x:Name="InitializationErrorPanel"
-            MaxWidth="720"
-            Padding="20"
-            HorizontalAlignment="Left"
-            VerticalAlignment="Top"
-            Background="{StaticResource AppSurfaceAltBrush}"
-            BorderBrush="{StaticResource AppDividerBrush}"
-            BorderThickness="1"
-            CornerRadius="12"
-            Visibility="Collapsed">
-            <StackPanel Spacing="16">
-                <primitives:InfoCallout
-                    Title="队列页加载失败"
-                    Message="Queue 页面初始化出现异常，应用仍可继续导航到其他页面。"
-                    Severity="Error" />
-
-                <StackPanel Spacing="6">
-                    <TextBlock
-                        x:Name="InitializationErrorTitle"
-                        FontSize="20"
-                        FontWeight="SemiBold"
-                        Text="Queue 初始化失败" />
-                    <TextBlock
-                        x:Name="InitializationErrorMessage"
-                        Foreground="{StaticResource AppTextSecondaryBrush}"
-                        TextWrapping="WrapWholeWords" />
+                    <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding HistoryTitle}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding HistoryNote}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="WrapWholeWords" />
+                            <Button Content="{Binding HistoryText}" Click="GoToHistoryButton_Click" HorizontalAlignment="Left" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-
-                <Button
-                    Click="RetryInitialization_Click"
-                    Style="{StaticResource PrimaryToolbarButtonStyle}">
-                    <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="重试加载" />
-                </Button>
+            </ScrollViewer>
+        </Grid>
+        <Border x:Name="InitializationErrorPanel" MaxWidth="720" Padding="20" HorizontalAlignment="Left" VerticalAlignment="Top"
+                Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="12" Visibility="Collapsed">
+            <StackPanel Spacing="16">
+                <primitives:InfoCallout Title="队列页加载失败" Message="请重试加载，或前往其他页面。" Severity="Error" />
+                <TextBlock x:Name="InitializationErrorMessage" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="WrapWholeWords" />
+                <Button Click="RetryInitialization_Click" Content="重试加载" Style="{StaticResource PrimaryToolbarButtonStyle}" />
             </StackPanel>
         </Border>
     </Grid>

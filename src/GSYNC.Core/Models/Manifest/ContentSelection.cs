@@ -10,6 +10,16 @@ public sealed class ContentSelection
     // change when two computers use different local save locations.
     public IReadOnlyDictionary<string, string> PathOverrides { get; init; } = new Dictionary<string, string>();
 
+    // Path-level choices retain the original template identity and do not modify shared definitions.
+    public IReadOnlyList<string> DisabledPathTemplates { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> RemovedPathTemplates { get; init; } = Array.Empty<string>();
+
+    public bool IsTemplateRemoved(string template) => ContainsTemplate(RemovedPathTemplates, template);
+    public bool IsTemplateEnabled(string template) => IsEnabled && !IsTemplateRemoved(template) && !ContainsTemplate(DisabledPathTemplates, template);
+
+    private static bool ContainsTemplate(IReadOnlyList<string>? templates, string template) =>
+        templates?.Any(value => string.Equals(value.Replace('\\', '/'), template.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)) == true;
+
     public string EffectiveTemplate(string originalTemplate)
     {
         var normalized = originalTemplate.Replace('\\', '/');

@@ -12,7 +12,8 @@ namespace GSYNC.Core.Services.Sync;
 internal sealed class SyncContextFactory(
     IGameInstanceRepository games, IStorageBindingRepository bindings, IManifestService manifests,
     IEnumerable<ISourceProvider> sources, IEnumerable<IStorageProvider> storage, SyncFileService files,
-    Func<StorageBinding, IReadOnlyDictionary<string, string>>? configuration)
+    Func<StorageBinding, IReadOnlyDictionary<string, string>>? configuration,
+    Func<StorageBinding, Guid, StorageBinding>? targetBinding = null)
 {
     private readonly IGameInstanceRepository _gameInstanceRepository = games;
     private readonly IStorageBindingRepository _storageBindingRepository = bindings;
@@ -21,13 +22,15 @@ internal sealed class SyncContextFactory(
     private readonly IEnumerable<IStorageProvider> _storageProviders = storage;
     private readonly SyncFileService _files = files;
     private readonly Func<StorageBinding, IReadOnlyDictionary<string, string>>? _storageConfigurationResolver = configuration;
-    internal async Task<SyncExecutionContext> BuildAsync(Guid gameInstanceId, CancellationToken cancellationToken, bool configureStorage = true)
+    internal async Task<SyncExecutionContext> BuildAsync(Guid gameInstanceId, CancellationToken cancellationToken, bool configureStorage = true, Guid? targetId = null)
     {
         var gameInstance = await _gameInstanceRepository.GetAsync(gameInstanceId, cancellationToken)
             ?? throw new InvalidOperationException($"Game instance '{gameInstanceId}' was not found.");
 
         var binding = (await _storageBindingRepository.ListByGameInstanceAsync(gameInstanceId, cancellationToken)).FirstOrDefault()
             ?? throw new InvalidOperationException($"No storage binding exists for game instance '{gameInstanceId}'.");
+        if (targetId is { } requestedTarget)
+            binding = targetBinding?.Invoke(binding, requestedTarget) ?? throw new InvalidOperationException("Selecting another sync target is not supported by this installation.");
 
         var definition = await _manifestService.GetDefinitionAsync(gameInstance.GameId, cancellationToken)
             ?? throw new InvalidOperationException($"No manifest definition exists for game '{gameInstance.GameId}'.");
@@ -94,10 +97,10 @@ internal sealed class SyncContextFactory(
             }).ToArray(),
         };
         var fingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(identity)));
-        var targetId = effectiveConfiguration.TryGetValue("targetId", out var rawTargetId) && Guid.TryParse(rawTargetId, out var parsedTargetId)
+        var resolvedTargetId = effectiveConfiguration.TryGetValue("targetId", out var rawTargetId) && Guid.TryParse(rawTargetId, out var parsedTargetId)
             ? parsedTargetId : (Guid?)null;
         effectiveConfiguration.TryGetValue("__gsyncHistoryTargetName", out var targetName);
-        return new SyncExecutionContext(gameInstance, binding, sourceProvider, storageProvider, resolvedContentRoots, fingerprint, targetId, targetName);
+        return new SyncExecutionContext(gameInstance, binding, sourceProvider, storageProvider, resolvedContentRoots, fingerprint, resolvedTargetId, targetName);
     }
 
 }

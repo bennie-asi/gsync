@@ -90,6 +90,16 @@ public sealed partial class GameDetailsPage : Page
         Grid.SetRow(SnapshotPanel, narrow ? 1 : 0);
     }
 
+    private void DestinationOverview_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var narrow = e.NewSize.Width < 700;
+        DestinationArrowColumn.Width = narrow ? new GridLength(0) : GridLength.Auto;
+        DestinationTargetColumn.Width = narrow ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        DestinationArrow.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        Grid.SetColumn(DestinationTargetCard, narrow ? 0 : 2);
+        Grid.SetRow(DestinationTargetCard, narrow ? 1 : 0);
+    }
+
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         _isCurrentPage = false;
@@ -151,17 +161,35 @@ public sealed partial class GameDetailsPage : Page
 
     private async void UploadButton_Click(object sender, RoutedEventArgs e)
     {
-        var error = await _viewModel.QueueSyncAsync(SyncDirection.Upload);
+        var targets = _viewModel.GetTargetOptions();
+        IReadOnlyList<Guid>? selected = null;
+        if (targets.Count > 1)
+        {
+            var panel = new StackPanel { Spacing = 8 };
+            panel.Children.Add(new TextBlock { Text = _viewModel.IsChinese ? "选择要上传的目标。每个目标独立检查远端差异。" : "Choose upload targets. Each target is checked independently for remote changes.", TextWrapping = TextWrapping.Wrap });
+            var checks = targets.Select(target => new CheckBox { Content = target.Label, Tag = target.Id, IsChecked = target.Id == _viewModel.CurrentTargetId }).ToArray();
+            foreach (var check in checks) panel.Children.Add(check);
+            var dialog = DialogStyler.Apply(new ContentDialog { XamlRoot = XamlRoot,
+                Title = _viewModel.IsChinese ? "选择同步目标" : "Choose sync targets", Content = new ScrollViewer { MaxHeight = 360, Content = panel },
+                PrimaryButtonText = _viewModel.IsChinese ? "上传" : "Upload", CloseButtonText = _viewModel.IsChinese ? "取消" : "Cancel",
+                DefaultButton = ContentDialogButton.Close });
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            selected = checks.Where(check => check.IsChecked == true).Select(check => (Guid)check.Tag).ToArray();
+            if (selected.Count == 0) { await ShowResultAsync(_viewModel.IsChinese ? "请选择至少一个目标。" : "Choose at least one target.", string.Empty, string.Empty); return; }
+        }
+        var error = await _viewModel.QueueSyncAsync(SyncDirection.Upload, targetIds: selected);
         await ShowQueueResultAsync(
             error,
             _viewModel.IsChinese ? "上传任务已加入队列" : "Upload queued",
             _viewModel.IsChinese
-                ? "本地存档将上传到当前同步目标；如发现远端差异，上传会停止，请先比较并处理。"
-                : "Local saves will be uploaded to the active target. If remote files differ, the upload stops so you can compare and resolve them.");
+                ? "每个目标的任务独立执行；如发现远端差异，该目标的上传会停止。"
+                : "Each target is processed separately. An upload stops if that target contains remote differences.");
     }
 
     private async void DownloadButton_Click(object sender, RoutedEventArgs e)
     {
+        var (proceed, targetId) = await SelectSingleTargetAsync();
+        if (!proceed) return;
         var autoSnapshot = App.GetService<UiSettingsStore>().Load().AutoSnapshotBeforeDownload;
         if (!await ConfirmAsync(
             _viewModel.IsChinese ? "下载远端存档" : "Download remote saves",
@@ -170,7 +198,7 @@ public sealed partial class GameDetailsPage : Page
             return;
         }
 
-        var error = await _viewModel.QueueSyncAsync(SyncDirection.Download);
+        var error = await _viewModel.QueueSyncAsync(SyncDirection.Download, targetIds: targetId is { } selected ? new[] { selected } : null);
         await ShowQueueResultAsync(
             error,
             _viewModel.IsChinese ? "下载任务已加入队列" : "Download queued",
@@ -181,7 +209,9 @@ public sealed partial class GameDetailsPage : Page
 
     private async void OpenConflictResolution_Click(object sender, RoutedEventArgs e)
     {
-        var (context, error) = await _viewModel.CompareAsync();
+        var (proceed, targetId) = await SelectSingleTargetAsync();
+        if (!proceed) return;
+        var (context, error) = await _viewModel.CompareAsync(targetId: targetId);
         if (error is not null)
         {
             await ShowResultAsync(error, string.Empty, string.Empty);
@@ -192,6 +222,22 @@ public sealed partial class GameDetailsPage : Page
         {
             Frame?.Navigate(typeof(ConflictResolutionPage), context);
         }
+    }
+
+    private async Task<(bool Proceed, Guid? TargetId)> SelectSingleTargetAsync()
+    {
+        var targets = _viewModel.GetTargetOptions();
+        if (targets.Count <= 1) return (true, null);
+        var choices = new ComboBox { ItemsSource = targets, DisplayMemberPath = nameof(GameTargetOption.Label), HorizontalAlignment = HorizontalAlignment.Stretch,
+            SelectedItem = targets.FirstOrDefault(target => target.Id == _viewModel.CurrentTargetId) };
+        var dialog = DialogStyler.Apply(new ContentDialog { XamlRoot = XamlRoot,
+            Title = _viewModel.IsChinese ? "选择同步目标" : "Choose a sync target", Content = choices,
+            PrimaryButtonText = _viewModel.IsChinese ? "继续" : "Continue", CloseButtonText = _viewModel.IsChinese ? "取消" : "Cancel",
+            DefaultButton = ContentDialogButton.Close });
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return (false, null);
+        if (choices.SelectedItem is GameTargetOption selected) return (true, selected.Id);
+        await ShowResultAsync(_viewModel.IsChinese ? "请选择一个目标。" : "Choose a target.", string.Empty, string.Empty);
+        return (false, null);
     }
 
     private async void RestoreButton_Click(object sender, RoutedEventArgs e)
@@ -226,12 +272,13 @@ public sealed partial class GameDetailsPage : Page
             _viewModel.IsChinese ? "本地文件已恢复到快照内容。" : "Local files were restored from the snapshot.");
     }
 
-    private void OpenFolderButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenFolderButton_Click(object sender, RoutedEventArgs e)
     {
         SelectItemForAction(sender);
         var path = _viewModel.SelectedContentItem?.ResolvedPath;
         if (string.IsNullOrWhiteSpace(path))
         {
+            await ShowResultAsync(_viewModel.IsChinese ? "尚未选择有效的存档路径。" : "No valid save path is selected.", string.Empty, string.Empty);
             return;
         }
 
@@ -241,11 +288,14 @@ public sealed partial class GameDetailsPage : Page
             if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
             {
                 Process.Start(new ProcessStartInfo("explorer.exe", $"\"{directory}\""));
+                return;
             }
+            await ShowResultAsync(_viewModel.IsChinese ? $"目录不存在：{path}" : $"Directory does not exist: {path}", string.Empty, string.Empty);
         }
         catch (Exception exception)
         {
             Log.Warning(exception, "Failed to open folder for {Path}.", path);
+            await ShowResultAsync((_viewModel.IsChinese ? "无法打开目录：" : "Cannot open directory: ") + exception.Message, string.Empty, string.Empty);
         }
     }
 
@@ -388,6 +438,24 @@ public sealed partial class GameDetailsPage : Page
         if (sender is FrameworkElement { DataContext: ContentItemRow row }) ShowContentEditor(row);
     }
 
+    private async void ToggleContentItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: ContentItemRow row }) return;
+        var error = await _viewModel.UpdateContentSelectionAsync(row, !row.Enabled, App.Current.LifetimeToken);
+        if (error is not null) await ShowResultAsync(error, _viewModel.IsChinese ? "无法修改内容项" : "Cannot change content item", string.Empty);
+        else if (_viewModel.InstanceId is { } id) _autoPull.NotifyDestinationChanged(id, _viewModel.Title);
+    }
+
+    private async void RemoveContentItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: ContentItemRow row }) return;
+        if (!await ConfirmAsync(_viewModel.IsChinese ? "移除内容项？" : "Remove content item?",
+            _viewModel.IsChinese ? $"将从此游戏的同步配置中移除 {row.Name}。本机和远端文件不会删除。" : $"Remove {row.Name} from this game's sync configuration. Local and remote files will remain.")) return;
+        var error = await _viewModel.UpdateContentSelectionAsync(row, null, App.Current.LifetimeToken);
+        if (error is not null) await ShowResultAsync(error, _viewModel.IsChinese ? "无法移除内容项" : "Cannot remove content item", string.Empty);
+        else if (_viewModel.InstanceId is { } id) _autoPull.NotifyDestinationChanged(id, _viewModel.Title);
+    }
+
     private void ShowContentEditor(ContentItemRow? existing)
     {
         if (GameEditor.Visibility == Visibility.Visible || ContentEditor.Visibility == Visibility.Visible || DestinationEditor.Visibility == Visibility.Visible) return;
@@ -517,20 +585,9 @@ public sealed partial class GameDetailsPage : Page
         GameEditor.Visibility = Visibility.Visible; GameEditor.StartBringIntoView(); name.Focus(FocusState.Programmatic);
     }
 
-    private async void OpenActivityInfoButton_Click(object sender, RoutedEventArgs e)
+    private void OpenActivityInfoButton_Click(object sender, RoutedEventArgs e)
     {
-        await ShowResultAsync(
-            null,
-            _viewModel.IsChinese ? "最近活动" : "Recent activity",
-            _viewModel.IsChinese ? "下方左侧面板展示该游戏的最近同步活动。" : "The lower-left panel shows recent sync activity for this game.");
-    }
-
-    private async void OpenSnapshotInfoButton_Click(object sender, RoutedEventArgs e)
-    {
-        await ShowResultAsync(
-            null,
-            _viewModel.IsChinese ? "快照列表" : "Snapshots",
-            _viewModel.IsChinese ? "下方右侧面板展示该游戏可恢复的快照。" : "The lower-right panel shows recoverable snapshots for this game.");
+        if (_viewModel.InstanceId is { } id) Frame?.Navigate(typeof(HistoryPage), id);
     }
 }
 

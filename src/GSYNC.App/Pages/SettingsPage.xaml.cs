@@ -66,16 +66,8 @@ public sealed partial class SettingsPage : Page
         var zh = _viewModel.IsChinese;
         if (!_autoPull.Enabled) { AutoPullStatusText.Text = zh ? "当前状态：已关闭" : "Current status: off"; return; }
         var statuses = _autoPull.Statuses;
-        AutoPullStatusText.Text = statuses.Count == 0 ? (zh ? "当前状态：等待检查" : "Current status: waiting to check") :
-            string.Join(Environment.NewLine, statuses.Select(status => string.IsNullOrWhiteSpace(status.GameName)
-                ? AutoPullStatusFormatter.Format(status, zh) : $"{status.GameName}: {AutoPullStatusFormatter.Format(status, zh)}"));
-    }
-
-    private void MainContentRoot_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        var showGroups = e.NewSize.Width >= 850;
-        SettingsGroupsColumn.Width = new GridLength(showGroups ? 280 : 0);
-        SettingsGroupsPane.Visibility = showGroups ? Visibility.Visible : Visibility.Collapsed;
+        AutoPullStatusText.Text = statuses.Count == 0 ? (zh ? "等待检查。" : "Waiting to check.") :
+            (zh ? $"已检查 {statuses.Count} 个游戏；具体状态请查看游戏详情。" : $"Checked {statuses.Count} games. See each game for its status.");
     }
 
     private void TryInitializePage()
@@ -90,7 +82,6 @@ public sealed partial class SettingsPage : Page
             InitializeDesktopFeatures();
             MainContentRoot.Visibility = Visibility.Visible;
             InitializationErrorPanel.Visibility = Visibility.Collapsed;
-            _ = _viewModel.LoadGamesAsync();
             Log.Information("SettingsPage initialized successfully.");
         }
         catch (Exception exception)
@@ -428,20 +419,6 @@ public sealed partial class SettingsPage : Page
         SettingsFeedback.Text = _viewModel.IsChinese ? "已取消未保存的修改。" : "Unsaved changes discarded.";
     }
 
-    private void SettingGroup_PointerEntered(object sender, PointerRoutedEventArgs e)
-    {
-        if (sender is not Border border) return;
-        border.Background = (Brush)Application.Current.Resources["AppSurfaceRaisedBrush"];
-        border.BorderBrush = (Brush)Application.Current.Resources["AppPrimaryBrush"];
-    }
-
-    private void SettingGroup_PointerExited(object sender, PointerRoutedEventArgs e)
-    {
-        if (sender is not Border border) return;
-        border.Background = (Brush)Application.Current.Resources["AppSurfaceAltBrush"];
-        border.BorderBrush = (Brush)Application.Current.Resources["AppDividerBrush"];
-    }
-
     private void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         if (_viewModel is null)
@@ -471,39 +448,6 @@ public sealed partial class SettingsPage : Page
         }
     }
 
-    private void GroupsListView_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is not UiSettingOption option)
-        {
-            return;
-        }
-
-        switch (option.SectionId)
-        {
-            case "appearance":
-                ThemeBehaviorSheet.StartBringIntoView();
-                break;
-            case "startup":
-                StartupSection.StartBringIntoView();
-                break;
-            case "updates":
-                UpdatesSection.StartBringIntoView();
-                break;
-            case "behavior":
-                BehaviorSection.StartBringIntoView();
-                break;
-            case "logging":
-                LoggingSection.StartBringIntoView();
-                break;
-            case "diagnostics":
-                DiagnosticsSection.StartBringIntoView();
-                break;
-            case "games":
-                GamesSection.StartBringIntoView();
-                break;
-        }
-    }
-
     private void OpenLogsDirButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -516,8 +460,9 @@ public sealed partial class SettingsPage : Page
 
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{logsDirectory}\""));
         }
-        catch
+        catch (Exception exception)
         {
+            SettingsFeedback.Text = (_viewModel?.IsChinese == true ? "无法打开日志目录：" : "Cannot open the logs directory: ") + exception.Message;
         }
     }
 
@@ -533,15 +478,10 @@ public sealed partial class SettingsPage : Page
 
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dataDirectory}\""));
         }
-        catch
+        catch (Exception exception)
         {
+            SettingsFeedback.Text = (_viewModel?.IsChinese == true ? "无法打开数据目录：" : "Cannot open the data directory: ") + exception.Message;
         }
-    }
-
-    private void GameEditButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { DataContext: UiGameMetaRow game })
-            Frame?.Navigate(typeof(GameDetailsPage), new GameDetailsEditContext(game.InstanceId));
     }
 
     private static void ApplyAppearance(AppUiSettings settings)

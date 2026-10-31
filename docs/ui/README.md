@@ -1,12 +1,6 @@
-# GSYNC UI References
+# GSYNC UI 资料
 
-This folder contains desktop UI design references.
-
-## Files
-- `prototype-inventory.md` — screen inventory and Stitch IDs
-- `implementation-notes.md` — component guidance
-- `github-updates-and-startup.md` — startup, notification area and application updates
-
-## Stitch references
-- Project ID: `13407775155513183369`
-- Design System: `assets/3772949807639653402`
+- [设计稿索引](prototype-inventory.md)：Stitch 项目和页面 ID。
+- [界面设计说明](apple-design-redesign.md)：布局、交互和验证要求。
+- [组件说明](implementation-notes.md)：界面组件约定。
+- [启动与更新](github-updates-and-startup.md)：自启、托盘和应用更新。

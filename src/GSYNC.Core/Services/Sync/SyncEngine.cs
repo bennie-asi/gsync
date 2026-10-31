@@ -21,6 +21,7 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
     private readonly SyncOperationRunner _operations;
     private readonly ApplicationTaskHost? _applicationTasks;
     private readonly SyncActivityGate _activity;
+    private readonly Func<StorageBinding, Guid, StorageBinding>? _targetBindingResolver;
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _gameLocks = new();
 
     public SyncEngine(
@@ -39,19 +40,21 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
         Func<StorageBinding, IReadOnlyDictionary<string, string>>? storageConfigurationResolver = null,
         Func<IReadOnlyDictionary<string, string>>? userVariablesProvider = null,
         ApplicationTaskHost? applicationTasks = null,
-        SyncActivityGate? activity = null)
+        SyncActivityGate? activity = null,
+        Func<StorageBinding, Guid, StorageBinding>? targetBindingResolver = null)
     {
         _queue = syncQueue;
         _bindings = storageBindingRepository;
         _history = syncHistoryRepository;
         _applicationTasks = applicationTasks;
         _activity = activity ?? new SyncActivityGate();
+        _targetBindingResolver = targetBindingResolver;
         var files = new SyncFileService(pathResolver, systemVariableProvider, userVariablesProvider);
         _contexts = new SyncContextFactory(gameInstanceRepository, storageBindingRepository, manifestService,
-            sourceProviders, storageProviders, files, storageConfigurationResolver);
+            sourceProviders, storageProviders, files, storageConfigurationResolver, targetBindingResolver);
         _snapshots = new SyncSnapshotService(appPathService, syncHistoryRepository);
         _transfers = new SyncTransferService(syncQueue, syncHistoryRepository, _snapshots, autoSnapshotBeforeDownloadEnabled ?? (() => true), Path.Combine(appPathService.GetAppDataRoot(), "transactions"),
-            (id, token) => _contexts.BuildAsync(id, token));
+            (id, target, token) => _contexts.BuildAsync(id, token, targetId: target));
         _operations = new SyncOperationRunner(syncHistoryRepository, logger);
     }
 
@@ -64,20 +67,33 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
         syncJob.BindingCaptured = true;
         syncJob.CapturedBindingId = binding?.Id;
         syncJob.CapturedBindingUpdatedAtUtc = binding?.UpdatedAtUtc;
+        if (syncJob.TargetId is { } selectedTarget && binding is not null)
+        {
+            var targetBinding = _targetBindingResolver?.Invoke(binding, selectedTarget)
+                ?? throw new InvalidOperationException("Selecting another sync target is not supported by this installation.");
+            targetBinding.Settings.TryGetValue("__gsyncTargetRevision", out var revision);
+            syncJob.CapturedTargetRevision = revision;
+        }
         await _queue.QueueAsync(syncJob, cancellationToken);
     }
 
     public Task UpdateBindingAsync(StorageBinding binding, Guid? expectedBindingId, DateTimeOffset? expectedUpdatedAtUtc, CancellationToken cancellationToken)
-        => TrackAsync(async token =>
+        => RunConfigurationChangeAsync(binding.GameInstanceId, async token =>
         {
-            if (HasQueuedJob(binding.GameInstanceId)) throw new SyncBindingBusyException();
-            using var lease = await LockGameAsync(binding.GameInstanceId, token);
-            if (HasQueuedJob(binding.GameInstanceId)) throw new SyncBindingBusyException();
             var current = (await _bindings.ListByGameInstanceAsync(binding.GameInstanceId, token)).FirstOrDefault();
             if (current?.Id != expectedBindingId || current?.UpdatedAtUtc != expectedUpdatedAtUtc ||
                 (current is not null && binding.Id != current.Id))
                 throw new SyncBindingChangedException();
             await _bindings.UpsertAsync(binding, token);
+        }, cancellationToken);
+
+    public Task RunConfigurationChangeAsync(Guid gameInstanceId, Func<CancellationToken, Task> change, CancellationToken cancellationToken)
+        => TrackAsync(async token =>
+        {
+            if (HasQueuedJob(gameInstanceId)) throw new SyncBindingBusyException();
+            using var lease = await LockGameAsync(gameInstanceId, token);
+            if (HasQueuedJob(gameInstanceId)) throw new SyncBindingBusyException();
+            await change(token);
         }, cancellationToken);
 
     private bool HasQueuedJob(Guid gameId) => _queue.ActiveJob?.GameInstanceId == gameId || _queue.PendingJobs.Any(job => job.GameInstanceId == gameId);
@@ -86,7 +102,7 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, syncJob.CancellationToken);
         using var lease = await LockGameAsync(syncJob.GameInstanceId, linked.Token);
-        return await SyncFileService.CompareContextAsync(await _contexts.BuildAsync(syncJob.GameInstanceId, linked.Token), linked.Token);
+        return await SyncFileService.CompareContextAsync(await _contexts.BuildAsync(syncJob.GameInstanceId, linked.Token, targetId: syncJob.TargetId), linked.Token);
     }, cancellationToken);
 
     public Task ResolveConflictsAsync(ConflictResolutionPlan plan, CancellationToken cancellationToken) => TrackAsync(token =>
@@ -130,9 +146,12 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
     private Task ExecuteAsync(SyncJob job, CancellationToken token) => _operations.RunAsync(job.GameInstanceId, job.Direction, async state =>
     {
         using var lease = await LockGameAsync(job.GameInstanceId, token);
-        var context = await _contexts.BuildAsync(job.GameInstanceId, token);
+        var context = await _contexts.BuildAsync(job.GameInstanceId, token, targetId: job.TargetId);
         if (job.BindingCaptured && (job.CapturedBindingId != context.Binding.Id || job.CapturedBindingUpdatedAtUtc != context.Binding.UpdatedAtUtc))
             throw new InvalidOperationException("The sync destination changed after this task was queued. Compare it again before syncing.");
+        if (job.BindingCaptured && job.TargetId is not null &&
+            (!context.Binding.Settings.TryGetValue("__gsyncTargetRevision", out var revision) || revision != job.CapturedTargetRevision))
+            throw new InvalidOperationException("The selected sync target changed after this task was queued. Review it before syncing.");
         state.TargetId = context.TargetId;
         state.TargetName = context.TargetName;
         state.RemoteNamespace = context.Binding.RemoteNamespace;

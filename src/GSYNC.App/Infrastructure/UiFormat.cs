@@ -7,6 +7,29 @@ namespace GSYNC.App.Infrastructure;
 /// </summary>
 public static class UiFormat
 {
+    public static string RecordError(SyncRecord record, bool isChinese)
+    {
+        var error = record.ErrorMessage;
+        if (string.IsNullOrWhiteSpace(error)) return string.Empty;
+        if (isChinese && error == "Remote saves differ or contain additional files. Compare the versions and choose which to keep before uploading.")
+            return "远端存档有差异或多余文件。请比较存档，选择保留的版本；旧目录文件可选择移除。";
+        return error;
+    }
+
+    public static string RecordSummary(SyncRecord record, bool isChinese)
+    {
+        if (!isChinese || string.IsNullOrWhiteSpace(record.Summary)) return record.Summary ?? "--";
+        if (record.Summary.StartsWith("Uploaded ", StringComparison.Ordinal)) return $"已上传 {record.ProcessedFiles} 个文件。";
+        if (record.Summary.StartsWith("Downloaded ", StringComparison.Ordinal)) return $"已下载 {record.ProcessedFiles} 个文件。";
+        if (record.Summary.StartsWith("Resolved ", StringComparison.Ordinal) && record.Summary.EndsWith(" conflict file decisions.", StringComparison.Ordinal))
+            return $"已处理 {record.ProcessedFiles} 个文件。";
+        if (record.Summary.StartsWith("Compared ", StringComparison.Ordinal)) return $"已比较 {record.ProcessedFiles} 个文件。";
+        return record.Summary;
+    }
+
+    public static string RecordMessage(SyncRecord record, bool isChinese) =>
+        string.IsNullOrWhiteSpace(record.ErrorMessage) ? RecordSummary(record, isChinese) : RecordError(record, isChinese);
+
     public static string RelativeTime(DateTimeOffset? timestampUtc, bool isChinese)
     {
         if (timestampUtc is null)

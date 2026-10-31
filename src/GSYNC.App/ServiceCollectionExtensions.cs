@@ -7,6 +7,7 @@ using GSYNC.Core.Abstractions;
 using GSYNC.Core.Abstractions.Data;
 using GSYNC.Core.Abstractions.Manifest;
 using GSYNC.Core.Abstractions.Sync;
+using GSYNC.Core.Models;
 using GSYNC.Core.Services;
 using GSYNC.Core.Services.Sync;
 using GSYNC.Core.Utilities;
@@ -148,7 +149,20 @@ public static class ServiceCollectionExtensions
                 },
                 () => sp.GetRequiredService<UserVariablesStore>().AsDictionary(),
                 sp.GetRequiredService<GSYNC.Core.Services.ApplicationTaskHost>(),
-                sp.GetRequiredService<SyncActivityGate>());
+                sp.GetRequiredService<SyncActivityGate>(),
+                (binding, targetId) =>
+                {
+                    var target = sp.GetRequiredService<SyncTargetStore>().Get(targetId)
+                        ?? throw new InvalidOperationException("The selected sync target no longer exists.");
+                    var settings = new Dictionary<string, string>(binding.Settings, StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["targetId"] = target.Id.ToString("D"), ["targetName"] = target.Name,
+                        ["__gsyncTargetRevision"] = target.UpdatedAtUtc.ToUniversalTime().ToString("O"),
+                    };
+                    return new StorageBinding { Id = binding.Id, GameInstanceId = binding.GameInstanceId,
+                        StorageProviderId = target.ProviderId, RemoteNamespace = binding.RemoteNamespace, Settings = settings,
+                        ContentSelections = binding.ContentSelections, CreatedAtUtc = binding.CreatedAtUtc, UpdatedAtUtc = binding.UpdatedAtUtc };
+                });
         });
         services.AddSingleton<ISyncEngine>(sp => sp.GetRequiredService<SyncEngine>());
         services.AddSingleton<ISyncBindingUpdater>(sp => sp.GetRequiredService<SyncEngine>());

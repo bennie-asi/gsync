@@ -6,63 +6,6 @@
     xmlns:primitives="using:GSYNC.App.Primitives"
     xmlns:vm="using:GSYNC.App.ViewModels">
     <Page.Resources>
-        <DataTemplate x:Key="GameMetaRowTemplate" x:DataType="vm:UiGameMetaRow">
-            <Border
-                Margin="0,0,0,6"
-                Background="{StaticResource AppSurfaceAltBrush}"
-                BorderBrush="{StaticResource AppDividerBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="12,10">
-                <Grid ColumnSpacing="10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Spacing="2" VerticalAlignment="Center">
-                        <TextBlock FontWeight="SemiBold" Text="{x:Bind DisplayName}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock
-                            FontSize="13"
-                            Foreground="{StaticResource AppTextSecondaryBrush}"
-                            Text="{x:Bind InstallDirectoryDisplay}"
-                            TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <primitives:Badge Grid.Column="1" Text="{x:Bind SourceLabel}" VerticalAlignment="Center" />
-                    <Button
-                        Grid.Column="2"
-                        Click="GameEditButton_Click"
-                        Style="{StaticResource SecondaryToolbarButtonStyle}"
-                        VerticalAlignment="Center">
-                        <primitives:IconText Glyph="{StaticResource IconEdit}" GlyphSize="16" Text="{x:Bind EditButtonText}" />
-                    </Button>
-                </Grid>
-            </Border>
-        </DataTemplate>
-
-        <DataTemplate x:Key="SettingGroupTemplate" x:DataType="vm:UiSettingOption">
-            <Border Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="12" PointerEntered="SettingGroup_PointerEntered" PointerExited="SettingGroup_PointerExited" PointerCanceled="SettingGroup_PointerExited">
-                <Grid ColumnSpacing="10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <Border Width="28" Height="28" Background="{StaticResource AppSurfaceRaisedBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" VerticalAlignment="Top">
-                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Text="{x:Bind KeyLabel}" />
-                    </Border>
-
-                    <StackPanel Grid.Column="1" Spacing="4">
-                        <TextBlock FontWeight="SemiBold" Text="{x:Bind Title}" />
-                        <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Summary}" TextWrapping="WrapWholeWords" />
-                        <primitives:Badge Text="{x:Bind Status}" Variant="{x:Bind Variant}" HorizontalAlignment="Left" />
-                    </StackPanel>
-
-                    <FontIcon Grid.Column="2" Style="{StaticResource AppIcon}" FontSize="16" Glyph="{StaticResource IconChevronRight}" Foreground="{StaticResource AppTextSecondaryBrush}" VerticalAlignment="Top" />
-                </Grid>
-            </Border>
-        </DataTemplate>
         <DataTemplate x:Key="SettingsPropertyTemplate" x:DataType="vm:UiPropertyRow">
             <Grid Padding="0,2">
                 <Grid.ColumnDefinitions>
@@ -76,71 +19,63 @@
     </Page.Resources>
 
     <Grid>
-        <Grid x:Name="MainContentRoot" Padding="{StaticResource AppPagePadding}" ColumnSpacing="16" RowSpacing="14" SizeChanged="MainContentRoot_SizeChanged">
+        <Grid x:Name="MainContentRoot" Padding="{StaticResource AppPagePadding}" RowSpacing="14">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="SettingsGroupsColumn" Width="280" />
-                <ColumnDefinition Width="1.5*" />
-            </Grid.ColumnDefinitions>
+            <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
 
-            <primitives:SectionHeader Grid.ColumnSpan="2" Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
-
-            <ScrollViewer x:Name="SettingsGroupsPane" Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
-                <primitives:PropertySheet Title="{Binding GroupNavTitle}">
-                    <primitives:PropertySheet.PanelContent>
-                        <StackPanel Spacing="12">
-                            <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding GroupNavSubtitle}" TextWrapping="WrapWholeWords" />
-                            <ListView
-                                x:Name="GroupsListView"
-                                IsItemClickEnabled="True"
-                                ItemClick="GroupsListView_ItemClick"
-                                ItemsSource="{Binding Groups}"
-                                ItemTemplate="{StaticResource SettingGroupTemplate}"
-                                SelectionMode="None">
-                                <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem">
-                                        <Setter Property="Padding" Value="0" />
-                                        <Setter Property="Margin" Value="0,0,0,4" />
-                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                    </Style>
-                                </ListView.ItemContainerStyle>
-                                <ListView.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Spacing="8" />
-                                    </ItemsPanelTemplate>
-                                </ListView.ItemsPanel>
-                            </ListView>
-                        </StackPanel>
-                    </primitives:PropertySheet.PanelContent>
-                </primitives:PropertySheet>
-            </ScrollViewer>
-
-            <ScrollViewer x:Name="CenterScrollViewer" Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
-                <StackPanel Spacing="16">
-                    <primitives:SectionHeader x:Name="AppearanceHeader" Title="{Binding AppearanceTitle}" Subtitle="{Binding AppearanceSubtitle}" />
+            <ScrollViewer x:Name="CenterScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+                <StackPanel MaxWidth="1180" HorizontalAlignment="Stretch" Spacing="16">
 
                     <primitives:PropertySheet x:Name="ThemeBehaviorSheet" Title="Theme and system behavior">
                         <primitives:PropertySheet.PanelContent>
                             <StackPanel Spacing="14">
-                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding ThemeBehaviorSubtitle}" TextWrapping="WrapWholeWords" />
+                                <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding LanguageLabel}" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding SupportedLanguages}" SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
+                                </Grid>
+                                <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding ThemeModeLabel}" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedThemeMode, Mode=TwoWay}" />
+                                </Grid>
+                                <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding DensityLabel}" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding DensityOptions}" SelectedItem="{Binding SelectedDensityMode, Mode=TwoWay}" />
+                                </Grid>
+                            </StackPanel>
+                        </primitives:PropertySheet.PanelContent>
+                    </primitives:PropertySheet>
+
+                    <primitives:PropertySheet x:Name="BehaviorSection" Title="{Binding BehaviorTitle}">
+                        <primitives:PropertySheet.PanelContent>
+                            <StackPanel Spacing="14">
+                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding BehaviorSubtitle}" TextWrapping="WrapWholeWords" />
+
+                                <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="4"><TextBlock Text="{Binding AutoPullLabel}" FontWeight="SemiBold" />
+                                        <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding AutoPullDescription}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="AutoPullStatusText" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="1" IsOn="{Binding AutoPullEnabled, Mode=TwoWay}" OnContent="{Binding OnText}" OffContent="{Binding OffText}" VerticalAlignment="Center" />
+                                </Grid>
+                                <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding AutoSnapshotLabel}" VerticalAlignment="Center" />
+                                    <ToggleSwitch Grid.Column="1" IsOn="{Binding AutoSnapshotEnabled, Mode=TwoWay}" OnContent="{Binding OnText}" OffContent="{Binding OffText}" />
+                                </Grid>
+                                <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding RefreshManifestLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <ToggleSwitch Grid.Column="1" IsOn="{Binding RefreshManifestEnabled, Mode=TwoWay}" OnContent="{Binding OnText}" OffContent="{Binding OffText}" />
+                                </Grid>
 
                                 <StackPanel Spacing="6">
-                                    <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding LanguageLabel}" />
-                                    <ComboBox ItemsSource="{Binding SupportedLanguages}" SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
-                                </StackPanel>
-
-                                <StackPanel Spacing="6">
-                                    <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ThemeModeLabel}" />
-                                    <ComboBox ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedThemeMode, Mode=TwoWay}" />
-                                </StackPanel>
-
-                                <StackPanel Spacing="6">
-                                    <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding DensityLabel}" />
-                                    <ComboBox ItemsSource="{Binding DensityOptions}" SelectedItem="{Binding SelectedDensityMode, Mode=TwoWay}" />
+                                    <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ManifestSourceUrlLabel}" />
+                                    <TextBox
+                                        PlaceholderText="{Binding ManifestSourceUrlPlaceholder}"
+                                        Text="{Binding ManifestSourceUrlText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        HorizontalAlignment="Stretch" />
                                 </StackPanel>
                             </StackPanel>
                         </primitives:PropertySheet.PanelContent>
@@ -186,40 +121,6 @@
                         </primitives:PropertySheet.PanelContent>
                     </primitives:PropertySheet>
 
-                    <primitives:PropertySheet x:Name="BehaviorSection" Title="{Binding BehaviorTitle}">
-                        <primitives:PropertySheet.PanelContent>
-                            <StackPanel Spacing="14">
-                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding BehaviorSubtitle}" TextWrapping="WrapWholeWords" />
-
-                                <StackPanel Spacing="6">
-                                    <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding AutoPullLabel}" />
-                                    <ComboBox ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding SelectedAutoPullOption, Mode=TwoWay}" />
-                                    <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding AutoPullDescription}" TextWrapping="WrapWholeWords" />
-                                    <TextBlock Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding AutoPullIdentityNote}" TextWrapping="WrapWholeWords" />
-                                    <TextBlock x:Name="AutoPullStatusText" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="WrapWholeWords" />
-                                </StackPanel>
-
-                                <StackPanel Spacing="6">
-                                    <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding AutoSnapshotLabel}" />
-                                    <ComboBox ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding SelectedAutoSnapshotOption, Mode=TwoWay}" />
-                                </StackPanel>
-
-                                <StackPanel Spacing="6">
-                                    <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding RefreshManifestLabel}" />
-                                    <ComboBox ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding SelectedRefreshManifestOption, Mode=TwoWay}" />
-                                </StackPanel>
-
-                                <StackPanel Spacing="6">
-                                    <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ManifestSourceUrlLabel}" />
-                                    <TextBox
-                                        PlaceholderText="{Binding ManifestSourceUrlPlaceholder}"
-                                        Text="{Binding ManifestSourceUrlText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        HorizontalAlignment="Stretch" />
-                                </StackPanel>
-                            </StackPanel>
-                        </primitives:PropertySheet.PanelContent>
-                    </primitives:PropertySheet>
-
                     <primitives:PropertySheet x:Name="LoggingSection" Title="{Binding LoggingTitle}">
                         <primitives:PropertySheet.PanelContent>
                             <StackPanel Spacing="14">
@@ -247,19 +148,10 @@
                         </primitives:PropertySheet.PanelContent>
                     </primitives:PropertySheet>
 
-                    <primitives:PropertySheet x:Name="GamesSection" Title="{Binding GamesTitle}">
-                        <primitives:PropertySheet.PanelContent>
-                            <StackPanel Spacing="10">
-                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding GamesSubtitle}" TextWrapping="WrapWholeWords" />
-                                <ItemsControl ItemsSource="{Binding GameEntries}" ItemTemplate="{StaticResource GameMetaRowTemplate}" />
-                            </StackPanel>
-                        </primitives:PropertySheet.PanelContent>
-                    </primitives:PropertySheet>
-
                 </StackPanel>
             </ScrollViewer>
 
-            <Grid Grid.Row="2" Grid.Column="1" ColumnSpacing="8">
+            <Grid Grid.Row="2" ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />

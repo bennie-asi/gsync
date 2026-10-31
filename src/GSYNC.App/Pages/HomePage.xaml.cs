@@ -4,6 +4,7 @@ using GSYNC.App.Primitives;
 using GSYNC.Core.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 using Serilog;
 
 namespace GSYNC.App.Pages;
@@ -19,6 +20,12 @@ public sealed partial class HomePage : Page
     }
 
     public LibraryPageViewModel? ViewModel => _viewModel;
+
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        _viewModel?.StopStatusCheck();
+        base.OnNavigatedFrom(e);
+    }
 
     private void TryInitializePage()
     {
@@ -147,8 +154,8 @@ public sealed partial class HomePage : Page
             XamlRoot = XamlRoot,
             Title = isChinese ? "上传所有游戏" : "Upload all games",
             Content = isChinese
-                ? "将为所有游戏提交上传任务。如果远端有不同或额外的文件，该游戏的上传会停止，请先比较并处理差异。"
-                : "An upload will be queued for every game. Uploads stop when remote files differ or contain extra files; compare and resolve those differences first.",
+                ? "将每个游戏上传到各自已绑定的目标。如果远端有不同或额外的文件，该游戏的上传会停止，请先比较并处理差异。"
+                : "Each game will be uploaded to its bound target. Uploads stop when remote files differ or contain extra files; compare and resolve those differences first.",
             PrimaryButtonText = isChinese ? "加入队列" : "Queue uploads",
             CloseButtonText = isChinese ? "取消" : "Cancel",
             DefaultButton = ContentDialogButton.Close,

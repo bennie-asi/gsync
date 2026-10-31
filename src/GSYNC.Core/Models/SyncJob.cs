@@ -18,9 +18,13 @@ public sealed class SyncJob
 
     public bool ProtectRemoteChanges { get; init; }
 
+    // Optional per-operation target; the game's saved primary binding is not changed.
+    public Guid? TargetId { get; init; }
+
     internal bool BindingCaptured { get; set; }
     internal Guid? CapturedBindingId { get; set; }
     internal DateTimeOffset? CapturedBindingUpdatedAtUtc { get; set; }
+    internal string? CapturedTargetRevision { get; set; }
 
     public CancellationToken CancellationToken { get; init; }
 

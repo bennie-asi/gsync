@@ -154,9 +154,11 @@ public partial class VariablesPageViewModel : ObservableObject
         try
         {
             var rows = new List<VariableRow>();
+            var builtInValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in _systemVariableProvider.GetVariables().OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
             {
                 rows.Add(new VariableRow($"%{pair.Key.ToUpperInvariant()}%", pair.Value, "SYS", Pick("系统", "System"), "ready", false));
+                builtInValues.Add(NormalizeName(pair.Key) + "\0" + pair.Value);
             }
 
             foreach (var provider in _sourceProviders)
@@ -172,7 +174,8 @@ public partial class VariablesPageViewModel : ObservableObject
                 {
                     foreach (var pair in provider.ResolveVariables(probeInstance).OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
                     {
-                        rows.Add(new VariableRow($"%{pair.Key.ToUpperInvariant()}%", pair.Value, "SRC", Pick("来源", "Source"), "remote newer", false));
+                        if (builtInValues.Add(NormalizeName(pair.Key) + "\0" + pair.Value))
+                            rows.Add(new VariableRow($"%{pair.Key.ToUpperInvariant()}%", pair.Value, "SRC", $"{Pick("来源", "Source")} · {provider.DisplayName}", "remote newer", false));
                     }
                 }
                 catch (Exception exception)
@@ -191,7 +194,8 @@ public partial class VariablesPageViewModel : ObservableObject
 
             var selected = SelectedVariable is not null
                 ? Variables.FirstOrDefault(row => row.TypeCode == SelectedVariable.TypeCode &&
-                    string.Equals(row.Name, SelectedVariable.Name, StringComparison.OrdinalIgnoreCase))
+                    string.Equals(row.Name, SelectedVariable.Name, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(row.Value, SelectedVariable.Value, StringComparison.OrdinalIgnoreCase))
                 : null;
             SelectVariable(selected ?? Variables.FirstOrDefault());
         }
@@ -384,12 +388,14 @@ public partial class VariablesPageViewModel : ObservableObject
 
         if (!string.IsNullOrWhiteSpace(SelectedScopeFilter) && SelectedScopeFilter != Filters[0])
         {
-            filtered = filtered.Where(row => string.Equals(row.ScopeLabel, SelectedScopeFilter, StringComparison.OrdinalIgnoreCase));
+            var typeCode = SelectedScopeFilter == Filters[1] ? "SYS" : SelectedScopeFilter == Filters[2] ? "SRC" : "USR";
+            filtered = filtered.Where(row => row.TypeCode == typeCode);
         }
 
         Variables = filtered.ToArray();
         if (SelectedVariable is { } selected && !Variables.Any(row => row.TypeCode == selected.TypeCode &&
-            string.Equals(row.Name, selected.Name, StringComparison.OrdinalIgnoreCase)))
+            string.Equals(row.Name, selected.Name, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(row.Value, selected.Value, StringComparison.OrdinalIgnoreCase)))
         {
             SelectVariable(null);
         }

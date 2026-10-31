@@ -171,6 +171,7 @@ public sealed class ProfilePersistenceTests
         Assert.True(library.ShowNoMatches);
         library.SearchText = "Visible";
         Assert.False(library.ShowNoMatches);
+        await library.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -198,6 +199,7 @@ public sealed class ProfilePersistenceTests
         Assert.Equal(1, library.ConflictCount);
         library.SearchText = "not present";
         Assert.True(library.HasConflicts);
+        await library.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -327,6 +329,320 @@ public sealed class ProfilePersistenceTests
         Assert.Equal("extra", await new StreamReader(extra.Content).ReadToEndAsync());
         await details.StopStatusCheckAsync();
         await reloaded.StopStatusCheckAsync();
+    }
+
+    [Fact]
+    public async Task AddingContent_WaitsForQueuedSyncWithoutChangingConfiguration()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var wizard = fixture.Wizard();
+        PrepareManual(wizard, "Queued Game", fixture.Folder("queued-saves"));
+        Assert.Null(await wizard.CreateProfileAsync());
+        var game = Assert.Single(await fixture.Games.ListAsync(CancellationToken.None));
+        var details = fixture.Details();
+        await details.LoadAsync(game.Id);
+        await details.StopStatusCheckAsync();
+        var original = Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(game.Id, CancellationToken.None));
+        var definition = (await fixture.Manifest.GetDefinitionAsync(game.GameId, CancellationToken.None))!;
+        var job = new SyncJob { GameInstanceId = game.Id, Direction = SyncDirection.Upload };
+        await fixture.Engine.QueueAsync(job, CancellationToken.None);
+
+        var error = await details.AddCustomContentItemAsync("Extra", fixture.Folder("queued-extra"));
+
+        Assert.Contains("sync tasks", error);
+        Assert.Equal(original.UpdatedAtUtc, (await fixture.Bindings.GetAsync(original.Id, CancellationToken.None))!.UpdatedAtUtc);
+        Assert.Equal(definition.ContentItems.Count, (await fixture.Manifest.GetDefinitionAsync(game.GameId, CancellationToken.None))!.ContentItems.Count);
+        Assert.True(fixture.Queue.Remove(job.Id));
+        await details.StopStatusCheckAsync();
+    }
+
+    [Fact]
+    public async Task AddingContent_RestoresBindingWhenDefinitionSaveFails()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var wizard = fixture.Wizard();
+        PrepareManual(wizard, "Rollback Game", fixture.Folder("rollback-saves"));
+        Assert.Null(await wizard.CreateProfileAsync());
+        var game = Assert.Single(await fixture.Games.ListAsync(CancellationToken.None));
+        var details = fixture.Details(definitionStore: new FailingDefinitionStore(fixture.UserStore));
+        await details.LoadAsync(game.Id);
+        await details.StopStatusCheckAsync();
+        var original = Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(game.Id, CancellationToken.None));
+        var definition = (await fixture.Manifest.GetDefinitionAsync(game.GameId, CancellationToken.None))!;
+
+        var error = await details.AddCustomContentItemAsync("Extra", fixture.Folder("rollback-extra"));
+
+        Assert.Contains("definition save failed", error);
+        var restored = (await fixture.Bindings.GetAsync(original.Id, CancellationToken.None))!;
+        Assert.Equal(original.UpdatedAtUtc, restored.UpdatedAtUtc);
+        Assert.Equal(original.ContentSelections.Select(x => x.ContentId), restored.ContentSelections.Select(x => x.ContentId));
+        Assert.Equal(definition.ContentItems.Count, (await fixture.Manifest.GetDefinitionAsync(game.GameId, CancellationToken.None))!.ContentItems.Count);
+        await details.StopStatusCheckAsync();
+    }
+
+    [Fact]
+    public async Task AddingContent_CompletesBeforeAConcurrentQueuedUploadReadsIt()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var wizard = fixture.Wizard();
+        var savePath = fixture.Folder("concurrent-saves");
+        await File.WriteAllTextAsync(Path.Combine(savePath, "slot.sav"), "save");
+        PrepareManual(wizard, "Concurrent Game", savePath);
+        Assert.Null(await wizard.CreateProfileAsync());
+        var game = Assert.Single(await fixture.Games.ListAsync(CancellationToken.None));
+        var extraPath = fixture.Folder("concurrent-extra");
+        await File.WriteAllTextAsync(Path.Combine(extraPath, "extra.sav"), "extra");
+        var delayedStore = new DelayedDefinitionStore(fixture.UserStore);
+        var details = fixture.Details(definitionStore: delayedStore);
+        await details.LoadAsync(game.Id);
+        await details.StopStatusCheckAsync();
+        var add = details.AddCustomContentItemAsync("Extra", extraPath);
+        using var cts = new CancellationTokenSource();
+        Task? worker = null;
+        try
+        {
+            await delayedStore.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var job = new SyncJob { GameInstanceId = game.Id, Direction = SyncDirection.Upload };
+            await fixture.Engine.QueueAsync(job, CancellationToken.None);
+            worker = fixture.Engine.ProcessQueuedJobsAsync(cts.Token);
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (job.Status == SyncJobStatus.Queued && DateTime.UtcNow < deadline) await Task.Delay(10);
+            Assert.Equal(SyncJobStatus.Running, job.Status);
+
+            delayedStore.Release.TrySetResult();
+            Assert.Null(await add);
+            while (job.Status is SyncJobStatus.Queued or SyncJobStatus.Running && DateTime.UtcNow < deadline) await Task.Delay(10);
+            var records = await fixture.History.ListRecordsAsync(game.Id, CancellationToken.None);
+            Assert.True(job.Status == SyncJobStatus.Completed, string.Join("; ", records.Select(record => record.ErrorMessage)));
+            var binding = Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(game.Id, CancellationToken.None));
+            var remote = await fixture.OpenRemoteAsync(binding.RemoteNamespace);
+            using var extra = await remote.DownloadAsync(binding.RemoteNamespace + "/extra/extra.sav", CancellationToken.None);
+            Assert.Equal("extra", await new StreamReader(extra.Content).ReadToEndAsync());
+        }
+        finally
+        {
+            delayedStore.Release.TrySetResult();
+            await add;
+            cts.Cancel();
+            if (worker is not null) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+            await details.StopStatusCheckAsync();
+        }
+    }
+
+    [Fact]
+    public async Task AddingContent_DoesNotOverwriteNewerBinding()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var wizard = fixture.Wizard();
+        PrepareManual(wizard, "Changed Game", fixture.Folder("changed-saves"));
+        Assert.Null(await wizard.CreateProfileAsync());
+        var game = Assert.Single(await fixture.Games.ListAsync(CancellationToken.None));
+        var stale = fixture.Details();
+        var current = fixture.Details();
+        await stale.LoadAsync(game.Id);
+        await current.LoadAsync(game.Id);
+        Assert.Null(await current.UpdateContentSelectionAsync(Assert.Single(current.ContentItems), false));
+        var changed = Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(game.Id, CancellationToken.None));
+
+        var error = await stale.AddCustomContentItemAsync("Extra", fixture.Folder("changed-extra"));
+
+        Assert.Contains("configuration changed", error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(changed.UpdatedAtUtc, (await fixture.Bindings.GetAsync(changed.Id, CancellationToken.None))!.UpdatedAtUtc);
+        Assert.Single((await fixture.Manifest.GetDefinitionAsync(game.GameId, CancellationToken.None))!.ContentItems);
+        await stale.StopStatusCheckAsync();
+        await current.StopStatusCheckAsync();
+    }
+
+    [Fact]
+    public async Task ContentPathsCanBeDisabledReenabledAndRemovedWithoutDeletingFiles()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var first = fixture.Folder("first-content");
+        var second = fixture.Folder("second-content");
+        await File.WriteAllTextAsync(Path.Combine(first, "one.sav"), "one");
+        await File.WriteAllTextAsync(Path.Combine(second, "two.sav"), "two");
+        var definition = new GameContentDefinition { GameId = "content-test", DisplayName = "Content Test", ContentItems = new[]
+        {
+            new ContentItem { ContentId = "saves", Category = ContentCategory.Save, PathTemplates = new[] { first, second } },
+        } };
+        await fixture.UserStore.SaveDefinitionAsync(definition, CancellationToken.None);
+        var instance = new GameInstance { GameId = definition.GameId, DisplayName = definition.DisplayName, SourceProviderId = "custom" };
+        await fixture.Games.UpsertAsync(instance, CancellationToken.None);
+        await fixture.Bindings.UpsertAsync(new StorageBinding { GameInstanceId = instance.Id, StorageProviderId = "local-folder",
+            RemoteNamespace = "content-test", Settings = new Dictionary<string, string> { ["rootPath"] = fixture.StoragePath } }, CancellationToken.None);
+        var details = fixture.Details();
+        await details.LoadAsync(instance.Id);
+        var firstRow = Assert.Single(details.ContentItems, row => row.PathTemplate == first);
+        Assert.Null(await details.UpdateContentSelectionAsync(firstRow, false));
+        Assert.False(Assert.Single(details.ContentItems, row => row.PathTemplate == first).Enabled);
+        var disabledComparison = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = instance.Id, Direction = SyncDirection.Compare }, CancellationToken.None);
+        Assert.Single(disabledComparison.Entries);
+        Assert.Null(await details.UpdateContentSelectionAsync(Assert.Single(details.ContentItems, row => row.PathTemplate == first), true));
+        Assert.True(Assert.Single(details.ContentItems, row => row.PathTemplate == first).Enabled);
+        Assert.Null(await details.UpdateContentSelectionAsync(Assert.Single(details.ContentItems, row => row.PathTemplate == first), null));
+        Assert.Single(details.ContentItems);
+        Assert.True(File.Exists(Path.Combine(first, "one.sav")));
+        var reloaded = fixture.Details();
+        await reloaded.LoadAsync(instance.Id);
+        Assert.Single(reloaded.ContentItems);
+        var remaining = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = instance.Id, Direction = SyncDirection.Compare }, CancellationToken.None);
+        Assert.Single(remaining.Entries);
+        Assert.EndsWith("two.sav", remaining.Entries[0].RelativePath);
+        await details.StopStatusCheckAsync();
+        await reloaded.StopStatusCheckAsync();
+    }
+
+    [Fact]
+    public async Task MultipleUploadTargetsQueueSeparateProtectedJobsWithoutChangingPrimaryBinding()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var local = fixture.Folder("multi-target-save");
+        await File.WriteAllTextAsync(Path.Combine(local, "slot.sav"), "save");
+        var wizard = fixture.Wizard();
+        PrepareManual(wizard, "Multi Target Game", local);
+        Assert.Null(await wizard.CreateProfileAsync());
+        var id = wizard.LastCreatedInstanceId!.Value;
+        var details = fixture.Details();
+        await details.LoadAsync(id);
+        var primary = details.CurrentTargetId!.Value;
+        var other = new SyncTargetConfig { Name = "Second", ProviderId = "local-folder", Settings = new() { ["rootPath"] = fixture.Folder("second-target") } };
+        fixture.TargetStore.Upsert(other);
+        var before = Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(id, CancellationToken.None));
+        Assert.Null(await details.QueueSyncAsync(SyncDirection.Upload, targetIds: new[] { primary, other.Id }));
+        var jobs = fixture.Queue.PendingJobs.ToArray();
+        Assert.Equal(new[] { primary, other.Id }, jobs.Select(job => job.TargetId!.Value));
+        Assert.All(jobs, job => Assert.True(job.ProtectRemoteChanges));
+        using var cancellation = new CancellationTokenSource();
+        var worker = fixture.Engine.ProcessQueuedJobsAsync(cancellation.Token);
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (jobs.Any(job => job.Status is SyncJobStatus.Queued or SyncJobStatus.Running))
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException();
+            await Task.Delay(10);
+        }
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+        Assert.All(jobs, job => Assert.Equal(SyncJobStatus.Completed, job.Status));
+        var firstRemote = await fixture.OpenRemoteAsync(before.RemoteNamespace);
+        var firstPath = Assert.Single(await firstRemote.ListAsync(before.RemoteNamespace, CancellationToken.None), entry => entry.Path.EndsWith("/slot.sav", StringComparison.Ordinal)).Path;
+        using var firstSave = await firstRemote.DownloadAsync(firstPath, CancellationToken.None);
+        var secondRemote = await RemoteSaveSession.OpenAsync(new LocalFolderStorageProvider(Microsoft.Extensions.Options.Options.Create(
+            new LocalFolderOptions { RootPath = other.Settings["rootPath"] })), before.RemoteNamespace, CancellationToken.None);
+        var secondPath = Assert.Single(await secondRemote.ListAsync(before.RemoteNamespace, CancellationToken.None), entry => entry.Path.EndsWith("/slot.sav", StringComparison.Ordinal)).Path;
+        using var secondSave = await secondRemote.DownloadAsync(secondPath, CancellationToken.None);
+        Assert.Equal("save", await new StreamReader(firstSave.Content).ReadToEndAsync());
+        Assert.Equal("save", await new StreamReader(secondSave.Content).ReadToEndAsync());
+        Assert.Equal(before.Id, Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(id, CancellationToken.None)).Id);
+        await details.StopStatusCheckAsync();
+    }
+
+    [Fact]
+    public async Task RenamedSingleFileShowsOldRemoteFileAndCanRemoveItSafely()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var folder = fixture.Folder("renamed-file");
+        var oldPath = Path.Combine(folder, "old.sav");
+        var newPath = Path.Combine(folder, "new.sav");
+        await File.WriteAllTextAsync(oldPath, "original");
+        var wizard = fixture.Wizard();
+        PrepareManual(wizard, "Renamed File", oldPath);
+        Assert.Null(await wizard.CreateProfileAsync());
+        var id = wizard.LastCreatedInstanceId!.Value;
+        await fixture.UploadAsync(id);
+        File.Move(oldPath, newPath);
+        var details = fixture.Details();
+        await details.LoadAsync(id);
+        Assert.Null(await details.UpdateContentPathAsync(Assert.Single(details.ContentItems), newPath));
+        var comparison = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = id, Direction = SyncDirection.Compare }, CancellationToken.None);
+        var remoteOld = Assert.Single(comparison.Entries, entry => entry.RelativePath.EndsWith("/old.sav", StringComparison.Ordinal));
+        Assert.Null(remoteOld.LocalHash);
+        var localNew = Assert.Single(comparison.Entries, entry => entry.RelativePath.EndsWith("/new.sav", StringComparison.Ordinal));
+        await fixture.Engine.ResolveConflictsAsync(new ConflictResolutionPlan { GameInstanceId = id, ExpectedConfigurationFingerprint = comparison.ConfigurationFingerprint,
+            Decisions = new[]
+            {
+                new ConflictResolutionDecision { RelativePath = remoteOld.RelativePath, Action = ConflictResolutionAction.RemoveRemote, VerifyComparedVersions = true, ExpectedRemoteHash = remoteOld.RemoteHash },
+                new ConflictResolutionDecision { RelativePath = localNew.RelativePath, Action = ConflictResolutionAction.KeepLocal, VerifyComparedVersions = true, ExpectedLocalHash = localNew.LocalHash },
+            } }, CancellationToken.None);
+        var after = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = id, Direction = SyncDirection.Compare }, CancellationToken.None);
+        Assert.Equal(SyncChangeKind.Unchanged, Assert.Single(after.Entries).ChangeKind);
+        Assert.Equal("original", await File.ReadAllTextAsync(newPath));
+        await details.StopStatusCheckAsync();
+    }
+
+    [Fact]
+    public async Task QueuedTargetChangeIsRejectedBeforeWritingAnyFiles()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var local = fixture.Folder("target-change-save");
+        await File.WriteAllTextAsync(Path.Combine(local, "slot.sav"), "save");
+        var wizard = fixture.Wizard();
+        PrepareManual(wizard, "Target Change", local);
+        Assert.Null(await wizard.CreateProfileAsync());
+        var id = wizard.LastCreatedInstanceId!.Value;
+        var target = new SyncTargetConfig { Name = "Target", ProviderId = "local-folder", Settings = new() { ["rootPath"] = fixture.Folder("target-before") } };
+        fixture.TargetStore.Upsert(target);
+        var job = new SyncJob { GameInstanceId = id, Direction = SyncDirection.Upload, TargetId = target.Id, ProtectRemoteChanges = true };
+        await fixture.Engine.QueueAsync(job, CancellationToken.None);
+        target.Settings["rootPath"] = fixture.Folder("target-after");
+        fixture.TargetStore.Upsert(target);
+        using var cancellation = new CancellationTokenSource();
+        var worker = fixture.Engine.ProcessQueuedJobsAsync(cancellation.Token);
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (job.Status is SyncJobStatus.Queued or SyncJobStatus.Running)
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException();
+            await Task.Delay(10);
+        }
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+        Assert.Equal(SyncJobStatus.Failed, job.Status);
+        Assert.Empty(Directory.EnumerateFiles(target.Settings["rootPath"], "*", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task SelectingDifferentTargetsComparesAndResolvesTheSelectedTargetOnly()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var local = fixture.Folder("different-target-save");
+        await File.WriteAllTextAsync(Path.Combine(local, "slot.sav"), "local");
+        var wizard = fixture.Wizard();
+        PrepareManual(wizard, "Different Targets", local);
+        Assert.Null(await wizard.CreateProfileAsync());
+        var id = wizard.LastCreatedInstanceId!.Value;
+        var original = Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(id, CancellationToken.None));
+        var second = new SyncTargetConfig { Name = "Second", ProviderId = "local-folder", Settings = new() { ["rootPath"] = fixture.Folder("different-target-remote") } };
+        fixture.TargetStore.Upsert(second);
+        var provider = new LocalFolderStorageProvider(Microsoft.Extensions.Options.Options.Create(new LocalFolderOptions { RootPath = second.Settings["rootPath"] }));
+        var remote = await RemoteSaveSession.OpenAsync(provider, original.RemoteNamespace, CancellationToken.None);
+        using (var payload = new MemoryStream("remote"u8.ToArray()))
+            await remote.UploadAsync(original.RemoteNamespace + "/saves/slot.sav", payload, CancellationToken.None);
+        await remote.CommitAsync(CancellationToken.None);
+        var details = fixture.Details();
+        await details.LoadAsync(id);
+        var (context, error) = await details.CompareAsync(targetId: second.Id);
+        Assert.Null(error);
+        Assert.NotNull(context);
+        var conflicts = fixture.Conflicts();
+        conflicts.LoadFrom(context!);
+        Assert.Contains(conflicts.ConflictFiles, row => row.RemoteStatus != "Missing remotely");
+        conflicts.SetAllActions(ConflictResolutionAction.KeepRemote);
+        Assert.Null(await conflicts.ResolveAsync());
+        var job = Assert.Single(fixture.Queue.PendingJobs);
+        Assert.Equal(second.Id, job.TargetId);
+        using var cancellation = new CancellationTokenSource();
+        var worker = fixture.Engine.ProcessQueuedJobsAsync(cancellation.Token);
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (job.Status is SyncJobStatus.Queued or SyncJobStatus.Running)
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException();
+            await Task.Delay(10);
+        }
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+        Assert.Equal(SyncJobStatus.Completed, job.Status);
+        Assert.Equal("remote", await File.ReadAllTextAsync(Path.Combine(local, "slot.sav")));
+        Assert.Equal(original.Id, Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(id, CancellationToken.None)).Id);
+        await details.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -582,9 +898,17 @@ public sealed class ProfilePersistenceTests
         using var fixture = await Fixture.CreateAsync();
         var settings = fixture.Settings();
         Assert.False(settings.BuildSettings().AutoPullEnabled);
-        settings.SelectedAutoPullOption = settings.ToggleOptions.Single(option => option.Key == "on");
+        settings.AutoPullEnabled = true;
+        settings.AutoSnapshotEnabled = false;
+        settings.RefreshManifestEnabled = false;
         settings.SaveSettings();
-        Assert.True(fixture.Settings().BuildSettings().AutoPullEnabled);
+        var reloaded = fixture.Settings();
+        Assert.True(reloaded.AutoPullEnabled);
+        Assert.False(reloaded.AutoSnapshotEnabled);
+        Assert.False(reloaded.RefreshManifestEnabled);
+        reloaded.RestoreDefaults();
+        Assert.False(reloaded.AutoPullEnabled);
+        Assert.True(reloaded.AutoSnapshotEnabled);
     }
 
     [Fact]
@@ -750,12 +1074,12 @@ public sealed class ProfilePersistenceTests
     public async Task HistoryFiltering_ClearsHiddenSelection_AndReloadSelectsAVisibleRecord()
     {
         using var fixture = await Fixture.CreateAsync();
-        await AddHistoryGameAsync(fixture, "Game One", DateTimeOffset.UtcNow.AddMinutes(-1));
-        await AddHistoryGameAsync(fixture, "Game Two", DateTimeOffset.UtcNow);
+        var gameOne = await AddHistoryGameAsync(fixture, "Game One", DateTimeOffset.UtcNow.AddMinutes(-1));
+        var gameTwo = await AddHistoryGameAsync(fixture, "Game Two", DateTimeOffset.UtcNow);
         var viewModel = new HistoryPageViewModel(new Localization(), fixture.History, fixture.Games, fixture.Bindings, fixture.Engine);
         await viewModel.LoadAsync();
         Assert.Equal("Game Two", viewModel.DetailGameName);
-        Assert.Equal("Game Two.zip", Assert.Single(viewModel.Snapshots).Name);
+        Assert.Equal(Assert.Single(await fixture.History.ListSnapshotsAsync(gameTwo, CancellationToken.None)).Id, Assert.Single(viewModel.Snapshots).SnapshotId);
 
         viewModel.SearchText = "Game One";
         Assert.Equal("Game One", Assert.Single(viewModel.Entries).Game);
@@ -765,7 +1089,7 @@ public sealed class ProfilePersistenceTests
 
         await viewModel.LoadAsync();
         Assert.Equal("Game One", viewModel.DetailGameName);
-        Assert.Equal("Game One.zip", Assert.Single(viewModel.Snapshots).Name);
+        Assert.Equal(Assert.Single(await fixture.History.ListSnapshotsAsync(gameOne, CancellationToken.None)).Id, Assert.Single(viewModel.Snapshots).SnapshotId);
     }
 
     [Fact]
@@ -773,7 +1097,7 @@ public sealed class ProfilePersistenceTests
     {
         using var fixture = await Fixture.CreateAsync();
         var gameOne = await AddHistoryGameAsync(fixture, "Game One", DateTimeOffset.UtcNow.AddMinutes(-1));
-        await AddHistoryGameAsync(fixture, "Game Two", DateTimeOffset.UtcNow);
+        var gameTwo = await AddHistoryGameAsync(fixture, "Game Two", DateTimeOffset.UtcNow);
         var delayedHistory = new DelayedHistory(fixture.History);
         var viewModel = new HistoryPageViewModel(new Localization(), delayedHistory, fixture.Games, fixture.Bindings, fixture.Engine);
         await viewModel.LoadAsync();
@@ -792,7 +1116,7 @@ public sealed class ProfilePersistenceTests
         }
         await firstSelection;
         Assert.Equal("Game Two", viewModel.DetailGameName);
-        Assert.Equal("Game Two.zip", Assert.Single(viewModel.Snapshots).Name);
+        Assert.Equal(Assert.Single(await fixture.History.ListSnapshotsAsync(gameTwo, CancellationToken.None)).Id, Assert.Single(viewModel.Snapshots).SnapshotId);
         Assert.True(viewModel.IsRecordSelected(second));
     }
 
@@ -943,7 +1267,7 @@ public sealed class ProfilePersistenceTests
         {
             var wizard = fixture.Wizard();
             PrepareManual(wizard, name, fixture.Folder(GameIdentity.StorageNamespace(name)));
-            var preview = Assert.Single(wizard.FinishSummary, row => row.Label == "Remote Namespace").Value;
+            var preview = Assert.Single(wizard.FinishSummary, row => row.Label == "Remote directory").Value;
             Assert.Null(await wizard.CreateProfileAsync());
             Assert.Equal(preview, Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(wizard.LastCreatedInstanceId!.Value, CancellationToken.None)).RemoteNamespace);
         }
@@ -1006,6 +1330,14 @@ public sealed class ProfilePersistenceTests
     }
 
     [Fact]
+    public void NamedRemoteDirectory_UsesReadableNameWhenEnglishIsUnavailable()
+    {
+        var name = GameIdentity.NamedStorageNamespace("生化危机4", "custom-game-id");
+        Assert.StartsWith("生化危机4-", name);
+        Assert.NotEqual(name, GameIdentity.NamedStorageNamespace("生化危机4", "another-game-id"));
+    }
+
+    [Fact]
     public async Task ManualNameMatch_CreatesProfileWithCatalogIdentityAndChosenProgram()
     {
         using var fixture = await Fixture.CreateAsync();
@@ -1033,7 +1365,8 @@ public sealed class ProfilePersistenceTests
         Assert.Equal(gameDirectory, game.InstallDirectory);
         Assert.Equal(exe, game.Variables[GameProgramSelectionReader.ProgramPathVariable]);
         var binding = Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(game.Id, CancellationToken.None));
-        Assert.Equal(GameIdentity.StorageNamespace("catalog-game-id"), binding.RemoteNamespace);
+        Assert.Equal(GameIdentity.NamedStorageNamespace("Game Name", "catalog-game-id"), binding.RemoteNamespace);
+        Assert.StartsWith("game-name-", binding.RemoteNamespace);
         Assert.Equal("123", GameArtworkResolver.Resolve(game, await fixture.Manifest.GetDefinitionAsync(game.GameId, CancellationToken.None)).CoverUri!.Split('/')[5]);
     }
 
@@ -1212,6 +1545,23 @@ public sealed class ProfilePersistenceTests
         await details.StopStatusCheckAsync();
     }
 
+    [Fact]
+    public async Task Wizard_RemoteDirectoryCanBeCustomizedAndRejectsUnsafePaths()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var wizard = fixture.Wizard();
+        PrepareManual(wizard, "生化危机4", fixture.Folder("manual-saves"));
+        wizard.RemoteNamespaceText = "../outside";
+        Assert.NotNull(wizard.ValidateCurrentStep());
+        Assert.NotNull(await wizard.CreateProfileAsync());
+        Assert.Empty(await fixture.Games.ListAsync(CancellationToken.None));
+        wizard.RemoteNamespaceText = "resident-evil-4";
+        Assert.Null(wizard.ValidateCurrentStep());
+        Assert.Null(await wizard.CreateProfileAsync());
+        var game = Assert.Single(await fixture.Games.ListAsync(CancellationToken.None));
+        Assert.Equal("resident-evil-4", Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(game.Id, CancellationToken.None)).RemoteNamespace);
+    }
+
     private static void PrepareManual(AddGameWizardViewModel wizard, string name, string path)
     {
         wizard.SwitchToManualSetup();
@@ -1256,11 +1606,23 @@ public sealed class ProfilePersistenceTests
                 new[] { new Source("custom", Array.Empty<DiscoveredGame>()) },
                 new[] { new LocalFolderStorageProvider(Microsoft.Extensions.Options.Options.Create(new LocalFolderOptions { RootPath = fixture.StoragePath })) },
                 fixture._paths, new PathResolver(), new SystemVariableProvider(), NullLogger<SyncEngine>.Instance,
-                userVariablesProvider: () => fixture._variables.AsDictionary());
+                userVariablesProvider: () => fixture._variables.AsDictionary(),
+                targetBindingResolver: (binding, targetId) =>
+                {
+                    var target = fixture._targets.Get(targetId) ?? throw new InvalidOperationException("Target missing.");
+                    var settings = new Dictionary<string, string>(target.Settings, StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["targetId"] = target.Id.ToString("D"), ["__gsyncHistoryTargetName"] = target.Name,
+                        ["__gsyncTargetRevision"] = target.UpdatedAtUtc.ToUniversalTime().ToString("O"),
+                    };
+                    return new StorageBinding { Id = binding.Id, GameInstanceId = binding.GameInstanceId, StorageProviderId = target.ProviderId,
+                        RemoteNamespace = binding.RemoteNamespace, Settings = settings, ContentSelections = binding.ContentSelections,
+                        CreatedAtUtc = binding.CreatedAtUtc, UpdatedAtUtc = binding.UpdatedAtUtc };
+                });
             return fixture;
         }
-        public GameDetailsViewModel Details(IGameInstanceRepository? games = null, ISyncEngine? engine = null) => new(_localization, games ?? Games, Bindings, History, Manifest, engine ?? Engine,
-            new[] { new Source("custom", Array.Empty<DiscoveredGame>()) }, UserStore, new PathResolver(), new SystemVariableProvider(), _variables, _targets, Engine);
+        public GameDetailsViewModel Details(IGameInstanceRepository? games = null, ISyncEngine? engine = null, IUserDefinitionStore? definitionStore = null) => new(_localization, games ?? Games, Bindings, History, Manifest, engine ?? Engine,
+            new[] { new Source("custom", Array.Empty<DiscoveredGame>()) }, definitionStore ?? UserStore, new PathResolver(), new SystemVariableProvider(), _variables, _targets, Engine);
         public ConflictResolutionViewModel Conflicts() => new(_localization, Engine);
         public VariablesPageViewModel Variables() => new(_localization, new SystemVariableProvider(), new PathResolver(), _variables,
             Array.Empty<ISourceProvider>());
@@ -1294,6 +1656,24 @@ public sealed class ProfilePersistenceTests
             Assert.Equal(SyncJobStatus.Completed, job.Status);
         }
         public void Dispose() => Directory.Delete(_root, recursive: true);
+    }
+    private sealed class FailingDefinitionStore(IUserDefinitionStore inner) : IUserDefinitionStore
+    {
+        public Task<IReadOnlyList<GameContentDefinition>> LoadDefinitionsAsync(CancellationToken token) => inner.LoadDefinitionsAsync(token);
+        public Task SaveDefinitionAsync(GameContentDefinition definition, CancellationToken token, bool overwrite = true) =>
+            Task.FromException(new IOException("definition save failed"));
+    }
+    private sealed class DelayedDefinitionStore(IUserDefinitionStore inner) : IUserDefinitionStore
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<IReadOnlyList<GameContentDefinition>> LoadDefinitionsAsync(CancellationToken token) => inner.LoadDefinitionsAsync(token);
+        public async Task SaveDefinitionAsync(GameContentDefinition definition, CancellationToken token, bool overwrite = true)
+        {
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(token);
+            await inner.SaveDefinitionAsync(definition, token, overwrite);
+        }
     }
     private sealed class SteamSearchHandler(string response) : HttpMessageHandler
     {

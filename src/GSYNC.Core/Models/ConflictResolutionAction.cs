@@ -6,4 +6,5 @@ public enum ConflictResolutionAction
     KeepLocal,
     KeepRemote,
     Skip,
+    RemoveRemote,
 }

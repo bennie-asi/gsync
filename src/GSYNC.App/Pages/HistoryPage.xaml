@@ -6,8 +6,18 @@
     xmlns:primitives="using:GSYNC.App.Primitives"
     xmlns:vm="using:GSYNC.App.ViewModels">
     <Page.Resources>
-        <DataTemplate x:Key="HistoryResultTemplate" x:DataType="vm:HistoryRow">
-            <primitives:Badge Text="{x:Bind Result}" Variant="{x:Bind ResultVariant}" />
+        <DataTemplate x:Key="HistoryCardTemplate" x:DataType="vm:HistoryRow">
+            <Border Margin="0,0,0,8" Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8">
+            <Grid Padding="12" ColumnSpacing="12">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{x:Bind Game}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Bind DestinationSummary}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Bind Time}" Foreground="{StaticResource AppTextDimBrush}" />
+                </StackPanel>
+                <primitives:Badge Grid.Column="1" VerticalAlignment="Top" Text="{x:Bind Result}" Variant="{x:Bind ResultVariant}" />
+            </Grid>
+            </Border>
         </DataTemplate>
         <DataTemplate x:Key="RecordDetailRowTemplate" x:DataType="vm:UiPropertyRow">
             <Grid Padding="0,4" ColumnSpacing="12">
@@ -53,9 +63,6 @@
                 <Button Click="OpenLogsButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                     <primitives:IconText Glyph="{StaticResource IconDescription}" Text="{Binding LogsButtonText}" />
                 </Button>
-                <Button Click="OpenHelpButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
-                    <primitives:IconText Glyph="{StaticResource IconHelp}" Text="{Binding HelpButtonText}" />
-                </Button>
                 </StackPanel>
             </Grid>
 
@@ -66,14 +73,13 @@
                 </Grid.ColumnDefinitions>
 
                 <Grid>
-                    <primitives:ResizableTableView
-                        x:Name="HistoryTable"
-                        FooterText="{Binding SystemStatus}"
-                        ItemsSource="{Binding Entries}"
-                        PersistedStateKey="history-main-table"
-                        Subtitle="{Binding TableSubtitle}"
-                        Title="{Binding TableTitle}"
-                        Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}" />
+                    <Grid Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}" RowSpacing="8">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <TextBlock Text="{Binding TableTitle}" FontSize="16" FontWeight="SemiBold" />
+                        <ListView x:Name="HistoryList" Grid.Row="1" ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry, Mode=OneWay}" SelectionChanged="HistoryList_SelectionChanged" ItemTemplate="{StaticResource HistoryCardTemplate}" HorizontalContentAlignment="Stretch" />
+                        <TextBlock Grid.Row="1" Text="{Binding NoMatchingRecordsText}" Foreground="{StaticResource AppTextSecondaryBrush}" Visibility="{Binding NoMatchingRecords, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <TextBlock Grid.Row="2" Text="{Binding SystemStatus}" Foreground="{StaticResource AppTextDimBrush}" TextWrapping="Wrap" />
+                    </Grid>
 
                     <Border
                         Background="{StaticResource AppSurfaceBrush}"
@@ -114,14 +120,14 @@
                                 <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding DetailTitle}" />
                                 <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding DetailSubtitle}" TextWrapping="WrapWholeWords" />
                             </StackPanel>
-                            <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="6" Padding="8,4" Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}">
+                            <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="6" Padding="8,4" Visibility="{Binding HasSelectedEntry, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <TextBlock FontFamily="Consolas" FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding DetailRecordId}" />
                             </Border>
                         </Grid>
 
                         <ScrollViewer Grid.Row="1" Padding="12" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
                             <Grid>
-                                <StackPanel Spacing="14" Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}">
+                                <StackPanel Spacing="14" Visibility="{Binding HasSelectedEntry, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <primitives:PropertySheet Title="{Binding DetailSummaryTitle}">
                                         <primitives:PropertySheet.PanelContent>
                                             <StackPanel Spacing="10">
@@ -131,6 +137,7 @@
                                                     <primitives:Badge Text="{Binding DetailStatus}" Variant="{Binding DetailStatusVariant}" />
                                                 </StackPanel>
                                                 <ItemsControl ItemTemplate="{StaticResource RecordDetailRowTemplate}" ItemsSource="{Binding RecordDetails}" />
+                                                <Button Click="ViewRecordFiles_Click" Content="{Binding RecordFilesText}" IsEnabled="{Binding HasSelectedEntry}" Style="{StaticResource SecondaryToolbarButtonStyle}" HorizontalAlignment="Left" />
                                             </StackPanel>
                                         </primitives:PropertySheet.PanelContent>
                                     </primitives:PropertySheet>
@@ -151,6 +158,9 @@
                                         </primitives:PropertySheet.PanelContent>
                                     </primitives:PropertySheet>
                                 </StackPanel>
+
+                                <TextBlock Text="{Binding NoMatchingRecordsText}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" Visibility="{Binding NoMatchingRecords, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <TextBlock Text="{Binding SelectRecordText}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" Visibility="{Binding NeedsSelection, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
                                 <StackPanel Spacing="14" Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <primitives:InfoCallout Severity="Info" Title="{Binding EmptyStateInspectorTitle}" Message="{Binding EmptyStateInspectorMessage}" />

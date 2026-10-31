@@ -15,6 +15,7 @@
                     <MenuFlyout>
                         <MenuFlyoutItem Text="{x:Bind KeepLocalText}" Tag="{x:Bind Filename}" IsEnabled="{x:Bind CanKeepLocal}" Click="KeepLocalDecision_Click" />
                         <MenuFlyoutItem Text="{x:Bind KeepRemoteText}" Tag="{x:Bind Filename}" IsEnabled="{x:Bind CanKeepRemote}" Click="KeepRemoteDecision_Click" />
+                        <MenuFlyoutItem Text="{x:Bind RemoveRemoteText}" Tag="{x:Bind Filename}" IsEnabled="{x:Bind CanRemoveRemote}" Click="RemoveRemoteDecision_Click" />
                         <MenuFlyoutItem Text="{x:Bind SkipText}" Tag="{x:Bind Filename}" Click="SkipDecision_Click" />
                     </MenuFlyout>
                 </DropDownButton.Flyout>
@@ -42,6 +43,7 @@
           <StackPanel Spacing="12">
             <primitives:InfoCallout Severity="Warning" Title="{Binding WarningTitle}" Message="{Binding WarningMessage}" />
             <TextBlock Text="{Binding RiskHintMessage}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
+            <Button Click="SelectRemoteRemovals_Click" Content="{Binding SelectRemoteRemovalsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
 
             <primitives:ResizableTableView
                 x:Name="ConflictFilesTable"

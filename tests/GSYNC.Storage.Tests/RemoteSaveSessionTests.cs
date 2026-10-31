@@ -78,6 +78,42 @@ public sealed class RemoteSaveSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task RemovingAFileCreatesANewGenerationWithoutChangingPinnedReaders()
+    {
+        await SeedAsync();
+        var oldReader = await OpenAsync();
+        var writer = await OpenAsync();
+        await writer.DeleteAsync(Namespace + "/default/one.sav", CancellationToken.None);
+        Assert.Equal("old-one", await ReadAsync(await OpenAsync(), "one.sav"));
+        await writer.CommitAsync(CancellationToken.None);
+        Assert.Equal("old-one", await ReadAsync(oldReader, "one.sav"));
+        Assert.Equal("old-two", await ReadAsync(await OpenAsync(), "two.sav"));
+        var latest = await OpenAsync();
+        await Assert.ThrowsAsync<FileNotFoundException>(() => ReadAsync(latest, "one.sav"));
+    }
+
+    [Fact]
+    public async Task RemovingLegacyFileDoesNotReimportItAndLosingWriterCannotEraseNewerGeneration()
+    {
+        await PutAsync(Storage, "one.sav", "old-one");
+        await PutAsync(Storage, "two.sav", "old-two");
+        var remove = await OpenAsync();
+        var competing = await OpenAsync();
+        await remove.DeleteAsync(Namespace + "/default/one.sav", CancellationToken.None);
+        await PutAsync(competing, "two.sav", "new-two");
+        await competing.CommitAsync(CancellationToken.None);
+        await Assert.ThrowsAsync<RemoteSaveChangedException>(() => remove.CommitAsync(CancellationToken.None));
+        Assert.Equal("old-one", await ReadAsync(await OpenAsync(), "one.sav"));
+        Assert.Equal("new-two", await ReadAsync(await OpenAsync(), "two.sav"));
+        var current = await OpenAsync();
+        await current.DeleteAsync(Namespace + "/default/one.sav", CancellationToken.None);
+        await current.CommitAsync(CancellationToken.None);
+        var latest = await OpenAsync();
+        await Assert.ThrowsAsync<FileNotFoundException>(() => ReadAsync(latest, "one.sav"));
+        Assert.Equal("new-two", await ReadAsync(latest, "two.sav"));
+    }
+
+    [Fact]
     public async Task CorruptManifestIsNeverTreatedAsAnEmptyLegacyStore()
     {
         using var corrupt = new MemoryStream("{bad-json"u8.ToArray());

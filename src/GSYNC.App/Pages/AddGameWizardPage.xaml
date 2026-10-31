@@ -46,11 +46,11 @@
 
         <primitives:SectionHeader Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}" />
 
-        <ItemsControl Grid.Row="1" ItemsSource="{Binding Steps}">
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Stages}">
             <ItemsControl.ItemsPanel><ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:WizardStepItem">
-                    <Border Width="145" Padding="10" Margin="0,0,8,8" Background="{StaticResource AppSurfaceBrush}" CornerRadius="8" Opacity="{x:Bind Opacity}">
+                    <Border MinWidth="190" Padding="10" Margin="0,0,8,8" Background="{StaticResource AppSurfaceBrush}" CornerRadius="8" Opacity="{x:Bind Opacity}">
                         <Grid ColumnSpacing="10">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <Border Width="28" Height="28" Background="{StaticResource AppPrimaryBrush}" CornerRadius="14">
@@ -173,6 +173,8 @@
                             <StackPanel Spacing="10">
                                 <ItemsControl ItemTemplate="{StaticResource WizardOptionTemplate}" ItemsSource="{Binding Targets}" />
                                 <Button Click="ManageTargetsButton_Click" Content="{Binding ManageTargetsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" HorizontalAlignment="Left" />
+                                <TextBox Header="{Binding RemoteNamespaceLabel}" Text="{Binding RemoteNamespaceText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Stretch" />
+                                <TextBlock Text="{Binding RemoteNamespaceHelp}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
                             </StackPanel>
                         </primitives:DenseDataGrid.GridContent>
                     </primitives:DenseDataGrid>
@@ -180,7 +182,7 @@
                     <primitives:PropertySheet Title="{Binding Step6ReadyTitle}" Visibility="{Binding IsStep6, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <primitives:PropertySheet.PanelContent>
                             <StackPanel Spacing="12">
-                                <primitives:KeyValueList ItemsSource="{Binding FinishSummary}" ContentMaxHeight="220" />
+                                <primitives:KeyValueList ItemsSource="{Binding FinishSummary}" />
                                 <primitives:InfoCallout Title="{Binding FinishCalloutTitle}" Message="{Binding FinishCalloutMessage}" Severity="Info" />
                                 <CheckBox Content="{Binding StartFirstSyncText}" IsChecked="{Binding StartFirstSync, Mode=TwoWay}" />
                             </StackPanel>

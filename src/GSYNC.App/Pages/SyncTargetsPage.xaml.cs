@@ -179,7 +179,7 @@ public sealed partial class SyncTargetsPage : Page
         }
     }
 
-    private void OpenRootButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenRootButton_Click(object sender, RoutedEventArgs e)
     {
         var pathOrUrl = _viewModel?.GetSelectedRootPathOrUrl();
         if (string.IsNullOrWhiteSpace(pathOrUrl))
@@ -197,11 +197,23 @@ public sealed partial class SyncTargetsPage : Page
             {
                 Process.Start(new ProcessStartInfo(pathOrUrl) { UseShellExecute = true });
             }
+            else
+            {
+                await ShowTargetErrorAsync(_viewModel?.IsChinese == true ? "目标路径不存在，请检查配置。" : "The target path does not exist. Check its configuration.");
+            }
         }
         catch (Exception exception)
         {
             Log.Warning(exception, "Failed to open target root {Path}.", pathOrUrl);
+            await ShowTargetErrorAsync(exception.Message);
         }
+    }
+
+    private async Task ShowTargetErrorAsync(string message)
+    {
+        await DialogStyler.Apply(new ContentDialog { XamlRoot = XamlRoot,
+            Title = _viewModel?.IsChinese == true ? "无法打开目标" : "Cannot open target", Content = message,
+            CloseButtonText = _viewModel?.IsChinese == true ? "关闭" : "Close" }).ShowAsync();
     }
 
     private void OpenLogsButton_Click(object sender, RoutedEventArgs e)
@@ -227,25 +239,6 @@ public sealed partial class SyncTargetsPage : Page
         var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
         package.SetText($"{_viewModel.FailureCodeText}: {_viewModel.FailureMessage}");
         Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-    }
-
-    private async void OpenHelpButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_viewModel is null)
-        {
-            return;
-        }
-
-        var dialog = DialogStyler.Apply(new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = _viewModel.IsChinese ? "同步目标说明" : "Sync Targets Help",
-            Content = _viewModel.IsChinese
-                ? "在这里管理本地文件夹和 WebDAV 目标，测试连接、编辑配置以及查看绑定关系。"
-                : "Manage local-folder and WebDAV targets here, test connectivity, edit configuration, and inspect bindings.",
-            CloseButtonText = _viewModel.IsChinese ? "关闭" : "Close",
-        });
-        await dialog.ShowAsync();
     }
 
     private void ShowTargetEditor(SyncTargetConfig? existing)

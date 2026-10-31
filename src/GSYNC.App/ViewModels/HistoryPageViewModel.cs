@@ -21,6 +21,7 @@ public partial class HistoryPageViewModel : ObservableObject
     private IReadOnlyDictionary<Guid, GameInstance> _instancesById = new Dictionary<Guid, GameInstance>();
     private Guid? _selectedRecordId;
     private long _selectionVersion;
+    private Guid? _navigationGameId;
 
     [ObservableProperty]
     private bool _isEmptyState;
@@ -42,6 +43,9 @@ public partial class HistoryPageViewModel : ObservableObject
 
     [ObservableProperty]
     private IReadOnlyList<HistoryRow> _entries = [];
+
+    [ObservableProperty]
+    private HistoryRow? _selectedEntry;
 
     [ObservableProperty]
     private IReadOnlyList<UiPropertyRow> _recordDetails = [];
@@ -108,7 +112,7 @@ public partial class HistoryPageViewModel : ObservableObject
         EmptyStateMessage = Pick("首次同步完成后，这里会显示按时间排序的记录、结果与快照恢复入口。", "After the first sync, this view will list records, results, and snapshot restore entry points.");
         EmptyStateHint = Pick("你可以先返回游戏库发起首次同步。", "Start the first sync from Library.");
         EmptyStateActionText = Pick("前往游戏库", "Go to Library");
-        EmptyStateSecondaryActionText = Pick("查看日志说明", "Review log guidance");
+        EmptyStateSecondaryActionText = Pick("打开日志目录", "Open log folder");
         EmptyStateInspectorTitle = Pick("等待首次同步", "Waiting for First Sync");
         EmptyStateInspectorMessage = Pick("完成首次同步后，此处将显示完整历史记录与快照恢复功能。", "After the first sync completes, the full record history and snapshot restore panel will appear here.");
         EmptyStateRecoveryTitle = Pick("下一步", "Next Steps");
@@ -170,9 +174,15 @@ public partial class HistoryPageViewModel : ObservableObject
     public string SnapshotsSubtitle { get; }
     public string RestoreActionText { get; }
     public string RestoringText { get; }
+    public string RecordFilesText => Pick("查看记录文件", "View record files");
+    public string NoMatchingRecordsText => Pick("没有符合筛选条件的记录。", "No records match the current filters.");
+    public string SelectRecordText => Pick("选择一条记录以查看详情和快照。", "Select a record to view its details and snapshots.");
+    public bool NoMatchingRecords => !IsEmptyState && Entries.Count == 0;
+    public bool HasSelectedEntry => SelectedEntry is not null;
+    public bool NeedsSelection => !IsEmptyState && Entries.Count > 0 && SelectedEntry is null;
 
     /// <summary>True while no restore is running, so restore entry points can bind their enabled state.</summary>
-    public bool CanRestore => !IsRestoreInProgress;
+    public bool CanRestore => !IsRestoreInProgress && Snapshots.Count > 0;
     public string EmptyStateTitle { get; }
     public string EmptyStateMessage { get; }
     public string EmptyStateHint { get; }
@@ -215,13 +225,6 @@ public partial class HistoryPageViewModel : ObservableObject
 
             ApplyFilters();
 
-            var completedToday = records.Count(record =>
-                record.Status == SyncJobStatus.Completed &&
-                (record.CompletedAtUtc ?? record.StartedAtUtc).ToLocalTime().Date == DateTimeOffset.Now.Date);
-            SystemStatus = Pick(
-                $"共 {records.Count} 条记录 • 今日完成 {completedToday} 项操作",
-                $"{records.Count} {(records.Count == 1 ? "record" : "records")} • {completedToday} completed today");
-
             if (Entries.FirstOrDefault() is { } firstVisibleRow)
             {
                 await SelectRecordAsync(firstVisibleRow, cancellationToken);
@@ -241,6 +244,7 @@ public partial class HistoryPageViewModel : ObservableObject
     {
         var selectionVersion = Interlocked.Increment(ref _selectionVersion);
         _selectedRecordId = row.Record.Id;
+        SelectedEntry = row;
         RecordDetails = [];
         Snapshots = [];
         try
@@ -274,11 +278,11 @@ public partial class HistoryPageViewModel : ObservableObject
                 new(Pick("同步目标", "Storage Target"), row.Target),
                 new(Pick("远端命名空间", "Remote Namespace"), record.RemoteNamespace ?? Pick("未记录", "Not recorded")),
                 new(Pick("来源", "Source"), row.Source),
-                new(Pick("摘要", "Summary"), record.Summary ?? "--"),
+                new(Pick("摘要", "Summary"), UiFormat.RecordSummary(record, _isChinese)),
             };
             if (!string.IsNullOrWhiteSpace(record.ErrorMessage))
             {
-                details.Add(new UiPropertyRow(Pick("错误", "Error"), record.ErrorMessage));
+                details.Add(new UiPropertyRow(Pick("错误", "Error"), UiFormat.RecordError(record, _isChinese)));
             }
 
             if (record.SnapshotId is not null)
@@ -290,7 +294,7 @@ public partial class HistoryPageViewModel : ObservableObject
 
             Snapshots = snapshots
                 .Select((snapshot, index) => new SnapshotRow(
-                    Path.GetFileName(snapshot.ArchivePath),
+                    $"SN-{snapshot.Id.ToString("N")[..8]}",
                     index == 0 ? Pick("最新", "Latest") : string.Empty,
                     UiFormat.TimeOfRecord(snapshot.CreatedAtUtc, _isChinese),
                     snapshot.FileCount,
@@ -376,10 +380,27 @@ public partial class HistoryPageViewModel : ObservableObject
     }
 
     partial void OnIsRestoreInProgressChanged(bool value) => OnPropertyChanged(nameof(CanRestore));
+    partial void OnSnapshotsChanged(IReadOnlyList<SnapshotRow> value) => OnPropertyChanged(nameof(CanRestore));
+    partial void OnSelectedEntryChanged(HistoryRow? value) { OnPropertyChanged(nameof(HasSelectedEntry)); OnPropertyChanged(nameof(NeedsSelection)); }
+    partial void OnEntriesChanged(IReadOnlyList<HistoryRow> value) { OnPropertyChanged(nameof(NoMatchingRecords)); OnPropertyChanged(nameof(NeedsSelection)); }
+    partial void OnIsEmptyStateChanged(bool value) { OnPropertyChanged(nameof(NoMatchingRecords)); OnPropertyChanged(nameof(NeedsSelection)); }
 
     partial void OnSelectedHistoryFilterChanged(string value) => ApplyFilters();
 
-    partial void OnSelectedGameFilterChanged(string value) => ApplyFilters();
+    public void FilterForGame(Guid gameId)
+    {
+        if (!_instanceNames.TryGetValue(gameId, out var name)) return;
+        SelectedGameFilter = name;
+        _navigationGameId = gameId;
+        SelectedHistoryFilter = TimeRangeFilters[^1];
+        ApplyFilters();
+    }
+
+    partial void OnSelectedGameFilterChanged(string value)
+    {
+        _navigationGameId = null;
+        ApplyFilters();
+    }
 
     partial void OnSelectedResultFilterChanged(string value) => ApplyFilters();
 
@@ -388,6 +409,8 @@ public partial class HistoryPageViewModel : ObservableObject
     private void ApplyFilters()
     {
         IEnumerable<HistoryRow> filtered = _allEntries;
+
+        if (_navigationGameId is { } gameId) filtered = filtered.Where(row => row.Record.GameInstanceId == gameId);
 
         if (!string.IsNullOrWhiteSpace(SelectedGameFilter) && SelectedGameFilter != GameFilterPlaceholder)
         {
@@ -420,6 +443,12 @@ public partial class HistoryPageViewModel : ObservableObject
         }
 
         Entries = filtered.ToArray();
+        var completedToday = _allEntries.Count(row =>
+            row.Record.Status == SyncJobStatus.Completed &&
+            (row.Record.CompletedAtUtc ?? row.Record.StartedAtUtc).ToLocalTime().Date == DateTimeOffset.Now.Date);
+        SystemStatus = Pick(
+            $"显示 {Entries.Count} / 共 {_allEntries.Count} 条记录 • 今日完成 {completedToday} 项操作",
+            $"Showing {Entries.Count} of {_allEntries.Count} records • {completedToday} completed today");
         if (_selectedRecordId is { } selectedId && !Entries.Any(row => row.Record.Id == selectedId))
         {
             ClearSelection();
@@ -431,6 +460,7 @@ public partial class HistoryPageViewModel : ObservableObject
     {
         Interlocked.Increment(ref _selectionVersion);
         _selectedRecordId = null;
+        SelectedEntry = null;
         RecordDetails = [];
         Snapshots = [];
         DetailRecordId = string.Empty;
@@ -480,6 +510,8 @@ public sealed record HistoryRow(
     string Files)
 {
     public required SyncRecord Record { get; init; }
+    public string DestinationSummary => $"{Direction} · {Target}";
+    public override string ToString() => $"{Game} · {DestinationSummary} · {Time} · {Result}";
 }
 
 public sealed record SnapshotRow(

@@ -15,7 +15,7 @@ using Serilog;
 
 namespace GSYNC.App.ViewModels;
 
-public sealed record ConflictNavigationContext(Guid InstanceId, string GameName, SyncComparison Comparison);
+public sealed record ConflictNavigationContext(Guid InstanceId, string GameName, SyncComparison Comparison, Guid? TargetId = null);
 
 public partial class GameDetailsViewModel : ObservableObject
 {
@@ -203,7 +203,23 @@ public partial class GameDetailsViewModel : ObservableObject
     public string AutoPullTitle => Pick("安全自动拉取", "Safe automatic pull");
     public string ConfirmBaselineText => Pick("比较并确认共同版本", "Compare and confirm common version");
     public string AutoPullNote => Pick("请先关闭游戏。首次关联或发生冲突时，先手动处理并让两端文件一致，再确认共同版本。更改路径不会移动存档。", "Close the game first. On first connection or conflict, resolve differences manually until both sides match, then confirm the common version. Changing paths does not move saves.");
-    public string SyncDestinationTitle => Pick("同步位置", "Sync destination");
+    public string SyncDestinationTitle => Pick("本机与同步目标", "This device and sync target");
+    public string LocalDeviceLabel => Pick($"本机 · {Environment.MachineName}", $"This device · {Environment.MachineName}");
+    public string TargetLabel => Pick("同步目标", "Sync target");
+    public string LocalPathSummary
+    {
+        get
+        {
+            var paths = ContentItems.Where(item => item.Enabled).Select(item => item.ResolvedPath).ToArray();
+            return paths.Length switch
+            {
+                0 => Pick("没有启用的存档路径", "No save paths are enabled"),
+                1 => paths[0],
+                _ => paths[0] + Pick($"\n另有 {paths.Length - 1} 个路径", $"\n{paths.Length - 1} more paths"),
+            };
+        }
+    }
+    partial void OnContentItemsChanged(IReadOnlyList<ContentItemRow> value) => OnPropertyChanged(nameof(LocalPathSummary));
     public string ChangeDestinationText => Pick("修改同步位置", "Change destination");
     public string RemoteNamespaceText => Pick("远端目录", "Remote directory");
     public string SelectTargetText => Pick("同步目标", "Sync target");
@@ -376,7 +392,8 @@ public partial class GameDetailsViewModel : ObservableObject
                 }
                 return new ContentSelection { ContentId = content.ContentId,
                     IsEnabled = previous.ContentSelections.Count == 0 ? content.DefaultEnabled : old?.IsEnabled ?? false,
-                    PathOverrides = paths };
+                    PathOverrides = paths, DisabledPathTemplates = old?.DisabledPathTemplates ?? Array.Empty<string>(),
+                    RemovedPathTemplates = old?.RemovedPathTemplates ?? Array.Empty<string>() };
             }).ToArray();
             var updatedAt = DateTimeOffset.UtcNow;
             if (updatedAt <= previous.UpdatedAtUtc) updatedAt = previous.UpdatedAtUtc.AddTicks(1);
@@ -397,6 +414,54 @@ public partial class GameDetailsViewModel : ObservableObject
             Log.Error(exception, "Failed to update content path.");
             return exception.Message;
         }
+        finally { IsBusy = false; }
+    }
+
+    public async Task<string?> UpdateContentSelectionAsync(ContentItemRow row, bool? enabled, CancellationToken cancellationToken = default)
+    {
+        if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is in progress. Please wait.");
+        if (_definition is null || _binding is null) return Pick("请先为游戏设置同步目标。", "Set a sync target for the game first.");
+        IsBusy = true;
+        try
+        {
+            var definition = await _manifestService.GetDefinitionAsync(_definition.GameId, cancellationToken)
+                ?? throw new InvalidOperationException("The game definition no longer exists.");
+            var item = definition.ContentItems.FirstOrDefault(value => string.Equals(value.ContentId, row.Name, StringComparison.OrdinalIgnoreCase));
+            if (item is null || !item.PathTemplates.Any(value => string.Equals(value.Replace('\\', '/'), row.PathTemplate.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)))
+                return Pick("内容项已发生变化，请刷新后重试。", "The content item changed. Refresh and try again.");
+            var previous = _binding;
+            var selections = definition.ContentItems.Select(content =>
+            {
+                var old = previous.ContentSelections.FirstOrDefault(value => string.Equals(value.ContentId, content.ContentId, StringComparison.OrdinalIgnoreCase));
+                var groupEnabled = previous.ContentSelections.Count == 0 ? content.DefaultEnabled : old?.IsEnabled ?? false;
+                var disabled = new HashSet<string>(old?.DisabledPathTemplates ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+                var removed = new HashSet<string>(old?.RemovedPathTemplates ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+                if (string.Equals(content.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (old?.IsTemplateRemoved(row.PathTemplate) == true) throw new InvalidOperationException("The content item was already removed. Refresh and try again.");
+                    if (enabled is null) removed.Add(row.PathTemplate);
+                    else
+                    {
+                        if (!groupEnabled) foreach (var template in content.PathTemplates) disabled.Add(template);
+                        groupEnabled = true;
+                        if (enabled.Value) disabled.Remove(row.PathTemplate); else disabled.Add(row.PathTemplate);
+                    }
+                }
+                return new ContentSelection { ContentId = content.ContentId, IsEnabled = groupEnabled,
+                    PathOverrides = old?.PathOverrides ?? new Dictionary<string, string>(), DisabledPathTemplates = disabled.ToArray(), RemovedPathTemplates = removed.ToArray() };
+            }).ToArray();
+            var updatedAt = DateTimeOffset.UtcNow;
+            if (updatedAt <= previous.UpdatedAtUtc) updatedAt = previous.UpdatedAtUtc.AddTicks(1);
+            var updated = new StorageBinding { Id = previous.Id, GameInstanceId = previous.GameInstanceId,
+                StorageProviderId = previous.StorageProviderId, RemoteNamespace = previous.RemoteNamespace, Settings = previous.Settings,
+                CreatedAtUtc = previous.CreatedAtUtc, UpdatedAtUtc = updatedAt, ContentSelections = selections };
+            await _bindingUpdater.UpdateBindingAsync(updated, previous.Id, previous.UpdatedAtUtc, cancellationToken);
+            await LoadAsync(previous.GameInstanceId, cancellationToken);
+            return null;
+        }
+        catch (SyncBindingBusyException) { return Pick("该游戏仍有同步任务，请结束后再修改。", "Wait for this game's sync tasks to finish before changing its content."); }
+        catch (SyncBindingChangedException) { return Pick("配置已发生变化，请刷新后重试。", "The configuration changed. Refresh and try again."); }
+        catch (Exception exception) { Log.Warning(exception, "Failed to update content selection."); return exception.Message; }
         finally { IsBusy = false; }
     }
 
@@ -470,7 +535,7 @@ public partial class GameDetailsViewModel : ObservableObject
             RecentActivityItems = activityRecords
                 .Select((record, index) => new UiActivityItem(
                     $"{UiFormat.DirectionText(record, _isChinese)} · {UiFormat.StatusText(record.Status, _isChinese)}",
-                    record.ErrorMessage ?? record.Summary ?? "--",
+                    UiFormat.RecordMessage(record, _isChinese),
                     UiFormat.RelativeTime(record.CompletedAtUtc ?? record.StartedAtUtc, _isChinese),
                     UiFormat.StatusVariant(record.Status),
                     index == activityRecords.Length - 1))
@@ -600,7 +665,7 @@ public partial class GameDetailsViewModel : ObservableObject
         if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is in progress. Please wait.");
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(pathTemplate))
             return Pick("请填写条目名称和存档路径。", "Enter an item name and save path.");
-        if (_definition is null)
+        if (_definition is null || _instance is null)
         {
             return Pick("当前游戏没有可编辑的内容定义。", "No editable content definition is available for this game.");
         }
@@ -608,62 +673,73 @@ public partial class GameDetailsViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            var targetDefinition = await _manifestService.GetDefinitionAsync(_definition.GameId, cancellationToken)
-                ?? throw new InvalidOperationException("The game definition no longer exists.");
-            var updatedItems = targetDefinition.ContentItems.ToList();
-            var existingIds = updatedItems.Select(item => item.ContentId).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var baseId = SlugifyContentId(name);
-            var contentId = baseId;
-            for (var suffix = 2; existingIds.Contains(contentId); suffix++) contentId = baseId + "-" + suffix;
-            updatedItems.Add(new ContentItem
+            var previous = _binding;
+            await _bindingUpdater.RunConfigurationChangeAsync(_instance.Id, async token =>
             {
-                ContentId = contentId,
-                Category = ContentCategory.Extra,
-                PathTemplates = [pathTemplate.Trim().Replace('\\', '/')],
-                DefaultEnabled = true,
-                Description = name.Trim(),
-            });
-
-            targetDefinition = new GameContentDefinition
-            {
-                GameId = targetDefinition.GameId,
-                DisplayName = targetDefinition.DisplayName,
-                Description = targetDefinition.Description,
-                SourceHints = targetDefinition.SourceHints,
-                ContentItems = updatedItems,
-            };
-
-            var oldBinding = _binding is null ? null : await _storageBindingRepository.GetAsync(_binding.Id, cancellationToken)
-                ?? throw new InvalidOperationException("The storage binding no longer exists.");
-            StorageBinding? updatedBinding = null;
-            if (oldBinding is not null)
-            {
-                updatedBinding = new StorageBinding
+                var oldBinding = (await _storageBindingRepository.ListByGameInstanceAsync(_instance.Id, token)).FirstOrDefault();
+                if (oldBinding?.Id != previous?.Id || oldBinding?.UpdatedAtUtc != previous?.UpdatedAtUtc)
+                    throw new SyncBindingChangedException();
+                var targetDefinition = await _manifestService.GetDefinitionAsync(_definition.GameId, token)
+                    ?? throw new InvalidOperationException("The game definition no longer exists.");
+                var updatedItems = targetDefinition.ContentItems.ToList();
+                var existingIds = updatedItems.Select(item => item.ContentId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var baseId = SlugifyContentId(name);
+                var contentId = baseId;
+                for (var suffix = 2; existingIds.Contains(contentId); suffix++) contentId = baseId + "-" + suffix;
+                updatedItems.Add(new ContentItem
                 {
-                    Id = oldBinding.Id, GameInstanceId = oldBinding.GameInstanceId, StorageProviderId = oldBinding.StorageProviderId,
-                    RemoteNamespace = oldBinding.RemoteNamespace, Settings = oldBinding.Settings, CreatedAtUtc = oldBinding.CreatedAtUtc,
-                    UpdatedAtUtc = DateTimeOffset.UtcNow,
-                    ContentSelections = updatedItems.Select(item => new ContentSelection
-                    {
-                        ContentId = item.ContentId,
-                        IsEnabled = item.ContentId == contentId || (oldBinding.ContentSelections.Count == 0 ? item.DefaultEnabled :
-                            oldBinding.ContentSelections.Any(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase) && selection.IsEnabled)),
-                        PathOverrides = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.PathOverrides ?? new Dictionary<string, string>(),
-                    }).ToArray(),
+                    ContentId = contentId,
+                    Category = ContentCategory.Extra,
+                    PathTemplates = [pathTemplate.Trim().Replace('\\', '/')],
+                    DefaultEnabled = true,
+                    Description = name.Trim(),
+                });
+
+                targetDefinition = new GameContentDefinition
+                {
+                    GameId = targetDefinition.GameId,
+                    DisplayName = targetDefinition.DisplayName,
+                    Description = targetDefinition.Description,
+                    SourceHints = targetDefinition.SourceHints,
+                    ContentItems = updatedItems,
                 };
-                await _storageBindingRepository.UpsertAsync(updatedBinding, cancellationToken);
-            }
-            try { await _userDefinitionStore.SaveDefinitionAsync(targetDefinition, cancellationToken); }
-            catch
-            {
-                if (oldBinding is not null) await _storageBindingRepository.UpsertAsync(oldBinding, CancellationToken.None);
-                throw;
-            }
-            _binding = updatedBinding;
-            _definition = targetDefinition;
+
+                StorageBinding? updatedBinding = null;
+                if (oldBinding is not null)
+                {
+                    var updatedAt = DateTimeOffset.UtcNow;
+                    if (updatedAt <= oldBinding.UpdatedAtUtc) updatedAt = oldBinding.UpdatedAtUtc.AddTicks(1);
+                    updatedBinding = new StorageBinding
+                    {
+                        Id = oldBinding.Id, GameInstanceId = oldBinding.GameInstanceId, StorageProviderId = oldBinding.StorageProviderId,
+                        RemoteNamespace = oldBinding.RemoteNamespace, Settings = oldBinding.Settings, CreatedAtUtc = oldBinding.CreatedAtUtc,
+                        UpdatedAtUtc = updatedAt,
+                        ContentSelections = updatedItems.Select(item => new ContentSelection
+                        {
+                            ContentId = item.ContentId,
+                            IsEnabled = item.ContentId == contentId || (oldBinding.ContentSelections.Count == 0 ? item.DefaultEnabled :
+                                oldBinding.ContentSelections.Any(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase) && selection.IsEnabled)),
+                            PathOverrides = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.PathOverrides ?? new Dictionary<string, string>(),
+                            DisabledPathTemplates = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.DisabledPathTemplates ?? Array.Empty<string>(),
+                            RemovedPathTemplates = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.RemovedPathTemplates ?? Array.Empty<string>(),
+                        }).ToArray(),
+                    };
+                    await _storageBindingRepository.UpsertAsync(updatedBinding, token);
+                }
+                try { await _userDefinitionStore.SaveDefinitionAsync(targetDefinition, token); }
+                catch
+                {
+                    if (oldBinding is not null) await _storageBindingRepository.UpsertAsync(oldBinding, CancellationToken.None);
+                    throw;
+                }
+                _binding = updatedBinding;
+                _definition = targetDefinition;
+            }, cancellationToken);
             BuildContentItems();
             return null;
         }
+        catch (SyncBindingBusyException) { return Pick("该游戏仍有同步任务，请结束后再修改。", "Wait for this game's sync tasks to finish before changing its content."); }
+        catch (SyncBindingChangedException) { return Pick("配置已发生变化，请刷新后重试。", "The configuration changed. Refresh and try again."); }
         catch (Exception exception)
         {
             Log.Error(exception, "Failed to add custom content item.");
@@ -688,7 +764,7 @@ public partial class GameDetailsViewModel : ObservableObject
         return (false, Pick($"路径不存在：{path}", $"Path does not exist: {path}"));
     }
 
-    public async Task<string?> QueueSyncAsync(SyncDirection direction, CancellationToken cancellationToken = default)
+    public async Task<string?> QueueSyncAsync(SyncDirection direction, CancellationToken cancellationToken = default, IReadOnlyList<Guid>? targetIds = null)
     {
         if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is in progress. Please wait.");
         if (_instance is null)
@@ -701,25 +777,34 @@ public partial class GameDetailsViewModel : ObservableObject
             return Pick("该游戏尚未绑定同步目标。", "This game has no storage binding yet.");
         }
 
+        var queuedCount = 0;
         try
         {
-            await _syncEngine.QueueAsync(new SyncJob
+            var selectedTargets = targetIds ?? Array.Empty<Guid>();
+            if (selectedTargets.Count > 1 && direction != SyncDirection.Upload)
+                return Pick("下载时请选择一个目标。", "Choose one target when downloading.");
+            var targets = selectedTargets.Distinct().Select(id => (Id: id, Target: _syncTargetStore.Get(id))).ToArray();
+            if (targets.Any(item => item.Target is null)) return Pick("所选同步目标已不存在。", "The selected sync target no longer exists.");
+            foreach (var (targetId, target) in targets.Length == 0 ? new[] { (Id: Guid.Empty, Target: (GSYNC.App.Infrastructure.Configuration.SyncTargetConfig?)null) } : targets)
             {
-                GameInstanceId = _instance.Id,
-                Direction = direction,
-                ProtectRemoteChanges = direction == SyncDirection.Upload,
-                DisplayName = _instance.DisplayName,
-            }, cancellationToken);
+                await _syncEngine.QueueAsync(new SyncJob
+                {
+                    GameInstanceId = _instance.Id, TargetId = targetId == Guid.Empty ? null : targetId,
+                    Direction = direction, ProtectRemoteChanges = direction == SyncDirection.Upload,
+                    DisplayName = target is null ? _instance.DisplayName : $"{_instance.DisplayName} · {target.Name}",
+                }, cancellationToken);
+                queuedCount++;
+            }
             return null;
         }
         catch (Exception exception)
         {
             Log.Error(exception, "Failed to queue {Direction} job.", direction);
-            return exception.Message;
+            return queuedCount == 0 ? exception.Message : Pick($"已有 {queuedCount} 个任务加入队列，其余目标未加入：{exception.Message}", $"{queuedCount} jobs were queued; remaining targets were not queued: {exception.Message}");
         }
     }
 
-    public async Task<(ConflictNavigationContext? Context, string? Error)> CompareAsync(CancellationToken cancellationToken = default)
+    public async Task<(ConflictNavigationContext? Context, string? Error)> CompareAsync(CancellationToken cancellationToken = default, Guid? targetId = null)
     {
         if (_instance is null || _binding is null)
         {
@@ -732,11 +817,12 @@ public partial class GameDetailsViewModel : ObservableObject
             var comparison = await _syncEngine.CompareAsync(new SyncJob
             {
                 GameInstanceId = _instance.Id,
+                TargetId = targetId,
                 Direction = SyncDirection.Compare,
                 DisplayName = _instance.DisplayName,
             }, cancellationToken);
 
-            return (new ConflictNavigationContext(_instance.Id, _instance.DisplayName, comparison), null);
+            return (new ConflictNavigationContext(_instance.Id, _instance.DisplayName, comparison, targetId), null);
         }
         catch (Exception exception)
         {
@@ -804,10 +890,11 @@ public partial class GameDetailsViewModel : ObservableObject
         long totalBytes = 0;
         foreach (var item in _definition.ContentItems)
         {
-            var enabled = IsContentEnabled(item);
             foreach (var template in item.PathTemplates)
             {
                 var selection = _binding?.ContentSelections.FirstOrDefault(value => string.Equals(value.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase));
+                if (selection?.IsTemplateRemoved(template) == true) continue;
+                var enabled = IsContentEnabled(item) && (selection?.IsTemplateEnabled(template) ?? true);
                 var effectiveTemplate = selection?.EffectiveTemplate(template) ?? template;
                 var resolved = _pathResolver.Resolve(effectiveTemplate, systemVariables, sourceVariables, _instance.Variables, _userVariablesStore.AsDictionary(), bindingSettings);
                 var (statusText, statusVariant, size) = DescribeLocalPath(resolved, enabled);
@@ -969,6 +1056,8 @@ public sealed record ContentItemRow(
     public string TestPathText => IsChinese ? "测试路径" : "Test path";
     public string DetailsText => IsChinese ? "查看详情" : "Details";
     public string EditText => IsChinese ? "编辑路径" : "Edit path";
+    public string ToggleText => Enabled ? (IsChinese ? "停用" : "Disable") : (IsChinese ? "启用" : "Enable");
+    public string RemoveText => IsChinese ? "移除" : "Remove";
 
     public string EnabledVariant => Enabled ? "synced" : "disabled";
 }
