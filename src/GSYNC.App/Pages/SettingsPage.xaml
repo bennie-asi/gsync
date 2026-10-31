@@ -23,7 +23,7 @@
                     <StackPanel Spacing="2" VerticalAlignment="Center">
                         <TextBlock FontWeight="SemiBold" Text="{x:Bind DisplayName}" TextTrimming="CharacterEllipsis" />
                         <TextBlock
-                            FontSize="11"
+                            FontSize="13"
                             Foreground="{StaticResource AppTextSecondaryBrush}"
                             Text="{x:Bind InstallDirectoryDisplay}"
                             TextTrimming="CharacterEllipsis" />
@@ -50,7 +50,7 @@
                     </Grid.ColumnDefinitions>
 
                     <Border Width="28" Height="28" Background="{StaticResource AppSurfaceRaisedBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" VerticalAlignment="Top">
-                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Text="{x:Bind KeyLabel}" />
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Text="{x:Bind KeyLabel}" />
                     </Border>
 
                     <StackPanel Grid.Column="1" Spacing="4">
@@ -69,7 +69,7 @@
                     <ColumnDefinition Width="160" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
+                <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
                 <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{x:Bind Value}" TextWrapping="WrapWholeWords" />
             </Grid>
         </DataTemplate>
@@ -126,7 +126,7 @@
                     <primitives:PropertySheet x:Name="ThemeBehaviorSheet" Title="Theme and system behavior">
                         <primitives:PropertySheet.PanelContent>
                             <StackPanel Spacing="14">
-                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding ThemeBehaviorSubtitle}" TextWrapping="WrapWholeWords" />
+                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding ThemeBehaviorSubtitle}" TextWrapping="WrapWholeWords" />
 
                                 <StackPanel Spacing="6">
                                     <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding LanguageLabel}" />
@@ -146,10 +146,48 @@
                         </primitives:PropertySheet.PanelContent>
                     </primitives:PropertySheet>
 
+                    <primitives:PropertySheet x:Name="StartupSection">
+                        <primitives:PropertySheet.PanelContent>
+                            <StackPanel Spacing="10">
+                                <TextBlock x:Name="StartupDescription" TextWrapping="Wrap" />
+                                <TextBlock x:Name="StartupStatus" TextWrapping="Wrap" Foreground="{StaticResource AppTextSecondaryBrush}" />
+                                <StackPanel Spacing="8" HorizontalAlignment="Left">
+                                    <Button x:Name="EnableStartupButton" Click="EnableStartup_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button x:Name="DisableStartupButton" Click="DisableStartup_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button x:Name="WindowsStartupButton" Click="WindowsStartup_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </primitives:PropertySheet.PanelContent>
+                    </primitives:PropertySheet>
+
+                    <primitives:PropertySheet x:Name="UpdatesSection">
+                        <primitives:PropertySheet.PanelContent>
+                            <StackPanel Spacing="10">
+                                <TextBlock x:Name="VersionText" TextWrapping="Wrap" />
+                                <ToggleSwitch x:Name="AutoCheckToggle" IsOn="{Binding AutoCheckUpdates, Mode=TwoWay}" />
+                                <TextBlock x:Name="UpdateStatus" TextWrapping="Wrap" Foreground="{StaticResource AppTextSecondaryBrush}" />
+                                <ScrollViewer x:Name="ReleaseNotesContainer" MaxHeight="180" VerticalScrollBarVisibility="Auto" Visibility="Collapsed"><TextBlock x:Name="ReleaseNotes" TextWrapping="Wrap" /></ScrollViewer>
+                                <ProgressBar x:Name="UpdateProgress" Minimum="0" Maximum="100" Visibility="Collapsed" />
+                                <TextBlock x:Name="DownloadStatus" TextWrapping="Wrap" Foreground="{StaticResource AppTextSecondaryBrush}" />
+                                <TextBlock x:Name="InstallStatusText" TextWrapping="Wrap" Foreground="{StaticResource AppTextSecondaryBrush}" />
+                                <TextBlock x:Name="LastUpdateResultText" TextWrapping="Wrap" Foreground="{StaticResource AppTextSecondaryBrush}" />
+                                <StackPanel Spacing="8" HorizontalAlignment="Left">
+                                    <Button x:Name="CheckUpdatesButton" Click="CheckUpdates_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button x:Name="ReleasesButton" Click="Releases_Click" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button x:Name="DownloadUpdateButton" Click="DownloadUpdate_Click" Visibility="Collapsed" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                                    <Button x:Name="CancelUpdateButton" Click="CancelUpdate_Click" Visibility="Collapsed" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button x:Name="OpenUpdateFolderButton" Click="OpenUpdateFolder_Click" Visibility="Collapsed" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                    <Button x:Name="InstallUpdateButton" Click="InstallUpdate_Click" Visibility="Collapsed" Style="{StaticResource PrimaryToolbarButtonStyle}" />
+                                    <Button x:Name="CancelInstallButton" Click="CancelInstall_Click" Visibility="Collapsed" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </primitives:PropertySheet.PanelContent>
+                    </primitives:PropertySheet>
+
                     <primitives:PropertySheet x:Name="BehaviorSection" Title="{Binding BehaviorTitle}">
                         <primitives:PropertySheet.PanelContent>
                             <StackPanel Spacing="14">
-                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding BehaviorSubtitle}" TextWrapping="WrapWholeWords" />
+                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding BehaviorSubtitle}" TextWrapping="WrapWholeWords" />
 
                                 <StackPanel Spacing="6">
                                     <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding AutoPullLabel}" />
@@ -183,7 +221,7 @@
                     <primitives:PropertySheet x:Name="LoggingSection" Title="{Binding LoggingTitle}">
                         <primitives:PropertySheet.PanelContent>
                             <StackPanel Spacing="14">
-                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding LoggingSubtitle}" TextWrapping="WrapWholeWords" />
+                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding LoggingSubtitle}" TextWrapping="WrapWholeWords" />
                                 <StackPanel Spacing="6">
                                     <TextBlock Foreground="{StaticResource AppTextDimBrush}" Text="{Binding LogLevelLabel}" />
                                     <ComboBox ItemsSource="{Binding LogLevelOptions}" SelectedItem="{Binding SelectedLogLevel, Mode=TwoWay}" />
@@ -198,7 +236,7 @@
                     <primitives:PropertySheet x:Name="DiagnosticsSection" Title="{Binding DiagnosticsTitle}">
                         <primitives:PropertySheet.PanelContent>
                             <StackPanel Spacing="10">
-                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding DiagnosticsSubtitle}" TextWrapping="WrapWholeWords" />
+                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding DiagnosticsSubtitle}" TextWrapping="WrapWholeWords" />
                                 <ItemsControl ItemTemplate="{StaticResource SettingsPropertyTemplate}" ItemsSource="{Binding Diagnostics}" />
                                 <Button x:Name="OpenDataDirButton" Click="OpenDataDirButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                                     <primitives:IconText Glyph="{StaticResource IconFolderOpen}" GlyphSize="16" Text="{Binding OpenDataDirText}" />
@@ -210,7 +248,7 @@
                     <primitives:PropertySheet x:Name="GamesSection" Title="{Binding GamesTitle}">
                         <primitives:PropertySheet.PanelContent>
                             <StackPanel Spacing="10">
-                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding GamesSubtitle}" TextWrapping="WrapWholeWords" />
+                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding GamesSubtitle}" TextWrapping="WrapWholeWords" />
                                 <ItemsControl ItemsSource="{Binding GameEntries}" ItemTemplate="{StaticResource GameMetaRowTemplate}" />
                             </StackPanel>
                         </primitives:PropertySheet.PanelContent>

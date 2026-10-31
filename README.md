@@ -152,6 +152,10 @@ scripts/build.ps1 -Version 0.0.0-local
 
 To use an isolated application data directory, set the absolute `GSYNC_DATA_ROOT` environment variable before starting GSYNC. If unset, the app uses `%APPDATA%/GSYNC`.
 
+### Application updates and startup
+
+Settings can check GitHub Releases automatically at startup or on demand and download compatible releases. For releases signed by the embedded public key, choose **Wait and install**: GSYNC waits for queued and running sync and restore work, verifies the signature and archive, then restarts through an independent updater. It backs up managed program files and rolls them back if the startup check fails. An older installation without the update helper and managed-file list must first be updated manually by extracting a signed release to a new folder; update the sign-in startup location if enabled. Unsigned releases can only be installed manually. GitHub's digest checks integrity; the separate signature authenticates the release.
+
 ### Sync format and credential storage
 
 Uploads are stored as immutable generations. A conditional write of `__gsync_meta/current.json` publishes the complete file set; interrupted uploads remain invisible and concurrent writers must compare again. Existing flat saves are imported on the first successful upload. Upgrade GSYNC on **every device** before writing with this format: older clients do not understand the generation manifest. Generations are retained so readers that already opened an older version remain valid.
@@ -275,6 +279,8 @@ dotnet test GSYNC.sln --no-build
 > 环境要求：Windows 10（1904x）及以上、x64、.NET 9.0.3xx SDK，以及用于运行和测试的 .NET 8 运行时（或 .NET 8 SDK）。完整产品意图与领域模型见 `docs/implementation-handoff.md`。
 
 > 同步格式已升级为不可变版本与条件提交清单，请先升级所有设备的 GSYNC。WebDAV 需要强 ETag 和条件 PUT 支持，远端账户认证需要 HTTPS。密码按 Windows 当前用户加密，复制数据到其他账户后需在同步目标编辑器重新输入凭据。
+
+设置页支持自动或手动检查 GitHub 发行版并下载兼容版本。对于通过内置公钥验证的签名版本，选择“等待并安装”后，程序会等待运行中及排队的同步、恢复任务结束，再由独立更新器备份并替换受管程序文件；启动检查失败时回滚。旧版本如果没有更新器和受管文件清单，需先将签名版本手动解压到新文件夹，若启用了登录自启，再更新自启路径。没有可信签名的发行版只能手动安装。GitHub 摘要检查文件完整性，独立签名用于验证发布者。
 
 ### 🗺 项目状态
 

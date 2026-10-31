@@ -47,6 +47,9 @@ public partial class VariablesPageViewModel : ObservableObject
     private string _lastModifiedText = string.Empty;
 
     [ObservableProperty]
+    private bool _canEditSelectedVariable;
+
+    [ObservableProperty]
     private string _templateInput = string.Empty;
 
     [ObservableProperty]
@@ -201,6 +204,7 @@ public partial class VariablesPageViewModel : ObservableObject
     public void SelectVariable(VariableRow? row)
     {
         SelectedVariable = row;
+        CanEditSelectedVariable = row?.TypeCode == "USR";
         if (row is null)
         {
             SelectedVariableName = string.Empty;
@@ -213,11 +217,11 @@ public partial class VariablesPageViewModel : ObservableObject
         SelectedVariableName = row.Name;
         VariableScopeText = row.ScopeLabel;
 
-        var userVariable = _userVariablesStore.List()
-            .FirstOrDefault(variable => string.Equals(NormalizeName(variable.Name), row.Name, StringComparison.OrdinalIgnoreCase));
+        var userVariable = row.TypeCode == "USR" ? _userVariablesStore.List()
+            .FirstOrDefault(variable => string.Equals(NormalizeName(variable.Name), row.Name, StringComparison.OrdinalIgnoreCase)) : null;
         LastModifiedText = userVariable is not null
             ? Pick($"最近修改 {UiFormat.RelativeTime(userVariable.UpdatedAtUtc, true)}", $"Last modified {UiFormat.RelativeTime(userVariable.UpdatedAtUtc, false)}")
-            : Pick("内置变量 · 随系统解析", "Built-in · resolved from the system");
+            : Pick("内置变量 · 只读", "Built-in variable · read-only");
 
         var properties = new List<UiPropertyRow>
         {
@@ -240,13 +244,13 @@ public partial class VariablesPageViewModel : ObservableObject
 
     public UserVariable? GetSelectedUserVariable()
     {
-        if (SelectedVariable is null)
+        if (!IsSelectedVariableUserDefined())
         {
             return null;
         }
 
         return _userVariablesStore.List()
-            .FirstOrDefault(variable => string.Equals(NormalizeName(variable.Name), SelectedVariable.Name, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(variable => string.Equals(NormalizeName(variable.Name), SelectedVariable!.Name, StringComparison.OrdinalIgnoreCase));
     }
 
     public void SaveUserVariable(string name, string value, string? description)

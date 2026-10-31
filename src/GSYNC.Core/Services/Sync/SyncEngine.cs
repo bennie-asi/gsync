@@ -20,6 +20,7 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
     private readonly SyncSnapshotService _snapshots;
     private readonly SyncOperationRunner _operations;
     private readonly ApplicationTaskHost? _applicationTasks;
+    private readonly SyncActivityGate _activity;
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _gameLocks = new();
 
     public SyncEngine(
@@ -37,12 +38,14 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
         Func<bool>? autoSnapshotBeforeDownloadEnabled = null,
         Func<StorageBinding, IReadOnlyDictionary<string, string>>? storageConfigurationResolver = null,
         Func<IReadOnlyDictionary<string, string>>? userVariablesProvider = null,
-        ApplicationTaskHost? applicationTasks = null)
+        ApplicationTaskHost? applicationTasks = null,
+        SyncActivityGate? activity = null)
     {
         _queue = syncQueue;
         _bindings = storageBindingRepository;
         _history = syncHistoryRepository;
         _applicationTasks = applicationTasks;
+        _activity = activity ?? new SyncActivityGate();
         var files = new SyncFileService(pathResolver, systemVariableProvider, userVariablesProvider);
         _contexts = new SyncContextFactory(gameInstanceRepository, storageBindingRepository, manifestService,
             sourceProviders, storageProviders, files, storageConfigurationResolver);
@@ -54,6 +57,7 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
 
     public async Task QueueAsync(SyncJob syncJob, CancellationToken cancellationToken)
     {
+        using var activity = _activity.Enter();
         if (_applicationTasks?.IsStopping == true) throw new InvalidOperationException("The application is stopping.");
         var binding = (await _bindings.ListByGameInstanceAsync(syncJob.GameInstanceId, cancellationToken)).FirstOrDefault();
         if (_applicationTasks?.IsStopping == true) throw new InvalidOperationException("The application is stopping.");
@@ -129,6 +133,9 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
         var context = await _contexts.BuildAsync(job.GameInstanceId, token);
         if (job.BindingCaptured && (job.CapturedBindingId != context.Binding.Id || job.CapturedBindingUpdatedAtUtc != context.Binding.UpdatedAtUtc))
             throw new InvalidOperationException("The sync destination changed after this task was queued. Compare it again before syncing.");
+        state.TargetId = context.TargetId;
+        state.TargetName = context.TargetName;
+        state.RemoteNamespace = context.Binding.RemoteNamespace;
         switch (job.Direction)
         {
             case SyncDirection.Upload: await _transfers.UploadAsync(job, context, state, token); break;
@@ -146,14 +153,15 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
     private Task TrackAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken)
         => TrackAsync(async token => { await operation(token); return true; }, cancellationToken);
 
-    private Task<T> TrackAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken)
+    private async Task<T> TrackAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken)
     {
+        using var activity = _activity.Enter();
         async Task<T> InvokeAsync(CancellationToken lifetimeToken)
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetimeToken);
             return await Task.Run(() => operation(linked.Token), linked.Token);
         }
-        return _applicationTasks is null ? InvokeAsync(CancellationToken.None) : _applicationTasks.RunAsync(InvokeAsync);
+        return await (_applicationTasks is null ? InvokeAsync(CancellationToken.None) : _applicationTasks.RunAsync(InvokeAsync));
     }
 
     private async Task<IDisposable> LockGameAsync(Guid gameId, CancellationToken cancellationToken)

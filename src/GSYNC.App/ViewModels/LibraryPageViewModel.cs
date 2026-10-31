@@ -79,7 +79,7 @@ public partial class LibraryPageViewModel : ObservableObject
         SortText = Pick("排序", "Sort");
         RefreshText = Pick("刷新", "Refresh");
         AddGameText = Pick("添加游戏", "Add Game");
-        SyncNowText = Pick("检查并同步", "Check and sync");
+        SyncNowText = Pick("比较存档", "Compare saves");
         UploadAllText = Pick("上传全部", "Upload all");
         CompareText = Pick("比较", "Compare");
         TableTitle = string.Empty;

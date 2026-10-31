@@ -94,7 +94,10 @@ internal sealed class SyncContextFactory(
             }).ToArray(),
         };
         var fingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(identity)));
-        return new SyncExecutionContext(gameInstance, binding, sourceProvider, storageProvider, resolvedContentRoots, fingerprint);
+        var targetId = effectiveConfiguration.TryGetValue("targetId", out var rawTargetId) && Guid.TryParse(rawTargetId, out var parsedTargetId)
+            ? parsedTargetId : (Guid?)null;
+        effectiveConfiguration.TryGetValue("__gsyncHistoryTargetName", out var targetName);
+        return new SyncExecutionContext(gameInstance, binding, sourceProvider, storageProvider, resolvedContentRoots, fingerprint, targetId, targetName);
     }
 
 }

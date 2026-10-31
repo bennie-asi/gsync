@@ -36,6 +36,8 @@ public partial class GameDetailsViewModel : ObservableObject
     private GameInstance? _instance;
     private StorageBinding? _binding;
     private GameContentDefinition? _definition;
+    private readonly object _comparisonGate = new();
+    private readonly List<Task> _comparisonTasks = [];
     private CancellationTokenSource? _comparisonCancellation;
     private long _loadVersion;
 
@@ -133,7 +135,7 @@ public partial class GameDetailsViewModel : ObservableObject
         PrimaryActionLabel = Pick("快速操作", "Quick Actions");
         UploadText = Pick("上传", "Upload");
         DownloadText = Pick("下载", "Download");
-        CompareText = Pick("检查并同步", "Check and sync");
+        CompareText = Pick("比较存档", "Compare saves");
         RestoreText = Pick("恢复备份", "Restore Backup");
         TableSectionTitle = Pick("同步内容", "Sync content");
         TableSectionSubtitle = Pick("本地存档路径与同步配置。", "Local save paths and sync configuration.");
@@ -492,8 +494,17 @@ public partial class GameDetailsViewModel : ObservableObject
             {
                 var comparisonCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 comparisonCancellation.CancelAfter(TimeSpan.FromSeconds(15));
-                _comparisonCancellation = comparisonCancellation;
-                _ = RefreshSyncStatusAsync(instanceId, loadVersion, comparisonCancellation);
+                lock (_comparisonGate)
+                {
+                    if (loadVersion != Interlocked.Read(ref _loadVersion))
+                    {
+                        comparisonCancellation.Dispose();
+                        return;
+                    }
+                    _comparisonCancellation = comparisonCancellation;
+                    _comparisonTasks.RemoveAll(task => task.IsCompleted);
+                    _comparisonTasks.Add(RefreshSyncStatusAsync(instanceId, loadVersion, comparisonCancellation));
+                }
             }
         }
         catch (Exception exception)
@@ -504,10 +515,22 @@ public partial class GameDetailsViewModel : ObservableObject
 
     public void StopStatusCheck()
     {
-        Interlocked.Increment(ref _loadVersion);
-        var cancellation = Interlocked.Exchange(ref _comparisonCancellation, null);
+        CancellationTokenSource? cancellation;
+        lock (_comparisonGate)
+        {
+            Interlocked.Increment(ref _loadVersion);
+            cancellation = Interlocked.Exchange(ref _comparisonCancellation, null);
+        }
         try { cancellation?.Cancel(); }
         catch (ObjectDisposedException) { }
+    }
+
+    public async Task StopStatusCheckAsync()
+    {
+        StopStatusCheck();
+        Task[] pending;
+        lock (_comparisonGate) pending = _comparisonTasks.ToArray();
+        await Task.WhenAll(pending);
     }
 
     private async Task RefreshSyncStatusAsync(Guid instanceId, long loadVersion, CancellationTokenSource cancellation)

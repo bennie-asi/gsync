@@ -30,7 +30,7 @@
   <data name="MainWindow.Subtitle.Default" xml:space="preserve"><value>游戏同步桌面工具</value></data>
   <data name="MainWindow.Status.Ready" xml:space="preserve"><value>就绪 · 当前没有运行中的同步任务</value></data>
   <data name="MainWindow.Status.Wizard" xml:space="preserve"><value>向导已就绪 · 尚未创建配置</value></data>
-  <data name="MainWindow.Status.Conflict" xml:space="preserve"><value>冲突待处理 · 请选择安全的解决路径</value></data>
+  <data name="MainWindow.Status.Conflict" xml:space="preserve"><value>比较存档 · 检查文件后选择处理方式</value></data>
   <data name="MainWindow.Status.History" xml:space="preserve"><value>历史已就绪 · 当前没有恢复操作</value></data>
   <data name="MainWindow.Status.Targets" xml:space="preserve"><value>目标已就绪 · 最近一次连通性检查通过</value></data>
   <data name="MainWindow.Status.Variables" xml:space="preserve"><value>变量已就绪 · 模板解析正常</value></data>

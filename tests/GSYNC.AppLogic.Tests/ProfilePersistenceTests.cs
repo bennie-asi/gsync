@@ -130,11 +130,30 @@ public sealed class ProfilePersistenceTests
             ],
         }));
 
-        Assert.Equal("Divergent versions detected", viewModel.WarningTitle);
+        Assert.Equal("Save differences found", viewModel.WarningTitle);
         Assert.Contains("1 local changes, 1 remote changes", viewModel.WarningMessage);
         Assert.Equal("Updated locally", viewModel.ConflictFiles.Single(row => row.Filename == "local-update").LocalStatus);
         Assert.Equal("Updated remotely", viewModel.ConflictFiles.Single(row => row.Filename == "remote-update").RemoteStatus);
         Assert.All(viewModel.ConflictFiles, row => Assert.Equal(ConflictResolutionAction.Undecided, row.Action));
+    }
+
+    [Fact]
+    public async Task ConflictView_OneSidedNewFilesRequireExplicitChoice()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var viewModel = fixture.Conflicts();
+        viewModel.LoadFrom(new ConflictNavigationContext(Guid.NewGuid(), "Game", new SyncComparison
+        {
+            Entries =
+            [
+                new SyncDiffEntry { RelativePath = "local", ChangeKind = SyncChangeKind.AddedLocally, LocalHash = "local" },
+                new SyncDiffEntry { RelativePath = "remote", ChangeKind = SyncChangeKind.AddedRemotely, RemoteHash = "remote" },
+            ],
+        }));
+        Assert.All(viewModel.ConflictFiles, row => Assert.Equal(ConflictResolutionAction.Undecided, row.Action));
+        viewModel.SetAction("local", ConflictResolutionAction.KeepLocal);
+        Assert.Equal(ConflictResolutionAction.KeepLocal, viewModel.ConflictFiles.Single(row => row.Filename == "local").Action);
+        Assert.Equal(ConflictResolutionAction.Undecided, viewModel.ConflictFiles.Single(row => row.Filename == "remote").Action);
     }
 
     [Fact]
@@ -198,7 +217,7 @@ public sealed class ProfilePersistenceTests
         var unknown = selected with { SnapshotId = Guid.NewGuid() };
         Assert.NotNull(await details.RestoreSnapshotAsync(unknown));
         Assert.Equal(older.Id, engine.RestoredId);
-        details.StopStatusCheck();
+        await details.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -222,7 +241,7 @@ public sealed class ProfilePersistenceTests
         Assert.Null(error);
         Assert.Equal(3, fixture.Queue.PendingJobs.Count);
         Assert.All(fixture.Queue.PendingJobs, job => Assert.True(job.ProtectRemoteChanges));
-        details.StopStatusCheck();
+        await details.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -306,6 +325,8 @@ public sealed class ProfilePersistenceTests
         using var extra = await remote.DownloadAsync("legacy-namespace/saves-2/extra.sav", CancellationToken.None);
         Assert.Equal("save", await new StreamReader(save.Content).ReadToEndAsync());
         Assert.Equal("extra", await new StreamReader(extra.Content).ReadToEndAsync());
+        await details.StopStatusCheckAsync();
+        await reloaded.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -341,7 +362,7 @@ public sealed class ProfilePersistenceTests
         Assert.Equal(binding.RemoteNamespace, (await fixture.Bindings.GetAsync(binding.Id, CancellationToken.None))!.RemoteNamespace);
         var comparedAfter = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = id, Direction = SyncDirection.Compare }, CancellationToken.None);
         Assert.NotEqual(comparedBefore.ConfigurationFingerprint, comparedAfter.ConfigurationFingerprint);
-        details.StopStatusCheck(); reloaded.StopStatusCheck();
+        await details.StopStatusCheckAsync(); await reloaded.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -386,7 +407,7 @@ public sealed class ProfilePersistenceTests
         var returned = await fixture.Engine.CompareAsync(new SyncJob { GameInstanceId = gameId, Direction = SyncDirection.Compare }, CancellationToken.None);
         Assert.Equal(AutoPullDisposition.Review, AutoPullPlanner.Evaluate(gameId, returned, baseline).Disposition);
         await WaitForStatusAsync(details, "Synced");
-        details.StopStatusCheck();
+        await details.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -413,7 +434,7 @@ public sealed class ProfilePersistenceTests
         Assert.Null(await details.UpdateDestinationAsync(other.Id, "custom/new"));
         Assert.Equal("custom/new", (await fixture.Bindings.GetAsync(original.Id, CancellationToken.None))!.RemoteNamespace);
         await WaitForStatusAsync(details, "No files");
-        details.StopStatusCheck();
+        await details.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -440,7 +461,7 @@ public sealed class ProfilePersistenceTests
         Assert.Empty(binding.ContentSelections);
         Assert.True(Assert.Single(details.ContentItems).Enabled);
         await WaitForStatusAsync(details, "Differences");
-        details.StopStatusCheck();
+        await details.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -468,7 +489,7 @@ public sealed class ProfilePersistenceTests
         Assert.False(binding.Settings.ContainsKey("username"));
         Assert.False(binding.Settings.ContainsKey("rootPath"));
         await WaitForStatusAsync(details, "Compare failed");
-        details.StopStatusCheck();
+        await details.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -550,7 +571,7 @@ public sealed class ProfilePersistenceTests
         Assert.Equal(SyncJobStatus.Failed, job.Status);
         Assert.Equal("local-version", await File.ReadAllTextAsync(file));
         await WaitForStatusAsync(details, "Differences");
-        details.StopStatusCheck();
+        await details.StopStatusCheckAsync();
         cts.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
@@ -636,7 +657,7 @@ public sealed class ProfilePersistenceTests
         await File.WriteAllTextAsync(file, "changed");
         await details.LoadAsync(gameId);
         await WaitForStatusAsync(details, "Differences");
-        details.StopStatusCheck();
+        await details.StopStatusCheckAsync();
     }
 
     [Fact]
@@ -661,7 +682,23 @@ public sealed class ProfilePersistenceTests
         Assert.Equal(secondGame, details.InstanceId);
         Assert.Equal("Second Game", details.Title);
         await WaitForStatusAsync(details, "No files");
-        details.StopStatusCheck();
+        await details.StopStatusCheckAsync();
+    }
+
+    [Fact]
+    public async Task DetailsStop_WaitsForEarlierComparisonsAfterReload()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var gameId = await AddHistoryGameAsync(fixture, "Delayed compare", DateTimeOffset.UtcNow);
+        var engine = new DelayedComparisonEngine();
+        var details = fixture.Details(engine: engine);
+        await details.LoadAsync(gameId);
+        await engine.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await details.LoadAsync(gameId);
+        var stopping = details.StopStatusCheckAsync();
+        try { Assert.False(stopping.IsCompleted); }
+        finally { engine.Release.TrySetResult(); }
+        await stopping.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     private static async Task WaitForStatusAsync(GameDetailsViewModel details, string status)
@@ -680,7 +717,7 @@ public sealed class ProfilePersistenceTests
             Summary = "Downloaded 1 files." };
         Assert.Equal("Restore snapshot", UiFormat.DirectionText(restored, false));
         Assert.Equal("Download", UiFormat.DirectionText(download, false));
-        Assert.Equal("解决冲突", UiFormat.DirectionText(SyncDirection.ResolveConflict, true));
+        Assert.Equal("处理存档", UiFormat.DirectionText(SyncDirection.ResolveConflict, true));
     }
 
     [Fact]
@@ -733,6 +770,30 @@ public sealed class ProfilePersistenceTests
         Assert.True(viewModel.IsRecordSelected(second));
     }
 
+    [Fact]
+    public async Task History_DoesNotInventTargetFromCurrentBinding()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        await AddHistoryGameAsync(fixture, "A game", DateTimeOffset.UtcNow);
+        var viewModel = new HistoryPageViewModel(new Localization(), fixture.History, fixture.Games, fixture.Bindings, fixture.Engine);
+        await viewModel.LoadAsync();
+        Assert.Equal("Target not recorded", Assert.Single(viewModel.Entries).Target);
+        Assert.Contains(viewModel.RecordDetails, row => row.Label == "Remote Namespace" && row.Value == "Not recorded");
+    }
+
+    [Fact]
+    public async Task History_DisplaysRecordedDestinationAfterBindingChanges()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var gameId = await AddHistoryGameAsync(fixture, "A game", DateTimeOffset.UtcNow.AddMinutes(-1));
+        await fixture.History.AddRecordAsync(new SyncRecord { GameInstanceId = gameId, Direction = SyncDirection.Upload,
+            Status = SyncJobStatus.Completed, TargetId = Guid.NewGuid(), TargetName = "Original target", RemoteNamespace = "games/original" }, CancellationToken.None);
+        var viewModel = new HistoryPageViewModel(new Localization(), fixture.History, fixture.Games, fixture.Bindings, fixture.Engine);
+        await viewModel.LoadAsync();
+        Assert.Equal("Original target", viewModel.Entries.First().Target);
+        Assert.Contains(viewModel.RecordDetails, row => row.Label == "Remote Namespace" && row.Value == "games/original");
+    }
+
     private static async Task<Guid> AddHistoryGameAsync(Fixture fixture, string name, DateTimeOffset timestamp)
     {
         var wizard = fixture.Wizard();
@@ -762,6 +823,23 @@ public sealed class ProfilePersistenceTests
         viewModel.DeleteSelectedUserVariable();
         viewModel.SearchText = "%TWO%";
         Assert.Single(viewModel.Variables);
+    }
+
+    [Fact]
+    public async Task BuiltInVariables_AreReadOnlyEvenWhenACustomOverrideHasTheSameName()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var viewModel = fixture.Variables();
+        viewModel.Load();
+        var builtIn = viewModel.Variables.First(row => row.TypeCode == "SYS");
+        viewModel.SaveUserVariable(builtIn.Name, fixture.Folder("override"), null);
+        viewModel.SelectVariable(viewModel.Variables.First(row => row.TypeCode == "SYS" && row.Name == builtIn.Name));
+        Assert.False(viewModel.CanEditSelectedVariable);
+        Assert.Contains("read-only", viewModel.LastModifiedText);
+        viewModel.DeleteSelectedUserVariable();
+        Assert.True(viewModel.UserVariableExists(builtIn.Name));
+        viewModel.SelectVariable(viewModel.Variables.First(row => row.TypeCode == "USR" && row.Name == builtIn.Name));
+        Assert.True(viewModel.CanEditSelectedVariable);
     }
 
     [Fact]
@@ -1105,7 +1183,7 @@ public sealed class ProfilePersistenceTests
         var matched = Assert.Single(secondComparison.Entries, entry => entry.LocalHash is not null);
         Assert.Equal(firstRemotePath, matched.RelativePath);
         Assert.Equal(SyncChangeKind.Unchanged, matched.ChangeKind);
-        details.StopStatusCheck();
+        await details.StopStatusCheckAsync();
     }
 
     private static void PrepareManual(AddGameWizardViewModel wizard, string name, string path)
@@ -1236,6 +1314,20 @@ public sealed class ProfilePersistenceTests
         public Task QueueAsync(SyncJob job, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<SyncComparison> CompareAsync(SyncJob job, CancellationToken cancellationToken) => Task.FromResult(new SyncComparison { Entries = [] });
         public Task RestoreSnapshotAsync(Guid snapshotId, CancellationToken cancellationToken) { RestoredId = snapshotId; return Task.CompletedTask; }
+        public Task ResolveConflictsAsync(ConflictResolutionPlan plan, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+    private sealed class DelayedComparisonEngine : ISyncEngine
+    {
+        private int _calls;
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<SyncComparison> CompareAsync(SyncJob job, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _calls) == 1) { Started.TrySetResult(); await Release.Task; }
+            return new SyncComparison { Entries = [] };
+        }
+        public Task QueueAsync(SyncJob job, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task RestoreSnapshotAsync(Guid snapshotId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ResolveConflictsAsync(ConflictResolutionPlan plan, CancellationToken cancellationToken) => Task.CompletedTask;
     }
     private sealed class Source(string id, IReadOnlyList<DiscoveredGame> games) : ISourceProvider

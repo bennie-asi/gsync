@@ -5,7 +5,7 @@ namespace GSYNC.Data.Services;
 
 public sealed class DatabaseInitializer
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
     private readonly SqliteConnectionFactory _connectionFactory;
     private readonly IAppPathService _appPathService;
 
@@ -47,6 +47,12 @@ public sealed class DatabaseInitializer
                     "CREATE INDEX IF NOT EXISTS IX_SyncRecords_GameInstanceId ON SyncRecords (GameInstanceId, StartedAtUtc DESC);",
                     "CREATE INDEX IF NOT EXISTS IX_SyncRecords_StartedAtUtc ON SyncRecords (StartedAtUtc DESC);",
                     "CREATE INDEX IF NOT EXISTS IX_Snapshots_GameInstanceId ON Snapshots (GameInstanceId, CreatedAtUtc DESC);",
+                },
+                3 => new[]
+                {
+                    "ALTER TABLE SyncRecords ADD COLUMN TargetId TEXT;",
+                    "ALTER TABLE SyncRecords ADD COLUMN TargetName TEXT;",
+                    "ALTER TABLE SyncRecords ADD COLUMN RemoteNamespace TEXT;",
                 },
                 _ => throw new InvalidOperationException($"No migration exists for schema {next}."),
             };

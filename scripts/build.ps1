@@ -73,6 +73,7 @@ function Invoke-Step([string]$Label, [scriptblock]$Body) {
 $RepoRoot   = Split-Path $PSScriptRoot -Parent
 $Solution   = Join-Path $RepoRoot "GSYNC.sln"
 $AppProject = Join-Path $RepoRoot "src/GSYNC.App/GSYNC.App.csproj"
+$UpdaterProject = Join-Path $RepoRoot "src/GSYNC.Updater/GSYNC.Updater.csproj"
 $OutRoot    = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
     $OutputPath
 } else {
@@ -157,6 +158,26 @@ Invoke-Step "Publish GSYNC.App  ($Configuration / win-x64)" {
         -p:InformationalVersion=$Version `
         --output $AppOut
 }
+
+Invoke-Step "Publish standalone update helper" {
+    dotnet publish $UpdaterProject `
+        --configuration $Configuration `
+        --runtime win-x64 `
+        --self-contained false `
+        -p:Platform=x64 `
+        -p:PublishSingleFile=true `
+        -p:DebugType=None `
+        --output (Join-Path $AppOut "Updater")
+}
+
+Write-Step "Record managed program files"
+$ManagedName = "GSYNC.managed.json"
+$ManagedFiles = @(Get-ChildItem -LiteralPath $AppOut -File -Recurse | ForEach-Object {
+    [System.IO.Path]::GetRelativePath($AppOut, $_.FullName).Replace('\', '/')
+}) + @($ManagedName)
+$ManagedFiles = @($ManagedFiles | Sort-Object)
+[System.IO.File]::WriteAllText((Join-Path $AppOut $ManagedName), (ConvertTo-Json -InputObject $ManagedFiles -Compress), [System.Text.UTF8Encoding]::new($false))
+Write-Ok "Recorded $($ManagedFiles.Count) managed files"
 
 Invoke-Step "Package  →  $ZipName" {
     if (Test-Path -LiteralPath $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }

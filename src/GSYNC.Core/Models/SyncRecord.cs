@@ -20,6 +20,13 @@ public sealed class SyncRecord
 
     public string? ErrorMessage { get; init; }
 
+    // Snapshot of the destination actually used by this operation, never the current binding.
+    public Guid? TargetId { get; init; }
+
+    public string? TargetName { get; init; }
+
+    public string? RemoteNamespace { get; init; }
+
     public int ProcessedFiles { get; init; }
 
     public int TotalFiles { get; init; }

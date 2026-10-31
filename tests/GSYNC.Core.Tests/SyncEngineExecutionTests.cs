@@ -38,6 +38,24 @@ public sealed class SyncEngineExecutionTests
     }
 
     [Fact]
+    public async Task SyncRecord_CapturesTheResolvedDestinationAtExecutionTime()
+    {
+        var targetId = Guid.NewGuid();
+        var configuration = new Dictionary<string, string> { ["targetId"] = targetId.ToString("D"), ["__gsyncHistoryTargetName"] = "Original target" };
+        var fixture = new SyncEngineFixture(storageConfigurationResolver: _ => configuration);
+        var localFile = Path.Combine(fixture.RootPath, "game-a", "save.sav");
+        Directory.CreateDirectory(Path.GetDirectoryName(localFile)!);
+        await File.WriteAllTextAsync(localFile, "save");
+        using var cts = new CancellationTokenSource();
+        await RunQueuedJobAsync(fixture, new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Upload }, cts);
+        configuration["__gsyncHistoryTargetName"] = "Renamed target";
+        var record = Assert.Single(fixture.SyncHistoryRepository.Records);
+        Assert.Equal(targetId, record.TargetId);
+        Assert.Equal("Original target", record.TargetName);
+        Assert.Equal("games/game-a", record.RemoteNamespace);
+    }
+
+    [Fact]
     public async Task DownloadJob_CreatesSnapshot_DownloadsFiles_AndWritesSyncRecord()
     {
         var fixture = new SyncEngineFixture();

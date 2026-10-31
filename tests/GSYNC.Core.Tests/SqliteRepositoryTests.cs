@@ -39,7 +39,7 @@ public sealed class SqliteRepositoryTests : IDisposable
         var repository = new GameInstanceRepository(_connectionFactory);
         var game = new GameInstance { GameId = "existing", DisplayName = "Existing save", SourceProviderId = "custom" };
         await repository.UpsertAsync(game, CancellationToken.None);
-        await ExecuteSqlAsync("UPDATE Metadata SET Value = '1' WHERE Key = 'schema-version'; DROP INDEX IX_StorageBindings_GameInstanceId; DROP INDEX IX_SyncRecords_GameInstanceId; DROP INDEX IX_SyncRecords_StartedAtUtc; DROP INDEX IX_Snapshots_GameInstanceId;");
+        await ExecuteSqlAsync("UPDATE Metadata SET Value = '1' WHERE Key = 'schema-version'; DROP INDEX IX_StorageBindings_GameInstanceId; DROP INDEX IX_SyncRecords_GameInstanceId; DROP INDEX IX_SyncRecords_StartedAtUtc; DROP INDEX IX_Snapshots_GameInstanceId; ALTER TABLE SyncRecords DROP COLUMN TargetId; ALTER TABLE SyncRecords DROP COLUMN TargetName; ALTER TABLE SyncRecords DROP COLUMN RemoteNamespace;");
 
         await initializer.InitializeAsync(CancellationToken.None);
         await initializer.InitializeAsync(CancellationToken.None);
@@ -47,6 +47,23 @@ public sealed class SqliteRepositoryTests : IDisposable
         Assert.Equal("Existing save", (await repository.GetAsync(game.Id, CancellationToken.None))!.DisplayName);
         Assert.Equal(DatabaseInitializer.CurrentSchemaVersion.ToString(), await ScalarAsync("SELECT Value FROM Metadata WHERE Key = 'schema-version';"));
         Assert.Equal(4L, await ScalarAsync("SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name LIKE 'IX_%';"));
+    }
+
+    [Fact]
+    public async Task DatabaseInitializer_UpgradesHistoryWithoutInventingOldTargets()
+    {
+        var initializer = new DatabaseInitializer(_connectionFactory, _appPaths);
+        await initializer.InitializeAsync(CancellationToken.None);
+        var repository = new SyncHistoryRepository(_connectionFactory);
+        var gameId = Guid.NewGuid();
+        await repository.AddRecordAsync(new SyncRecord { GameInstanceId = gameId, Direction = SyncDirection.Upload, Status = SyncJobStatus.Completed }, CancellationToken.None);
+        await ExecuteSqlAsync("UPDATE Metadata SET Value = '2' WHERE Key = 'schema-version'; ALTER TABLE SyncRecords DROP COLUMN TargetId; ALTER TABLE SyncRecords DROP COLUMN TargetName; ALTER TABLE SyncRecords DROP COLUMN RemoteNamespace;");
+
+        await initializer.InitializeAsync(CancellationToken.None);
+        var old = Assert.Single(await repository.ListRecordsAsync(gameId, CancellationToken.None));
+        Assert.Null(old.TargetId);
+        Assert.Null(old.TargetName);
+        Assert.Null(old.RemoteNamespace);
     }
 
     [Theory]
@@ -185,6 +202,7 @@ public sealed class SqliteRepositoryTests : IDisposable
 
         var repository = new SyncHistoryRepository(_connectionFactory);
         var gameInstanceId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
         var snapshot = new Snapshot
         {
             GameInstanceId = gameInstanceId,
@@ -203,6 +221,9 @@ public sealed class SqliteRepositoryTests : IDisposable
             Summary = "ok",
             ProcessedFiles = 3,
             TotalFiles = 3,
+            TargetId = targetId,
+            TargetName = "Original target",
+            RemoteNamespace = "games/game-a",
         }, CancellationToken.None);
 
         var snapshots = await repository.ListSnapshotsAsync(gameInstanceId, CancellationToken.None);
@@ -212,6 +233,9 @@ public sealed class SqliteRepositoryTests : IDisposable
         Assert.Single(records);
         Assert.Equal(snapshot.Id, records[0].SnapshotId);
         Assert.Equal(SyncDirection.Download, records[0].Direction);
+        Assert.Equal(targetId, records[0].TargetId);
+        Assert.Equal("Original target", records[0].TargetName);
+        Assert.Equal("games/game-a", records[0].RemoteNamespace);
     }
 
     public void Dispose()

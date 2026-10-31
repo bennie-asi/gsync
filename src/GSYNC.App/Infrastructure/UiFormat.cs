@@ -95,7 +95,7 @@ public static class UiFormat
             SyncDirection.Upload => isChinese ? "上传" : "Upload",
             SyncDirection.Download => isChinese ? "下载" : "Download",
             SyncDirection.Compare => isChinese ? "比较" : "Compare",
-            SyncDirection.ResolveConflict => isChinese ? "解决冲突" : "Resolve conflict",
+            SyncDirection.ResolveConflict => isChinese ? "处理存档" : "Resolve saves",
             _ => direction.ToString(),
         };
     }

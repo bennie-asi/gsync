@@ -46,7 +46,7 @@ public sealed class UiSettingsStore
     {
         try { return LoadSettings(settingsPath); }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException)
-        { return new AppUiSettings { RefreshManifestOnStartup = false }; }
+        { return new AppUiSettings { RefreshManifestOnStartup = false, AutoCheckUpdates = false }; }
     }
 
     private static AppUiSettings LoadSettings(string settingsPath)
@@ -72,6 +72,7 @@ public sealed class UiSettingsStore
 public sealed class AppUiSettings
 {
     public const string DefaultLanguageTag = "zh-CN";
+    public const string ThemeSystem = "system";
     public const string ThemeDark = "dark";
     public const string ThemeLight = "light";
     public const string DensityCompact = "compact";
@@ -80,7 +81,7 @@ public sealed class AppUiSettings
 
     public string LanguageTag { get; set; } = DefaultLanguageTag;
 
-    public string ThemeMode { get; set; } = ThemeDark;
+    public string ThemeMode { get; set; } = ThemeSystem;
 
     public string DensityMode { get; set; } = DensityCompact;
 
@@ -91,6 +92,8 @@ public sealed class AppUiSettings
     public bool AutoPullEnabled { get; set; }
 
     public bool RefreshManifestOnStartup { get; set; } = true;
+
+    public bool AutoCheckUpdates { get; set; } = true;
 
     public string? ManifestSourceUrl { get; set; }
 }

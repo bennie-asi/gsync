@@ -15,7 +15,9 @@ internal sealed record SyncExecutionContext(
     ISourceProvider SourceProvider,
     IStorageProvider StorageProvider,
     IReadOnlyList<ResolvedContentRoot> ContentRoots,
-    string ConfigurationFingerprint);
+    string ConfigurationFingerprint,
+    Guid? TargetId,
+    string? TargetName);
 
 internal sealed class ResolvedContentRoot(ContentItem contentItem, string localRootPath, bool treatAsDirectory, string storageKey)
 {

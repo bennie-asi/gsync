@@ -14,10 +14,10 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock FontFamily="Consolas" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AppPrimaryBrush}" Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Column="1" FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Value}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock FontFamily="Consolas" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppPrimaryBrush}" Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Value}" TextTrimming="CharacterEllipsis" />
                     <Border Grid.Column="2" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="6" Padding="6,3">
-                        <TextBlock FontSize="10" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind TypeCode}" />
+                        <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind TypeCode}" />
                     </Border>
                 </Grid>
             </Border>
@@ -28,8 +28,8 @@
                     <ColumnDefinition Width="140" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
-                <TextBlock Grid.Column="1" FontSize="12" Text="{x:Bind Value}" TextWrapping="WrapWholeWords" />
+                <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
+                <TextBlock Grid.Column="1" FontSize="13" Text="{x:Bind Value}" TextWrapping="WrapWholeWords" />
             </Grid>
         </DataTemplate>
     </Page.Resources>
@@ -87,9 +87,9 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding NameColumnText}" />
-                            <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ValueColumnText}" />
-                            <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TypeColumnText}" />
+                            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding NameColumnText}" />
+                            <TextBlock Grid.Column="1" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ValueColumnText}" />
+                            <TextBlock Grid.Column="2" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TypeColumnText}" />
                         </Grid>
 
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
@@ -110,9 +110,9 @@
                             <StackPanel x:Name="VariableDetailHeading" Spacing="6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Border Background="{StaticResource AppPrimaryBrush}" CornerRadius="6" Padding="8,3">
-                                        <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppBackgroundBrush}" Text="{Binding VariableScopeText}" />
+                                        <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppBackgroundBrush}" Text="{Binding VariableScopeText}" />
                                     </Border>
-                                    <TextBlock FontSize="10" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding LastModifiedText}" />
+                                    <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding LastModifiedText}" />
                                 </StackPanel>
                                 <TextBlock FontSize="22" FontWeight="SemiBold" Text="{Binding SelectedVariableName}" />
                             </StackPanel>
@@ -131,7 +131,7 @@
                                     <primitives:PropertySheet.PanelContent>
                                         <StackPanel Spacing="12">
                                             <StackPanel Spacing="5">
-                                                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding InputTemplateText}" />
+                                                <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding InputTemplateText}" />
                                                 <TextBox
                                                     AcceptsReturn="True"
                                                     MinHeight="76"
@@ -155,7 +155,7 @@
                                             </Grid>
 
                                             <StackPanel Spacing="5">
-                                                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ResolvedOutputText}" />
+                                                <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ResolvedOutputText}" />
                                                 <Border Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
@@ -164,7 +164,7 @@
                                                         </Grid.ColumnDefinitions>
                                                         <primitives:TooltipTextBlock Text="{Binding TemplateOutput}" />
                                                         <Border Grid.Column="1" Background="{StaticResource AppDangerBrush}" CornerRadius="6" Padding="8,3" Visibility="{Binding ShowParseError, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                            <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="White" Text="{Binding ErrorBadgeText}" />
+                                                            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="White" Text="{Binding ErrorBadgeText}" />
                                                         </Border>
                                                     </Grid>
                                                 </Border>
@@ -177,7 +177,7 @@
 
                                 <primitives:InfoCallout Severity="Error" Title="{Binding ParseErrorTitle}" Message="{Binding ParseErrorMessage}" Visibility="{Binding ShowParseError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 <Border Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8" Visibility="{Binding ShowParseError, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource AppDangerBrush}" Text="{Binding ParseErrorCode}" />
+                                    <TextBlock FontFamily="Consolas" FontSize="13" Foreground="{StaticResource AppDangerBrush}" Text="{Binding ParseErrorCode}" />
                                 </Border>
                             </StackPanel>
                         </ScrollViewer>
@@ -194,13 +194,13 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Button Click="DeleteVariableButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                <Button Click="DeleteVariableButton_Click" IsEnabled="{Binding CanEditSelectedVariable}" Style="{StaticResource SecondaryToolbarButtonStyle}">
                                     <primitives:IconText Glyph="{StaticResource IconDelete}" Text="{Binding DeleteVariableText}" />
                                 </Button>
                                 <Button Grid.Column="2" Click="ClearTesterButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                                     <primitives:IconText Glyph="{StaticResource IconRefresh}" Text="{Binding ResetText}" />
                                 </Button>
-                                <Button Grid.Column="3" Margin="8,0,0,0" Click="EditVariableButton_Click" Style="{StaticResource PrimaryToolbarButtonStyle}">
+                                <Button Grid.Column="3" Margin="8,0,0,0" Click="EditVariableButton_Click" IsEnabled="{Binding CanEditSelectedVariable}" Style="{StaticResource PrimaryToolbarButtonStyle}">
                                     <primitives:IconText Glyph="{StaticResource IconSave}" Text="{Binding SaveChangesText}" />
                                 </Button>
                             </Grid>

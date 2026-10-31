@@ -30,7 +30,7 @@
   <data name="MainWindow.Subtitle.Default" xml:space="preserve"><value>Game synchronization desktop utility</value></data>
   <data name="MainWindow.Status.Ready" xml:space="preserve"><value>Ready · no sync jobs running</value></data>
   <data name="MainWindow.Status.Wizard" xml:space="preserve"><value>Wizard ready · no profile created yet</value></data>
-  <data name="MainWindow.Status.Conflict" xml:space="preserve"><value>Conflict review · choose a safe resolution path</value></data>
+  <data name="MainWindow.Status.Conflict" xml:space="preserve"><value>Compare saves · review files before choosing an action</value></data>
   <data name="MainWindow.Status.History" xml:space="preserve"><value>History ready · no restore operations running</value></data>
   <data name="MainWindow.Status.Targets" xml:space="preserve"><value>Targets ready · last connectivity check passed</value></data>
   <data name="MainWindow.Status.Variables" xml:space="preserve"><value>Variables ready · template resolution healthy</value></data>

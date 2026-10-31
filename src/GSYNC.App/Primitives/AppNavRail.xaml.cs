@@ -22,6 +22,7 @@ public sealed partial class AppNavRail : UserControl
 
     private bool _isExpanded = true;
     private bool _isChinese = true;
+    private bool _updateAvailable;
 
     public event EventHandler<NavigationRequestedEventArgs>? NavigationRequested;
 
@@ -55,7 +56,7 @@ public sealed partial class AppNavRail : UserControl
         VariablesTextBlock.Text = localizationService.GetString("MainWindow.Nav.Variables");
         HistoryTextBlock.Text = localizationService.GetString("MainWindow.Nav.History");
         QueueTextBlock.Text = localizationService.GetString("MainWindow.Nav.Queue");
-        SettingsTextBlock.Text = localizationService.GetString("MainWindow.Nav.Settings");
+        SettingsTextBlock.Text = localizationService.GetString("MainWindow.Nav.Settings") + (_updateAvailable ? (_isChinese ? " · 有更新" : " · Update") : "");
         BrandSubtitleTextBlock.Text = _isChinese ? "游戏存档同步" : "Game save sync";
         foreach (var (button, label) in new[]
         {
@@ -144,6 +145,14 @@ public sealed partial class AppNavRail : UserControl
 
         QueueBadgeBorder.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
         QueueBadgeTextBlock.Text = count.ToString();
+    }
+
+    public void SetUpdateAvailable(bool available)
+    {
+        _updateAvailable = available;
+        SettingsTextBlock.Text = (_isChinese ? "设置" : "Settings") + (available ? (_isChinese ? " · 有更新" : " · Update") : "");
+        AutomationProperties.SetName(SettingsButton, SettingsTextBlock.Text);
+        ToolTipService.SetToolTip(SettingsButton, SettingsTextBlock.Text);
     }
 
     private void ApplyButtonState(Button button, TextBlock label, FontIcon icon, bool isSelected)

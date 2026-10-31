@@ -14,7 +14,6 @@ public partial class HistoryPageViewModel : ObservableObject
     private readonly bool _isChinese;
     private readonly ISyncHistoryRepository _syncHistoryRepository;
     private readonly IGameInstanceRepository _gameInstanceRepository;
-    private readonly IStorageBindingRepository _storageBindingRepository;
     private readonly ISyncEngine _syncEngine;
 
     private IReadOnlyList<HistoryRow> _allEntries = [];
@@ -84,7 +83,6 @@ public partial class HistoryPageViewModel : ObservableObject
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
         _syncHistoryRepository = syncHistoryRepository;
         _gameInstanceRepository = gameInstanceRepository;
-        _storageBindingRepository = storageBindingRepository;
         _syncEngine = syncEngine;
 
         PageTitle = Pick("历史与快照", "History & Snapshots");
@@ -108,15 +106,15 @@ public partial class HistoryPageViewModel : ObservableObject
         RestoringText = Pick("正在恢复快照…", "Restoring snapshot…");
         EmptyStateTitle = Pick("还没有历史记录", "No History Yet");
         EmptyStateMessage = Pick("首次同步完成后，这里会显示按时间排序的记录、结果与快照恢复入口。", "After the first sync, this view will list records, results, and snapshot restore entry points.");
-        EmptyStateHint = Pick("你可以先返回 Library 发起首次同步，随后这里会自动回到完整审计视图。", "Start the first sync from Library and this screen will return to the full audit view automatically.");
-        EmptyStateActionText = Pick("前往 Library 发起首次同步", "Go to Library for the first sync");
+        EmptyStateHint = Pick("你可以先返回游戏库发起首次同步。", "Start the first sync from Library.");
+        EmptyStateActionText = Pick("前往游戏库", "Go to Library");
         EmptyStateSecondaryActionText = Pick("查看日志说明", "Review log guidance");
         EmptyStateInspectorTitle = Pick("等待首次同步", "Waiting for First Sync");
         EmptyStateInspectorMessage = Pick("完成首次同步后，此处将显示完整历史记录与快照恢复功能。", "After the first sync completes, the full record history and snapshot restore panel will appear here.");
         EmptyStateRecoveryTitle = Pick("下一步", "Next Steps");
         EmptyStateRecoverySteps =
         [
-            Pick("返回 Library 发起首次同步。", "Return to Library and run the first sync."),
+            Pick("返回游戏库发起首次同步。", "Return to Library and run the first sync."),
             Pick("确认同步目标与本地路径都保持可用。", "Confirm that both the sync target and the local path stay available."),
             Pick("完成首次同步后回到此页检查记录与快照。", "Come back after the first sync to review records and snapshots."),
         ];
@@ -197,17 +195,13 @@ public partial class HistoryPageViewModel : ObservableObject
             _instancesById = instances.ToDictionary(instance => instance.Id);
 
             var records = await _syncHistoryRepository.ListRecentRecordsAsync(300, cancellationToken);
-            var targetNames = new Dictionary<Guid, string>();
             var rows = new List<HistoryRow>(records.Count);
             foreach (var record in records)
             {
-                if (!targetNames.TryGetValue(record.GameInstanceId, out var targetName))
-                {
-                    targetName = await ResolveTargetNameAsync(record.GameInstanceId, cancellationToken);
-                    targetNames[record.GameInstanceId] = targetName;
-                }
-
-                rows.Add(CreateRow(record, targetName));
+                // Older records may not contain the target used at execution time.
+                var target = !string.IsNullOrWhiteSpace(record.TargetName) ? record.TargetName
+                    : record.TargetId is { } id ? id.ToString("D") : Pick("目标未记录", "Target not recorded");
+                rows.Add(CreateRow(record, target));
             }
 
             _allEntries = rows;
@@ -225,8 +219,8 @@ public partial class HistoryPageViewModel : ObservableObject
                 record.Status == SyncJobStatus.Completed &&
                 (record.CompletedAtUtc ?? record.StartedAtUtc).ToLocalTime().Date == DateTimeOffset.Now.Date);
             SystemStatus = Pick(
-                $"共 {records.Count} 条记录 • 今日完成 {completedToday} 次同步",
-                $"{records.Count} records • {completedToday} syncs completed today");
+                $"共 {records.Count} 条记录 • 今日完成 {completedToday} 项操作",
+                $"{records.Count} {(records.Count == 1 ? "record" : "records")} • {completedToday} completed today");
 
             if (Entries.FirstOrDefault() is { } firstVisibleRow)
             {
@@ -259,14 +253,9 @@ public partial class HistoryPageViewModel : ObservableObject
             DetailSummarySubtitle = $"{UiFormat.TimeOfRecord(record.StartedAtUtc, _isChinese)} · {UiFormat.DirectionText(record, _isChinese)}";
             SnapshotGameLabel = row.Game;
 
-            // The binding lookup and snapshot listing both hit SQLite. They were running on the UI
-            // thread for every row click, which made selection feel janky; push them onto a worker
-            // thread and only touch observable state once the data is back.
-            var (binding, snapshots) = await Task.Run(async () =>
+            var snapshots = await Task.Run(async () =>
             {
-                var resolvedBinding = await ResolveBindingAsync(record.GameInstanceId, cancellationToken);
-                var loadedSnapshots = await _syncHistoryRepository.ListSnapshotsAsync(record.GameInstanceId, cancellationToken);
-                return (resolvedBinding, loadedSnapshots);
+                return await _syncHistoryRepository.ListSnapshotsAsync(record.GameInstanceId, cancellationToken);
             }, cancellationToken);
 
             if (selectionVersion != Interlocked.Read(ref _selectionVersion))
@@ -283,7 +272,7 @@ public partial class HistoryPageViewModel : ObservableObject
                 new(Pick("耗时", "Duration"), duration),
                 new(Pick("已处理文件", "Processed Files"), $"{record.ProcessedFiles}/{record.TotalFiles}"),
                 new(Pick("同步目标", "Storage Target"), row.Target),
-                new(Pick("远端命名空间", "Remote Namespace"), binding?.RemoteNamespace ?? "--"),
+                new(Pick("远端命名空间", "Remote Namespace"), record.RemoteNamespace ?? Pick("未记录", "Not recorded")),
                 new(Pick("来源", "Source"), row.Source),
                 new(Pick("摘要", "Summary"), record.Summary ?? "--"),
             };
@@ -468,40 +457,6 @@ public partial class HistoryPageViewModel : ObservableObject
         {
             Record = record,
         };
-    }
-
-    private async Task<string> ResolveTargetNameAsync(Guid gameInstanceId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var bindings = await _storageBindingRepository.ListByGameInstanceAsync(gameInstanceId, cancellationToken);
-            var binding = bindings.FirstOrDefault();
-            if (binding is null)
-            {
-                return Pick("未绑定", "Unbound");
-            }
-
-            return binding.Settings.TryGetValue("targetName", out var name) && !string.IsNullOrWhiteSpace(name)
-                ? name
-                : binding.StorageProviderId;
-        }
-        catch
-        {
-            return "--";
-        }
-    }
-
-    private async Task<StorageBinding?> ResolveBindingAsync(Guid gameInstanceId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var bindings = await _storageBindingRepository.ListByGameInstanceAsync(gameInstanceId, cancellationToken);
-            return bindings.FirstOrDefault();
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private string ResolveSourceName(Guid gameInstanceId)

@@ -42,6 +42,9 @@ public partial class SettingsPageViewModel : ObservableObject
     private UiOption? _selectedRefreshManifestOption;
 
     [ObservableProperty]
+    private bool _autoCheckUpdates;
+
+    [ObservableProperty]
     private string _manifestSourceUrlText = string.Empty;
 
     [ObservableProperty]
@@ -97,6 +100,7 @@ public partial class SettingsPageViewModel : ObservableObject
         SupportedLanguages = localizationService.SupportedLanguages;
         ThemeOptions =
         [
+            new UiOption(AppUiSettings.ThemeSystem, Pick("跟随系统", "Follow system")),
             new UiOption(AppUiSettings.ThemeDark, Pick("深色", "Dark")),
             new UiOption(AppUiSettings.ThemeLight, Pick("浅色", "Light")),
         ];
@@ -214,12 +218,13 @@ public partial class SettingsPageViewModel : ObservableObject
         return new AppUiSettings
         {
             LanguageTag = SelectedLanguage?.Tag ?? AppUiSettings.DefaultLanguageTag,
-            ThemeMode = SelectedThemeMode?.Key ?? AppUiSettings.ThemeDark,
+            ThemeMode = SelectedThemeMode?.Key ?? AppUiSettings.ThemeSystem,
             DensityMode = SelectedDensityMode?.Key ?? AppUiSettings.DensityCompact,
             LogLevel = SelectedLogLevel?.Key ?? AppUiSettings.DefaultLogLevel,
             AutoSnapshotBeforeDownload = string.Equals(SelectedAutoSnapshotOption?.Key, "on", StringComparison.OrdinalIgnoreCase),
             AutoPullEnabled = string.Equals(SelectedAutoPullOption?.Key, "on", StringComparison.OrdinalIgnoreCase),
             RefreshManifestOnStartup = string.Equals(SelectedRefreshManifestOption?.Key, "on", StringComparison.OrdinalIgnoreCase),
+            AutoCheckUpdates = AutoCheckUpdates,
             ManifestSourceUrl = string.IsNullOrWhiteSpace(ManifestSourceUrlText) ? null : ManifestSourceUrlText.Trim(),
         };
     }
@@ -247,6 +252,7 @@ public partial class SettingsPageViewModel : ObservableObject
         SelectedAutoSnapshotOption = ToggleOptions.First(option => option.Key == (settings.AutoSnapshotBeforeDownload ? "on" : "off"));
         SelectedAutoPullOption = ToggleOptions.First(option => option.Key == (settings.AutoPullEnabled ? "on" : "off"));
         SelectedRefreshManifestOption = ToggleOptions.First(option => option.Key == (settings.RefreshManifestOnStartup ? "on" : "off"));
+        AutoCheckUpdates = settings.AutoCheckUpdates;
         ManifestSourceUrlText = settings.ManifestSourceUrl ?? string.Empty;
 
         ThemeName = SelectedThemeMode?.Label ?? string.Empty;
@@ -275,6 +281,12 @@ public partial class SettingsPageViewModel : ObservableObject
                 SelectedThemeMode?.Label ?? ThemeName,
                 "synced",
                 "appearance"),
+            new UiSettingOption(
+                Pick("启动", "Startup"), Pick("Windows 登录启动", "Start when signing in to Windows"),
+                "S", "", "ready", "startup"),
+            new UiSettingOption(
+                Pick("关于与更新", "About and updates"), Pick("版本与 GitHub 更新", "Version and GitHub updates"),
+                "U", "", "ready", "updates"),
             new UiSettingOption(
                 BehaviorTitle,
                 Pick("自动拉取、快照与清单刷新", "Automatic pull, snapshots, and manifest refresh"),

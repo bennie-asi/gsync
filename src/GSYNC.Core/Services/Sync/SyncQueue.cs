@@ -16,6 +16,7 @@ public sealed class SyncQueue : ISyncQueue
     private JobEntry? _active;
     private long _lastProgressRaiseTicks;
     private bool _readerActive;
+    private bool _maintenance;
     private readonly ILogger<SyncQueue> _logger;
 
     public SyncQueue(ILogger<SyncQueue>? logger = null) => _logger = logger ?? NullLogger<SyncQueue>.Instance;
@@ -73,6 +74,7 @@ public sealed class SyncQueue : ISyncQueue
         lock (_gate)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (_maintenance) throw new InvalidOperationException("An application update is preparing to restart.");
             if (syncJob.Status != SyncJobStatus.Queued || _pending.Any(entry => entry.Job.Id == syncJob.Id) || _active?.Job.Id == syncJob.Id)
                 throw new InvalidOperationException("A sync job can only be queued once.");
             var cts = new CancellationTokenSource();
@@ -88,6 +90,27 @@ public sealed class SyncQueue : ISyncQueue
         }
         RaiseChanged();
         return ValueTask.CompletedTask;
+    }
+
+    /// <summary>Freezes new jobs only if no queued or active job can be interrupted.</summary>
+    public IDisposable? TryFreezeWhenIdle()
+    {
+        lock (_gate)
+        {
+            if (_maintenance || _active is not null || _pending.Count != 0) return null;
+            _maintenance = true;
+            return new MaintenanceLease(this);
+        }
+    }
+
+    private sealed class MaintenanceLease(SyncQueue owner) : IDisposable
+    {
+        private SyncQueue? _owner = owner;
+        public void Dispose()
+        {
+            var queue = Interlocked.Exchange(ref _owner, null);
+            if (queue is not null) lock (queue._gate) queue._maintenance = false;
+        }
     }
 
     public async IAsyncEnumerable<SyncJob> ReadAllAsync([EnumeratorCancellation] CancellationToken cancellationToken)

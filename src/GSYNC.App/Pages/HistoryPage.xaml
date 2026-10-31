@@ -112,10 +112,10 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Spacing="2">
                                 <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding DetailTitle}" />
-                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding DetailSubtitle}" TextWrapping="WrapWholeWords" />
+                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding DetailSubtitle}" TextWrapping="WrapWholeWords" />
                             </StackPanel>
                             <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="6" Padding="8,4" Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}">
-                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding DetailRecordId}" />
+                                <TextBlock FontFamily="Consolas" FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding DetailRecordId}" />
                             </Border>
                         </Grid>
 
@@ -127,7 +127,7 @@
                                             <StackPanel Spacing="10">
                                                 <StackPanel Spacing="4">
                                                     <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding DetailGameName}" />
-                                                    <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding DetailSummarySubtitle}" TextWrapping="WrapWholeWords" />
+                                                    <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding DetailSummarySubtitle}" TextWrapping="WrapWholeWords" />
                                                     <primitives:Badge Text="{Binding DetailStatus}" Variant="{Binding DetailStatusVariant}" />
                                                 </StackPanel>
                                                 <ItemsControl ItemTemplate="{StaticResource RecordDetailRowTemplate}" ItemsSource="{Binding RecordDetails}" />
@@ -143,8 +143,8 @@
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SnapshotsSubtitle}" TextWrapping="WrapWholeWords" />
-                                                    <TextBlock Grid.Column="1" FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SnapshotGameLabel}" />
+                                                    <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SnapshotsSubtitle}" TextWrapping="WrapWholeWords" />
+                                                    <TextBlock Grid.Column="1" FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SnapshotGameLabel}" />
                                                 </Grid>
                                                 <primitives:SnapshotFeed ActionInvoked="SnapshotFeed_ActionInvoked" ActionText="{Binding RestoreActionText}" ContentMaxHeight="280" ItemsSource="{Binding Snapshots}" />
                                             </StackPanel>
@@ -162,7 +162,7 @@
                                     <primitives:PropertySheet Title="{Binding SnapshotsTitle}">
                                         <primitives:PropertySheet.PanelContent>
                                             <StackPanel Spacing="8">
-                                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SystemStatus}" TextWrapping="WrapWholeWords" />
+                                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SystemStatus}" TextWrapping="WrapWholeWords" />
                                                 <primitives:SnapshotFeed ActionInvoked="SnapshotFeed_ActionInvoked" ActionText="{Binding RestoreActionText}" ContentMaxHeight="220" ItemsSource="{Binding Snapshots}" />
                                             </StackPanel>
                                         </primitives:PropertySheet.PanelContent>

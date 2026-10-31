@@ -46,7 +46,7 @@ public partial class ConflictResolutionViewModel : ObservableObject
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
         _syncEngine = syncEngine;
 
-        Title = Pick("解决冲突", "Resolve Conflict");
+        Title = Pick("比较并处理存档", "Compare and resolve saves");
         PageSubtitle = Pick("安全优先的双栏对比界面，明确保留动作、基线摘要与风险提示。", "Safety-first dual comparison workspace with explicit resolution actions, baseline context, and visible risk guidance.");
         WarningTitle = Pick("等待比较结果", "Waiting for comparison");
         WarningMessage = Pick("从游戏详情页执行”比较”后，这里会展示双端差异。", "Run Compare from a game's detail page to populate this view.");
@@ -92,7 +92,7 @@ public partial class ConflictResolutionViewModel : ObservableObject
     public void LoadFrom(ConflictNavigationContext context)
     {
         _context = context;
-        Title = Pick($"解决冲突 · {context.GameName}", $"Resolve Conflict · {context.GameName}");
+        Title = Pick($"比较并处理存档 · {context.GameName}", $"Compare and resolve saves · {context.GameName}");
 
         var entries = context.Comparison.Entries;
         var conflicts = entries.Where(entry => entry.ChangeKind == SyncChangeKind.Conflict).ToArray();
@@ -102,7 +102,8 @@ public partial class ConflictResolutionViewModel : ObservableObject
 
         WarningTitle = conflicts.Length == 0 && localOnly.Length == 0 && remoteOnly.Length == 0
             ? Pick("双端一致", "Both sides match")
-            : Pick("检测到双端差异", "Divergent versions detected");
+            : conflicts.Length > 0 ? Pick("发现存档冲突", "Save conflicts found")
+            : Pick("发现存档差异", "Save differences found");
         WarningMessage = conflicts.Length == 0 && localOnly.Length == 0 && remoteOnly.Length == 0
             ? Pick("本地与远端没有差异，无需进一步处理。", "Local and remote files match. No action is required.")
             : Pick(
@@ -136,7 +137,7 @@ public partial class ConflictResolutionViewModel : ObservableObject
                 entry.RelativePath,
                 DescribeLocalState(entry),
                 DescribeRemoteState(entry),
-                ChooseInitialAction(entry),
+                ConflictResolutionAction.Undecided,
                 false) { IsChinese = _isChinese, CanKeepLocal = entry.LocalHash is not null, CanKeepRemote = entry.RemoteHash is not null })
             .ToArray();
 
@@ -223,16 +224,6 @@ public partial class ConflictResolutionViewModel : ObservableObject
                 $"{ConflictFiles.Count} 个差异文件 · {decided} 个已决 · {undecided} 个未决",
                 $"{ConflictFiles.Count} differing files · {decided} decided · {undecided} undecided");
         }
-    }
-
-    private ConflictResolutionAction ChooseInitialAction(SyncDiffEntry entry)
-    {
-        return entry.ChangeKind switch
-        {
-            SyncChangeKind.AddedLocally => ConflictResolutionAction.KeepLocal,
-            SyncChangeKind.AddedRemotely => ConflictResolutionAction.KeepRemote,
-            _ => ConflictResolutionAction.Undecided,
-        };
     }
 
     private string DescribeLocalState(SyncDiffEntry entry)

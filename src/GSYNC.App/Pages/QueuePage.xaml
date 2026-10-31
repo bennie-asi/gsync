@@ -94,10 +94,10 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Spacing="2">
                                 <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding DetailTitle}" />
-                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding DetailSubtitle}" TextWrapping="WrapWholeWords" />
+                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding DetailSubtitle}" TextWrapping="WrapWholeWords" />
                             </StackPanel>
                             <Border Grid.Column="1" Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="6" Padding="8,4" Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding SelectedJobIdText}" />
+                                <TextBlock FontFamily="Consolas" FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding SelectedJobIdText}" />
                             </Border>
                         </Grid>
 
@@ -109,7 +109,7 @@
                                             <StackPanel Spacing="10">
                                                 <StackPanel Spacing="4">
                                                     <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding SelectedJob.DisplayName}" />
-                                                    <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding SelectedJob.CurrentFile}" TextWrapping="WrapWholeWords" />
+                                                    <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{Binding SelectedJob.CurrentFile}" TextWrapping="WrapWholeWords" />
                                                     <primitives:Badge Text="{Binding SelectedJob.Status}" Variant="{Binding SelectedJob.StatusVariant}" />
                                                 </StackPanel>
                                                 <ItemsControl ItemTemplate="{StaticResource QueueDetailRowTemplate}" ItemsSource="{Binding JobDetails}" />
@@ -128,7 +128,7 @@
                                     <primitives:PropertySheet Title="{Binding ActivityTitle}">
                                         <primitives:PropertySheet.PanelContent>
                                             <StackPanel Spacing="10">
-                                                <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ActivitySubtitle}" TextWrapping="WrapWholeWords" />
+                                                <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ActivitySubtitle}" TextWrapping="WrapWholeWords" />
                                                 <primitives:ActivityFeed ContentHeight="220" ItemsSource="{Binding JobActivity}" />
                                             </StackPanel>
                                         </primitives:PropertySheet.PanelContent>

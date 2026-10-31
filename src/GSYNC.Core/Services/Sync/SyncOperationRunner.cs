@@ -11,6 +11,9 @@ internal sealed class SyncOperationState
     internal int Processed { get; set; }
     internal int Total { get; set; }
     internal string? Summary { get; set; }
+    internal Guid? TargetId { get; set; }
+    internal string? TargetName { get; set; }
+    internal string? RemoteNamespace { get; set; }
 }
 
 /// <summary>One terminal record and one error policy for every executed operation.</summary>
@@ -40,6 +43,7 @@ internal sealed class SyncOperationRunner(ISyncHistoryRepository history, ILogge
                 SnapshotId = state.Snapshot?.Id, ProcessedFiles = state.Processed, TotalFiles = state.Total,
                 Summary = state.Summary ?? (status == SyncJobStatus.Cancelled ? $"{direction} cancelled." : null),
                 ErrorMessage = status == SyncJobStatus.Failed ? failure?.Message : null,
+                TargetId = state.TargetId, TargetName = state.TargetName, RemoteNamespace = state.RemoteNamespace,
             }, CancellationToken.None);
         }
         catch (Exception historyError)

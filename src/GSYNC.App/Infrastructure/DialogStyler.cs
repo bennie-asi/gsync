@@ -8,10 +8,7 @@ public static class DialogStyler
 {
     public static ContentDialog Apply(ContentDialog dialog)
     {
-        var settings = App.GetService<UiSettingsStore>().Load();
-        dialog.RequestedTheme = settings.ThemeMode == AppUiSettings.ThemeLight
-            ? ElementTheme.Light
-            : ElementTheme.Dark;
+        dialog.RequestedTheme = (App.Current.MainWindow.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Default;
 
         if (Application.Current.Resources.TryGetValue("PrimaryToolbarButtonStyle", out var primaryStyle) && primaryStyle is Style primary)
         {

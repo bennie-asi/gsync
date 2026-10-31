@@ -65,9 +65,9 @@ public partial class QueuePageViewModel : ObservableObject, IDisposable
         CancelButtonText = Pick("取消活跃任务", "Cancel Active Job");
         RemoveButtonText = Pick("移除等待任务", "Remove Pending Job");
         EmptyStateTitle = Pick("队列当前为空", "Queue is Empty");
-        EmptyStateMessage = Pick("当你从 Library、详情页或冲突页发起同步后，任务会立即出现在这里。", "Jobs will appear here as soon as you queue syncs from Library, Details, or Conflict Resolution.");
-        EmptyStateHint = Pick("你可以先返回 Library 发起同步，随后这里会自动刷新。", "Return to Library to queue a sync, then come back here to watch it update automatically.");
-        EmptyStateActionText = Pick("前往 Library", "Go to Library");
+        EmptyStateMessage = Pick("从游戏库、详情页或比较页面发起同步后，任务会出现在这里。", "Jobs will appear here when queued from Library, Details, or Compare.");
+        EmptyStateHint = Pick("返回游戏库可发起同步。", "Return to Library to queue a sync.");
+        EmptyStateActionText = Pick("前往游戏库", "Go to Library");
         EmptyStateSecondaryActionText = Pick("立即刷新", "Refresh Now");
         EmptyInspectorTitle = Pick("尚未选择任务", "No Job Selected");
         EmptyInspectorMessage = Pick("从左侧列表选择一个任务，即可查看其当前状态、进度与处理路径。", "Select a job from the table to inspect its current state, progress, and processed path.");

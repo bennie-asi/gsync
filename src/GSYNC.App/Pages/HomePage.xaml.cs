@@ -180,7 +180,7 @@ public sealed partial class HomePage : Page
             var dialog = DialogStyler.Apply(new ContentDialog
             {
                 XamlRoot = XamlRoot,
-                Title = isChinese ? "检查并同步" : "Check and sync",
+                Title = isChinese ? "比较存档" : "Compare saves",
                 Content = panel,
                 PrimaryButtonText = isChinese ? "比较" : "Compare",
                 CloseButtonText = isChinese ? "取消" : "Cancel",

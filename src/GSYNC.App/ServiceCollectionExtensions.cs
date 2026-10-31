@@ -1,4 +1,5 @@
 using GSYNC.App.Infrastructure.Configuration;
+using GSYNC.App.Infrastructure;
 using GSYNC.App.Infrastructure.Localization;
 using GSYNC.App.Infrastructure.Wizard;
 using GSYNC.App.ViewModels;
@@ -48,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<CredentialSettingsService>();
         services.AddSingleton<CredentialMigrationService>();
         services.AddSingleton<UiSettingsStore>();
+        services.AddSingleton(sp => new AppUpdateService(sp.GetRequiredService<IAppPathService>().GetAppDataRoot(), AppUpdateService.CreateHttpClient(), DesktopFeatures.CurrentVersion));
         services.AddSingleton<SyncTargetStore>();
         services.AddSingleton<UserVariablesStore>();
         services.AddSingleton<Microsoft.Extensions.Options.IOptions<GSYNC.Manifest.Options.ManifestOptions>, StoreBackedManifestOptions>();
@@ -94,6 +96,8 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IStorageProvider>(sp => sp.GetRequiredService<WebDavStorageProvider>());
 
         services.AddSingleton<SyncQueue>();
+        services.AddSingleton<SyncActivityGate>();
+        services.AddSingleton<AppUpdateInstaller>();
         services.AddSingleton<ISyncQueue>(sp => sp.GetRequiredService<SyncQueue>());
         services.AddSingleton(sp =>
         {
@@ -125,10 +129,15 @@ public static class ServiceCollectionExtensions
                         throw new InvalidOperationException("The sync target provider no longer matches the game's binding.");
                     }
 
-                    return new Dictionary<string, string>(sp.GetRequiredService<SyncTargetStore>().ResolveSettings(target.Settings), StringComparer.OrdinalIgnoreCase) { ["targetId"] = id.ToString("D") };
+                    return new Dictionary<string, string>(sp.GetRequiredService<SyncTargetStore>().ResolveSettings(target.Settings), StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["targetId"] = id.ToString("D"),
+                        ["__gsyncHistoryTargetName"] = target.Name,
+                    };
                 },
                 () => sp.GetRequiredService<UserVariablesStore>().AsDictionary(),
-                sp.GetRequiredService<GSYNC.Core.Services.ApplicationTaskHost>());
+                sp.GetRequiredService<GSYNC.Core.Services.ApplicationTaskHost>(),
+                sp.GetRequiredService<SyncActivityGate>());
         });
         services.AddSingleton<ISyncEngine>(sp => sp.GetRequiredService<SyncEngine>());
         services.AddSingleton<ISyncBindingUpdater>(sp => sp.GetRequiredService<SyncEngine>());

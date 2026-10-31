@@ -40,6 +40,8 @@ public partial class MainWindow : Window
         ContentFrame.NavigationFailed += ContentFrame_OnNavigationFailed;
         _localizationService.LanguageChanged += LocalizationService_OnLanguageChanged;
         _syncQueue.QueueChanged += SyncQueue_QueueChanged;
+        App.GetService<AppUpdateService>().Changed += UpdateService_Changed;
+        Closed += (_, _) => App.GetService<AppUpdateService>().Changed -= UpdateService_Changed;
         App.GetService<SyncTargetStore>().ConnectionChecksChanged += TargetChecksChanged;
 
         ApplyLocalizedShellText();
@@ -127,10 +129,15 @@ public partial class MainWindow : Window
         DispatcherQueue.TryEnqueue(_viewModel.ApplyStatusToProperties);
     }
 
+    private void UpdateService_Changed(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(UpdateUpdateBadge);
+
+    private void UpdateUpdateBadge() => NavRailControl.SetUpdateAvailable(App.GetService<AppUpdateService>().Snapshot.State is "available" or "unverified" or "noasset");
+
     private void ApplyLocalizedShellText()
     {
         NavRailControl.ApplyLocalization(_localizationService);
         UpdateQueueBadge();
+        UpdateUpdateBadge();
     }
 
     private void UpdateQueueBadge()

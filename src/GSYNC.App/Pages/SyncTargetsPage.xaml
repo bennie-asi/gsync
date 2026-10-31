@@ -35,9 +35,9 @@
         </DataTemplate>
         <DataTemplate x:Key="ConnectionFieldTemplate" x:DataType="vm:UiPropertyRow">
             <StackPanel Spacing="5">
-                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
+                <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
                 <Border Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8">
-                    <TextBlock FontSize="12" Text="{x:Bind Value}" TextWrapping="WrapWholeWords" />
+                    <TextBlock FontSize="13" Text="{x:Bind Value}" TextWrapping="WrapWholeWords" />
                 </Border>
             </StackPanel>
         </DataTemplate>
@@ -45,7 +45,7 @@
             <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8">
                 <StackPanel Spacing="4">
                     <TextBlock FontWeight="SemiBold" Text="{x:Bind Name}" />
-                    <TextBlock FontSize="11" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Detail}" TextWrapping="WrapWholeWords" />
+                    <TextBlock FontSize="13" Foreground="{StaticResource AppTextSecondaryBrush}" Text="{x:Bind Detail}" TextWrapping="WrapWholeWords" />
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -58,7 +58,7 @@
         <DataTemplate x:Key="StorageFactTemplate" x:DataType="vm:UiPropertyRow">
             <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8">
                 <StackPanel Spacing="4">
-                    <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
+                    <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{x:Bind Label}" />
                     <TextBlock FontSize="13" FontWeight="SemiBold" Text="{x:Bind Value}" />
                 </StackPanel>
             </Border>
@@ -119,7 +119,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TargetsCountText}" />
+                            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TargetsCountText}" />
                             <Button Grid.Column="1" Click="AddTargetButton_Click" Padding="8,6" Style="{StaticResource SecondaryToolbarButtonStyle}">
                                 <FontIcon Style="{StaticResource AppIcon}" FontSize="18" Glyph="{StaticResource IconAdd}" />
                             </Button>
@@ -134,8 +134,8 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="10" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TargetsFooterLeftText}" />
-                            <TextBlock Grid.Column="1" FontSize="10" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TargetsFooterRightText}" />
+                            <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TargetsFooterLeftText}" />
+                            <TextBlock Grid.Column="1" FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding TargetsFooterRightText}" />
                         </Grid>
                     </Grid>
                 </Border>
@@ -157,7 +157,7 @@
                                 <TextBlock FontSize="14" FontWeight="SemiBold" Text="{Binding PaneTitle}" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <primitives:Badge Text="{Binding SelectedTargetStatus}" Variant="{Binding SelectedTargetStatusVariant}" />
-                                    <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding LastCheckedText}" />
+                                    <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding LastCheckedText}" />
                                 </StackPanel>
                             </StackPanel>
                             <Button x:Name="SetDefaultTargetButton" Grid.Column="1" Click="SetDefaultTarget_Click" Content="{Binding SetDefaultText}" IsEnabled="{Binding CanSetSelectedDefault}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
@@ -170,7 +170,7 @@
                                     <primitives:InfoCallout Severity="Error" Title="{Binding FailureTitle}" Message="{Binding FailureMessage}" />
                                     <Border Background="{StaticResource AppSurfaceBrush}" BorderBrush="{StaticResource AppDividerBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource AppDangerBrush}" Text="{Binding FailureCodeText}" />
+                                            <TextBlock FontFamily="Consolas" FontSize="13" Foreground="{StaticResource AppDangerBrush}" Text="{Binding FailureCodeText}" />
                                             <Button Click="CopyCodeButton_Click" Style="{StaticResource SecondaryToolbarButtonStyle}">
                                                 <primitives:IconText Glyph="{StaticResource IconCopy}" GlyphSize="16" Text="{Binding CopyCodeText}" />
                                             </Button>
@@ -187,7 +187,7 @@
                                 <primitives:PropertySheet Title="{Binding ActiveBindingsTitle}" Visibility="{Binding ShowFailureState, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Invert}">
                                     <primitives:PropertySheet.PanelContent>
                                         <StackPanel Spacing="10">
-                                            <TextBlock FontSize="11" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ActiveBindingsSummaryText}" />
+                                            <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding ActiveBindingsSummaryText}" />
                                             <ItemsControl ItemTemplate="{StaticResource BindingUsageTemplate}" ItemsSource="{Binding ActiveBindings}" />
                                         </StackPanel>
                                     </primitives:PropertySheet.PanelContent>

@@ -21,8 +21,8 @@ public sealed class SyncHistoryRepository : ISyncHistoryRepository
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO SyncRecords (Id, GameInstanceId, SnapshotId, Direction, Status, StartedAtUtc, CompletedAtUtc, Summary, ErrorMessage, ProcessedFiles, TotalFiles)
-            VALUES ($id, $gameInstanceId, $snapshotId, $direction, $status, $startedAtUtc, $completedAtUtc, $summary, $errorMessage, $processedFiles, $totalFiles);
+            INSERT INTO SyncRecords (Id, GameInstanceId, SnapshotId, Direction, Status, StartedAtUtc, CompletedAtUtc, Summary, ErrorMessage, ProcessedFiles, TotalFiles, TargetId, TargetName, RemoteNamespace)
+            VALUES ($id, $gameInstanceId, $snapshotId, $direction, $status, $startedAtUtc, $completedAtUtc, $summary, $errorMessage, $processedFiles, $totalFiles, $targetId, $targetName, $remoteNamespace);
             """;
         command.Parameters.AddWithValue("$id", record.Id.ToString("D"));
         command.Parameters.AddWithValue("$gameInstanceId", record.GameInstanceId.ToString("D"));
@@ -35,6 +35,9 @@ public sealed class SyncHistoryRepository : ISyncHistoryRepository
         command.Parameters.AddWithValue("$errorMessage", (object?)record.ErrorMessage ?? DBNull.Value);
         command.Parameters.AddWithValue("$processedFiles", record.ProcessedFiles);
         command.Parameters.AddWithValue("$totalFiles", record.TotalFiles);
+        command.Parameters.AddWithValue("$targetId", record.TargetId?.ToString("D") ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$targetName", (object?)record.TargetName ?? DBNull.Value);
+        command.Parameters.AddWithValue("$remoteNamespace", (object?)record.RemoteNamespace ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -45,7 +48,7 @@ public sealed class SyncHistoryRepository : ISyncHistoryRepository
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT Id, GameInstanceId, SnapshotId, Direction, Status, StartedAtUtc, CompletedAtUtc, Summary, ErrorMessage, ProcessedFiles, TotalFiles FROM SyncRecords WHERE GameInstanceId = $gameInstanceId ORDER BY StartedAtUtc DESC;";
+        command.CommandText = "SELECT Id, GameInstanceId, SnapshotId, Direction, Status, StartedAtUtc, CompletedAtUtc, Summary, ErrorMessage, ProcessedFiles, TotalFiles, TargetId, TargetName, RemoteNamespace FROM SyncRecords WHERE GameInstanceId = $gameInstanceId ORDER BY StartedAtUtc DESC;";
         command.Parameters.AddWithValue("$gameInstanceId", gameInstanceId.ToString("D"));
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -64,7 +67,7 @@ public sealed class SyncHistoryRepository : ISyncHistoryRepository
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT Id, GameInstanceId, SnapshotId, Direction, Status, StartedAtUtc, CompletedAtUtc, Summary, ErrorMessage, ProcessedFiles, TotalFiles FROM SyncRecords ORDER BY StartedAtUtc DESC LIMIT $limit;";
+        command.CommandText = "SELECT Id, GameInstanceId, SnapshotId, Direction, Status, StartedAtUtc, CompletedAtUtc, Summary, ErrorMessage, ProcessedFiles, TotalFiles, TargetId, TargetName, RemoteNamespace FROM SyncRecords ORDER BY StartedAtUtc DESC LIMIT $limit;";
         command.Parameters.AddWithValue("$limit", limit);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -91,6 +94,9 @@ public sealed class SyncHistoryRepository : ISyncHistoryRepository
             ErrorMessage = reader.IsDBNull(8) ? null : reader.GetString(8),
             ProcessedFiles = reader.GetInt32(9),
             TotalFiles = reader.GetInt32(10),
+            TargetId = reader.IsDBNull(11) ? null : Guid.Parse(reader.GetString(11)),
+            TargetName = reader.IsDBNull(12) ? null : reader.GetString(12),
+            RemoteNamespace = reader.IsDBNull(13) ? null : reader.GetString(13),
         };
     }
 

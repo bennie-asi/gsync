@@ -10,6 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.UI.Xaml;
 using Serilog;
+using System.Diagnostics;
+using GSYNC.Core.Updates;
 
 namespace GSYNC.App;
 
@@ -36,10 +38,6 @@ public partial class App : Application
     {
         InitializeComponent();
 
-        var startupSettings = UiSettingsStore.LoadStartupSettings(new GSYNC.Data.Services.AppPathService().GetUiSettingsPath());
-        RequestedTheme = startupSettings.ThemeMode == AppUiSettings.ThemeLight
-            ? ApplicationTheme.Light
-            : ApplicationTheme.Dark;
         UnhandledException += OnUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnCurrentDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -61,7 +59,6 @@ public partial class App : Application
         var appPaths = new GSYNC.Data.Services.AppPathService();
         EnsureAppDirectories(appPaths);
         var startupSettings = UiSettingsStore.LoadStartupSettings(appPaths.GetUiSettingsPath());
-        AppPalette.Apply(Resources, startupSettings.ThemeMode == AppUiSettings.ThemeLight);
         ApplyStartupDensity(startupSettings.DensityMode);
         Log.Logger = SerilogBootstrap.CreateLogger(appPaths.GetLogsDirectory(), startupSettings.LogLevel);
         Log.Information("GSYNC launch requested.");
@@ -69,6 +66,21 @@ public partial class App : Application
         try
         {
             _instanceLease = new FileStream(Path.Combine(appPaths.GetAppDataRoot(), "app.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            var recovery = UpdateTransaction.FindPendingRecovery(AppContext.BaseDirectory, appPaths.GetAppDataRoot());
+            if (recovery is not null)
+            {
+                var helper = Path.Combine(recovery, "GSYNC.Updater.exe");
+                if (!File.Exists(helper) || (File.GetAttributes(helper) & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException("The interrupted update needs recovery, but its recovery helper is missing. Backups are at " + recovery);
+                var start = new ProcessStartInfo(helper) { UseShellExecute = false, CreateNoWindow = true };
+                start.ArgumentList.Add("--recover");
+                start.ArgumentList.Add(recovery);
+                using var process = Process.Start(start) ?? throw new IOException("Could not start update recovery. Backups are at " + recovery);
+                // Keep the lock until this process exits so a recovery started at sign-in cannot
+                // replace files while this executable is still loaded.
+                Exit();
+                return;
+            }
             Log.Information("Building application service provider.");
             var serviceCollection = new ServiceCollection();
             serviceCollection.AddSingleton(_tasks);
@@ -77,6 +89,16 @@ public partial class App : Application
 
             Log.Information("Creating main window shell.");
             _window = _services.GetRequiredService<MainWindow>();
+            _services.GetRequiredService<AppUpdateInstaller>().RestartRequested += () =>
+            {
+                if (!_window.DispatcherQueue.TryEnqueue(() => _window.Close()))
+                    throw new InvalidOperationException("The application window could not be closed for update.");
+            };
+            if (_window.Content is FrameworkElement root)
+            {
+                root.ActualThemeChanged += (_, _) => AppPalette.Apply(Resources, root.ActualTheme == ElementTheme.Light);
+                ApplyTheme(startupSettings.ThemeMode);
+            }
             _window.AppWindow.Closing += OnWindowClosing;
             _window.Closed += OnWindowClosed;
             _window.Activate();
@@ -86,6 +108,18 @@ public partial class App : Application
             Log.Fatal(exception, "GSYNC failed before the main window shell could be shown.");
             throw;
         }
+    }
+
+    public void ApplyTheme(string themeMode)
+    {
+        if (_window?.Content is not FrameworkElement root) return;
+        root.RequestedTheme = themeMode switch
+        {
+            AppUiSettings.ThemeLight => ElementTheme.Light,
+            AppUiSettings.ThemeDark => ElementTheme.Dark,
+            _ => ElementTheme.Default,
+        };
+        AppPalette.Apply(Resources, root.ActualTheme == ElementTheme.Light);
     }
 
     public Task RunDeferredStartupAsync() => _startupTask ??= _tasks.RunAsync(InitializeCoreAsync);
@@ -112,6 +146,15 @@ public partial class App : Application
             Log.Information("Seeding embedded manifest if needed.");
             await SeedEmbeddedManifestIfNeededAsync(_services, cancellationToken);
 
+            var probeToken = Environment.GetEnvironmentVariable("GSYNC_UPDATE_PROBE_TOKEN");
+            if (Guid.TryParseExact(probeToken, "N", out _))
+            {
+                var probeRoot = _services.GetRequiredService<IAppPathService>().GetAppDataRoot();
+                GSYNC.Core.Utilities.AtomicFile.WriteAllText(Path.Combine(probeRoot, "update-health-" + probeToken), DesktopFeatures.CurrentVersion);
+                _window?.DispatcherQueue.TryEnqueue(() => _window.Close());
+                return;
+            }
+
             Log.Information("Starting background services.");
             cancellationToken.ThrowIfCancellationRequested();
             StartBackgroundServices(_services);
@@ -119,6 +162,8 @@ public partial class App : Application
             Log.Information("Refreshing community manifest if configured.");
             var settingsStore = _services.GetRequiredService<UiSettingsStore>();
             var appSettings = settingsStore.Load();
+            if (appSettings.AutoCheckUpdates)
+                _ = _tasks.RunAsync(token => Task.Run(() => _services.GetRequiredService<AppUpdateService>().CheckAsync(true, token), token));
             if (appSettings.RefreshManifestOnStartup)
             {
                 _ = _tasks.RunAsync(token => Task.Run(() => RefreshCommunityManifestIfConfiguredAsync(_services, token), token));
@@ -236,6 +281,7 @@ public partial class App : Application
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
+        _services?.GetService<AppUpdateInstaller>()?.ReleaseLeases();
         _services?.Dispose();
         _tasks.Dispose();
         _instanceLease?.Dispose();

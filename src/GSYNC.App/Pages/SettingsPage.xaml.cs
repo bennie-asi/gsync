@@ -10,6 +10,8 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using GSYNC.Core.Services.Sync;
+using GSYNC.Core.Abstractions.Data;
+using GSYNC.Core.Updates;
 using Serilog;
 
 namespace GSYNC.App.Pages;
@@ -18,6 +20,10 @@ public sealed partial class SettingsPage : Page
 {
     private SettingsPageViewModel? _viewModel;
     private AutoPullCoordinator? _autoPull;
+    private AppUpdateService? _updates;
+    private AppUpdateInstaller? _installer;
+    private CancellationTokenSource? _downloadCancellation;
+    private string? _downloadedUpdate;
 
     public SettingsPage()
     {
@@ -30,12 +36,20 @@ public sealed partial class SettingsPage : Page
         base.OnNavigatedTo(e);
         _autoPull = App.GetService<AutoPullCoordinator>();
         _autoPull.StatusChanged += AutoPull_StatusChanged;
+        _updates = App.GetService<AppUpdateService>();
+        _updates.Changed += Updates_Changed;
+        _installer = App.GetService<AppUpdateInstaller>();
+        _installer.Changed += Updates_Changed;
+        RefreshUpdateStatus();
         RefreshAutoPullStatus();
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         if (_autoPull is not null) _autoPull.StatusChanged -= AutoPull_StatusChanged;
+        if (_updates is not null) _updates.Changed -= Updates_Changed;
+        if (_installer is not null) _installer.Changed -= Updates_Changed;
+        _downloadCancellation?.Cancel();
         base.OnNavigatedFrom(e);
     }
 
@@ -68,6 +82,7 @@ public sealed partial class SettingsPage : Page
             _viewModel = App.GetService<SettingsPageViewModel>();
             DataContext = _viewModel;
             ApplyLocalizedStaticText(_viewModel);
+            InitializeDesktopFeatures();
             MainContentRoot.Visibility = Visibility.Visible;
             InitializationErrorPanel.Visibility = Visibility.Collapsed;
             _ = _viewModel.LoadGamesAsync();
@@ -89,6 +104,254 @@ public sealed partial class SettingsPage : Page
         SaveSettingsButton.Content = viewModel.SaveSettingsText;
         OpenLogsDirButton.Content = viewModel.OpenLogsDirText;
         OpenDataDirButton.Content = viewModel.OpenDataDirText;
+    }
+
+    private void InitializeDesktopFeatures()
+    {
+        var zh = _viewModel?.IsChinese == true;
+        StartupSection.Title = zh ? "启动" : "Startup";
+        StartupDescription.Text = zh ? "登录 Windows 后启动 GSYNC；自动同步仍按独立设置运行。" : "Start GSYNC after signing in to Windows. Automatic sync uses its own setting.";
+        EnableStartupButton.Content = zh ? "启用 / 使用当前位置" : "Enable / use this location";
+        DisableStartupButton.Content = zh ? "关闭自启" : "Disable startup";
+        WindowsStartupButton.Content = zh ? "Windows 启动设置" : "Windows startup settings";
+        UpdatesSection.Title = zh ? "关于与更新" : "About and updates";
+        VersionText.Text = (zh ? "当前版本：" : "Current version: ") + DesktopFeatures.CurrentVersion.Split('+')[0];
+        UpdateStatus.Text = zh ? "尚未检查应用更新。" : "Application updates have not been checked.";
+        CheckUpdatesButton.Content = zh ? "检查更新" : "Check for updates";
+        ReleasesButton.Content = zh ? "前往 GitHub 发行页" : "Open GitHub releases";
+        AutoCheckToggle.Header = zh ? "启动时自动检查更新（保存后生效，每天最多一次）" : "Check for updates on startup (save to apply, at most once a day)";
+        AutoCheckToggle.OnContent = zh ? "开" : "On";
+        AutoCheckToggle.OffContent = zh ? "关" : "Off";
+        DownloadUpdateButton.Content = zh ? "下载更新" : "Download update";
+        CancelUpdateButton.Content = zh ? "取消下载" : "Cancel download";
+        OpenUpdateFolderButton.Content = zh ? "打开下载位置" : "Open download location";
+        InstallUpdateButton.Content = zh ? "退出并安装更新" : "Exit and install update";
+        CancelInstallButton.Content = zh ? "取消等待" : "Cancel waiting";
+        RefreshStartupStatus();
+    }
+
+    private void RefreshStartupStatus()
+    {
+        var zh = _viewModel?.IsChinese == true;
+        try
+        {
+            var command = DesktopFeatures.StartupCommand();
+            if (command is null) StartupStatus.Text = zh ? "当前用户未登记开机自启。" : "Startup is not registered for this user.";
+            else if (!string.Equals(command, DesktopFeatures.ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase))
+                StartupStatus.Text = (zh ? "启动路径与当前程序不一致：" : "Startup points to a different location: ") + command;
+            else StartupStatus.Text = zh ? "已登记启动项；实际启动状态由 Windows 管理。" : "Startup is registered; Windows controls whether it runs.";
+        }
+        catch (Exception ex) { StartupStatus.Text = (zh ? "无法读取启动状态：" : "Cannot read startup status: ") + ex.Message; }
+    }
+
+    private async void EnableStartup_Click(object sender, RoutedEventArgs e)
+    {
+        var zh = _viewModel?.IsChinese == true;
+        try
+        {
+            var existing = DesktopFeatures.StartupCommand();
+            if (existing is not null && !string.Equals(existing, DesktopFeatures.ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase))
+            {
+                var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = zh ? "更新启动路径？" : "Update startup location?",
+                    Content = (zh ? "当前登记：" : "Registered: ") + existing + Environment.NewLine + (zh ? "使用当前程序位置替换它？" : "Replace it with the current location?"),
+                    PrimaryButtonText = zh ? "使用当前位置" : "Use current location", CloseButtonText = zh ? "取消" : "Cancel", DefaultButton = ContentDialogButton.Close };
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            }
+            DesktopFeatures.SetStartup(true);
+            RefreshStartupStatus();
+        }
+        catch (Exception ex) { StartupStatus.Text = (zh ? "无法设置自启：" : "Cannot configure startup: ") + ex.Message; }
+    }
+
+    private async void DisableStartup_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var existing = DesktopFeatures.StartupCommand();
+            if (existing is not null && !string.Equals(existing, DesktopFeatures.ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase))
+            {
+                var zh = _viewModel?.IsChinese == true;
+                var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = zh ? "移除此启动项？" : "Remove this startup entry?",
+                    Content = (zh ? "该启动项指向其他位置：" : "This entry points to another location: ") + existing,
+                    PrimaryButtonText = zh ? "移除" : "Remove", CloseButtonText = zh ? "取消" : "Cancel", DefaultButton = ContentDialogButton.Close };
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            }
+            DesktopFeatures.SetStartup(false);
+            RefreshStartupStatus();
+        }
+        catch (Exception ex) { StartupStatus.Text = (_viewModel?.IsChinese == true ? "无法关闭自启：" : "Cannot disable startup: ") + ex.Message; }
+    }
+
+    private async void WindowsStartup_Click(object sender, RoutedEventArgs e)
+    {
+        try { await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:startupapps")); }
+        catch (Exception ex) { StartupStatus.Text = ex.Message; }
+    }
+
+    private async void Releases_Click(object sender, RoutedEventArgs e)
+    {
+        try { await Windows.System.Launcher.LaunchUriAsync(new Uri(DesktopFeatures.ReleasesUrl)); }
+        catch (Exception ex) { UpdateStatus.Text = ex.Message; }
+    }
+
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_updates is not null) await _updates.CheckAsync(false, App.Current.LifetimeToken);
+        }
+        catch (OperationCanceledException) when (App.Current.LifetimeToken.IsCancellationRequested) { }
+        catch (Exception ex) { UpdateStatus.Text = (_viewModel?.IsChinese == true ? "检查失败：" : "Update check failed: ") + ex.Message; }
+    }
+
+    private void Updates_Changed(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(RefreshUpdateStatus);
+
+    private void RefreshUpdateStatus()
+    {
+        if (_updates is null) return;
+        var zh = _viewModel?.IsChinese == true;
+        var result = _updates.Snapshot;
+        if (_downloadCancellation is null && _updates.LastDownload is { } download && File.Exists(download.Path) &&
+            (result.Version is null || string.Equals(result.Version, download.Version, StringComparison.Ordinal)))
+        {
+            _downloadedUpdate = download.Path;
+            OpenUpdateFolderButton.Visibility = Visibility.Visible;
+            if (string.IsNullOrWhiteSpace(DownloadStatus.Text))
+                DownloadStatus.Text = zh ? $"本次运行已下载版本 {download.Version}。" : $"Version {download.Version} was downloaded in this session.";
+        }
+        else if (_downloadCancellation is null && result.Version is not null && _updates.LastDownload is { } previous &&
+                 !string.Equals(result.Version, previous.Version, StringComparison.Ordinal))
+        {
+            _downloadedUpdate = null;
+            OpenUpdateFolderButton.Visibility = Visibility.Collapsed;
+            DownloadStatus.Text = string.Empty;
+        }
+        else if (_downloadCancellation is null && _downloadedUpdate is not null && !File.Exists(_downloadedUpdate))
+        {
+            _downloadedUpdate = null;
+            OpenUpdateFolderButton.Visibility = Visibility.Collapsed;
+            DownloadStatus.Text = zh ? "下载的文件已不存在，请重新下载。" : "The downloaded file is no longer available. Download it again.";
+        }
+        UpdateStatus.Text = result.State switch
+        {
+            "checking" => zh ? "正在检查更新…" : "Checking for updates…",
+            "available" => zh ? $"发现新版本 {result.Version}。" : $"Version {result.Version} is available.",
+            "current" => zh ? "上次检查时已是最新版本。" : "You were up to date at the last check.",
+            "none" => zh ? "未找到公开发行版，或无法访问此仓库。" : "No public release was found, or the repository is inaccessible.",
+            "limited" => zh ? "GitHub 暂时限制了请求，请稍后重试。" : "GitHub has rate-limited requests. Try again later.",
+            "noasset" => zh ? "发现新版本，但没有适用于 Windows x64 的更新包。" : "A new version is available, but no Windows x64 package was found.",
+            "unverified" => zh ? "此版本无法在应用内校验，请前往 GitHub 下载。" : "This release cannot be verified in the app. Download it from GitHub.",
+            "error" => (zh ? "检查失败：" : "Update check failed: ") + result.Message,
+            "invalid" => zh ? "无法比较版本，请查看 GitHub 发行页。" : "Cannot compare versions. Check GitHub releases.",
+            _ => zh ? "尚未检查应用更新。" : "Application updates have not been checked."
+        };
+        if (result.LastAttempt is { } last) UpdateStatus.Text += (zh ? "\n上次检查：" : "\nLast checked: ") + last.ToLocalTime().ToString("g");
+        if (result.LastSuccess is { } success && result.LastSuccess != result.LastAttempt)
+            UpdateStatus.Text += (zh ? "\n上次成功检查：" : "\nLast successful check: ") + success.ToLocalTime().ToString("g");
+        ReleaseNotes.Text = result.Notes ?? string.Empty;
+        ReleaseNotesContainer.Visibility = string.IsNullOrWhiteSpace(ReleaseNotes.Text) ? Visibility.Collapsed : Visibility.Visible;
+        var install = _installer?.Status ?? new InstallStatus("idle");
+        var installing = install.State is "preparing" or "waiting" or "starting";
+        InstallStatusText.Text = install.State switch
+        {
+            "preparing" => zh ? "正在准备已签名的更新…" : "Preparing the signed update…",
+            "waiting" => zh ? "等待同步和恢复任务结束后自动安装；你可以继续使用应用。" : "Waiting for sync and restore tasks to finish before installing; you can keep using the app.",
+            "starting" => zh ? "任务已结束，正在退出并启动更新程序…" : "Tasks are complete. Closing the app and starting the updater…",
+            "cancelled" => zh ? "已取消等待安装。" : "Update installation was cancelled.",
+            "error" => (zh ? "无法安装更新：" : "Cannot install update: ") + install.Message,
+            _ => string.Empty,
+        };
+        var lastResult = UpdateResultStore.Read(App.GetService<IAppPathService>().GetAppDataRoot());
+        LastUpdateResultText.Text = lastResult?.State switch
+        {
+            "installed" => zh ? $"版本 {lastResult.Version} 已安装并通过启动检查。" : $"Version {lastResult.Version} was installed and passed its startup check.",
+            "rolled-back" => zh ? $"版本 {lastResult.Version} 更新失败，已恢复原版本：{LocalizeUpdateError(lastResult.Message)}" : $"Update {lastResult.Version} failed and the previous version was restored: {lastResult.Message}",
+            "recovery-required" => zh ? $"更新未能自动恢复，备份保存在 {lastResult.RecoveryDirectory}：{lastResult.Message}" : $"Automatic recovery needs attention. Backups are at {lastResult.RecoveryDirectory}: {lastResult.Message}",
+            "error" => zh ? $"更新未完成：{lastResult.Message}" : $"Update did not finish: {lastResult.Message}",
+            _ => string.Empty,
+        };
+        DownloadStatus.Visibility = string.IsNullOrWhiteSpace(DownloadStatus.Text) ? Visibility.Collapsed : Visibility.Visible;
+        InstallStatusText.Visibility = string.IsNullOrWhiteSpace(InstallStatusText.Text) ? Visibility.Collapsed : Visibility.Visible;
+        LastUpdateResultText.Visibility = string.IsNullOrWhiteSpace(LastUpdateResultText.Text) ? Visibility.Collapsed : Visibility.Visible;
+        CheckUpdatesButton.IsEnabled = result.State != "checking" && _downloadCancellation is null && !installing;
+        DownloadUpdateButton.Visibility = result.State == "available" && _downloadCancellation is null && !installing ? Visibility.Visible : Visibility.Collapsed;
+        InstallUpdateButton.Visibility = _downloadedUpdate is not null && _updates.LastDownload?.IsSigned == true && _downloadCancellation is null && !installing ? Visibility.Visible : Visibility.Collapsed;
+        CancelInstallButton.Visibility = install.State is "preparing" or "waiting" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static string LocalizeUpdateError(string message) => message switch
+    {
+        "The updated program failed its startup check." => "新版本未通过启动检查。",
+        "The updated program did not complete its startup check." => "新版本启动检查超时。",
+        "An interrupted update was rolled back." => "中断的更新已恢复。",
+        _ => message,
+    };
+
+    private async void DownloadUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updates is null || _downloadCancellation is not null) return;
+        var zh = _viewModel?.IsChinese == true;
+        _downloadedUpdate = null;
+        OpenUpdateFolderButton.Visibility = Visibility.Collapsed;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(App.Current.LifetimeToken);
+        _downloadCancellation = cancellation;
+        CancelUpdateButton.Visibility = Visibility.Visible;
+        UpdateProgress.Visibility = Visibility.Visible;
+        UpdateProgress.Value = 0;
+        RefreshUpdateStatus();
+        var progress = new Progress<DownloadProgress>(p =>
+        {
+            if (_downloadCancellation != cancellation || cancellation.IsCancellationRequested) return;
+            UpdateProgress.Value = 100d * p.Downloaded / p.Total;
+            DownloadStatus.Text = $"{p.Downloaded / 1048576d:F1} / {p.Total / 1048576d:F1} MB";
+            DownloadStatus.Visibility = Visibility.Visible;
+        });
+        try
+        {
+            _downloadedUpdate = await _updates.DownloadAsync(progress, cancellation.Token);
+            DownloadStatus.Text = _updates.LastDownload?.IsSigned == true
+                ? (zh ? "下载完成，发行签名和文件完整性校验通过。" : "Download complete. The release signature and file integrity were verified.")
+                : (zh ? "下载完成，但该发行版没有可信签名。请退出后解压到新文件夹手动更新。" : "Download complete, but this release has no trusted signature. Exit and extract it to a new folder to update manually.");
+            OpenUpdateFolderButton.Visibility = Visibility.Visible;
+        }
+        catch (OperationCanceledException) { DownloadStatus.Text = zh ? "下载已取消。" : "Download cancelled."; }
+        catch (Exception ex) { DownloadStatus.Text = (zh ? "下载失败：" : "Download failed: ") + ex.Message; }
+        finally
+        {
+            _downloadCancellation = null;
+            CancelUpdateButton.Visibility = Visibility.Collapsed;
+            UpdateProgress.Visibility = Visibility.Collapsed;
+            RefreshUpdateStatus();
+        }
+    }
+
+    private void CancelUpdate_Click(object sender, RoutedEventArgs e) => _downloadCancellation?.Cancel();
+
+    private async void InstallUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_installer is null || _updates?.LastDownload?.IsSigned != true) return;
+        var zh = _viewModel?.IsChinese == true;
+        var dialog = DialogStyler.Apply(new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = zh ? "安装已签名的更新？" : "Install the signed update?",
+            Content = zh ? "GSYNC 将等待正在运行和排队的同步及恢复任务结束，然后退出并重启。启动检查失败时会尝试恢复原版本。"
+                : "GSYNC will wait for running and queued sync or restore tasks, then exit and restart. If the startup check fails, it will try to restore the previous version.",
+            PrimaryButtonText = zh ? "等待并安装" : "Wait and install",
+            CloseButtonText = zh ? "暂不安装" : "Not now",
+            DefaultButton = ContentDialogButton.Close,
+        });
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            _ = App.Current.RunApplicationTaskAsync(token => _installer.InstallWhenIdleAsync(token));
+    }
+
+    private void CancelInstall_Click(object sender, RoutedEventArgs e) => _installer?.Cancel();
+
+    private void OpenUpdateFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (_downloadedUpdate is null) return;
+        try { Process.Start(new ProcessStartInfo("explorer.exe", "/select,\"" + _downloadedUpdate + "\"") { UseShellExecute = true }); }
+        catch (Exception ex) { DownloadStatus.Text = ex.Message; }
     }
 
     private static void ThrowIfInitializationForcedToFail(string pageKey)
@@ -180,6 +443,12 @@ public sealed partial class SettingsPage : Page
             case "appearance":
                 ThemeBehaviorSheet.StartBringIntoView();
                 break;
+            case "startup":
+                StartupSection.StartBringIntoView();
+                break;
+            case "updates":
+                UpdatesSection.StartBringIntoView();
+                break;
             case "behavior":
                 BehaviorSection.StartBringIntoView();
                 break;
@@ -237,15 +506,7 @@ public sealed partial class SettingsPage : Page
 
     private static void ApplyAppearance(AppUiSettings settings)
     {
-        AppPalette.Apply(Application.Current.Resources, settings.ThemeMode == AppUiSettings.ThemeLight);
-        // Application.RequestedTheme can only be set during app construction; assigning it at
-        // runtime throws and crashes the app. Switch the theme on the window root element instead.
-        if (App.Current.MainWindow.Content is FrameworkElement root)
-        {
-            root.RequestedTheme = settings.ThemeMode == AppUiSettings.ThemeLight
-                ? ElementTheme.Light
-                : ElementTheme.Dark;
-        }
+        App.Current.ApplyTheme(settings.ThemeMode);
 
         if (Application.Current.Resources is not ResourceDictionary resources)
         {
