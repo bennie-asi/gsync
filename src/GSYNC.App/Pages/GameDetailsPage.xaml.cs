@@ -29,6 +29,7 @@ public sealed partial class GameDetailsPage : Page
         _syncQueue = App.GetService<ISyncQueue>();
         _autoPull = App.GetService<AutoPullCoordinator>();
         DataContext = _viewModel;
+        RemoveGameMenuItem.Text = _viewModel.RemoveGameText;
 
     }
 
@@ -158,6 +159,27 @@ public sealed partial class GameDetailsPage : Page
             _viewModel.SelectContentItem(row);
             DetailsInspector.StartBringIntoView();
         }
+    }
+
+    private async void RemoveGame_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.InstanceId is null) return;
+        var zh = _viewModel.IsChinese;
+        var dialog = DialogStyler.Apply(new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = zh ? "从游戏库移除？" : "Remove from library?",
+            Content = zh
+                ? $"将移除“{_viewModel.Title}”及其同步配置。本机和远端存档、历史记录与快照文件会保留。移除后，旧快照无法在 GSYNC 中恢复。"
+                : $"Remove “{_viewModel.Title}” and its sync configuration. Local and remote saves, history, and snapshot files will remain. Old snapshots cannot be restored in GSYNC after removal.",
+            PrimaryButtonText = zh ? "移除游戏" : "Remove game",
+            CloseButtonText = zh ? "取消" : "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+        });
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        var error = await _viewModel.RemoveGameAsync(App.Current.LifetimeToken);
+        if (error is null) Frame?.Navigate(typeof(HomePage));
+        else await ShowResultAsync(error, string.Empty, string.Empty);
     }
 
     private async void UploadButton_Click(object sender, RoutedEventArgs e)

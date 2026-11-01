@@ -153,7 +153,7 @@
                                                     <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SnapshotsSubtitle}" TextWrapping="WrapWholeWords" />
                                                     <TextBlock Grid.Column="1" FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SnapshotGameLabel}" />
                                                 </Grid>
-                                                <primitives:SnapshotFeed ActionInvoked="SnapshotFeed_ActionInvoked" ActionText="{Binding RestoreActionText}" ContentMaxHeight="280" ItemsSource="{Binding Snapshots}" />
+                                                <primitives:SnapshotFeed ActionInvoked="SnapshotFeed_ActionInvoked" ActionText="{Binding RestoreActionText}" ActionEnabled="{Binding CanRestore}" ContentMaxHeight="280" ItemsSource="{Binding Snapshots}" />
                                             </StackPanel>
                                         </primitives:PropertySheet.PanelContent>
                                     </primitives:PropertySheet>
@@ -173,7 +173,7 @@
                                         <primitives:PropertySheet.PanelContent>
                                             <StackPanel Spacing="8">
                                                 <TextBlock FontSize="13" Foreground="{StaticResource AppTextDimBrush}" Text="{Binding SystemStatus}" TextWrapping="WrapWholeWords" />
-                                                <primitives:SnapshotFeed ActionInvoked="SnapshotFeed_ActionInvoked" ActionText="{Binding RestoreActionText}" ContentMaxHeight="220" ItemsSource="{Binding Snapshots}" />
+                                                <primitives:SnapshotFeed ActionInvoked="SnapshotFeed_ActionInvoked" ActionText="{Binding RestoreActionText}" ActionEnabled="{Binding CanRestore}" ContentMaxHeight="220" ItemsSource="{Binding Snapshots}" />
                                             </StackPanel>
                                         </primitives:PropertySheet.PanelContent>
                                     </primitives:PropertySheet>

@@ -105,7 +105,6 @@ public partial class HistoryPageViewModel : ObservableObject
         DetailSubtitle = Pick("选中记录的详情与关联快照", "Details and snapshots for the selected record");
         DetailSummaryTitle = Pick("选中记录", "Selected Record");
         SnapshotsTitle = Pick("可用快照", "Available Snapshots");
-        SnapshotsSubtitle = Pick("点击「恢复」可将本地存档回滚至该快照", "Click Restore to roll back local saves to that snapshot");
         RestoreActionText = Pick("恢复", "Restore");
         RestoringText = Pick("正在恢复快照…", "Restoring snapshot…");
         EmptyStateTitle = Pick("还没有历史记录", "No History Yet");
@@ -171,7 +170,9 @@ public partial class HistoryPageViewModel : ObservableObject
     public string DetailSubtitle { get; }
     public string DetailSummaryTitle { get; }
     public string SnapshotsTitle { get; }
-    public string SnapshotsSubtitle { get; }
+    public string SnapshotsSubtitle => SelectedEntry is { } entry && !_instancesById.ContainsKey(entry.Record.GameInstanceId)
+        ? Pick("游戏已移除，快照文件仍保留在本机 snapshots 目录；无法在此恢复。", "The game was removed. Snapshot files remain in the local snapshots folder, but cannot be restored here.")
+        : Pick("点击「恢复」可将本地存档回滚至该快照", "Click Restore to roll back local saves to that snapshot");
     public string RestoreActionText { get; }
     public string RestoringText { get; }
     public string RecordFilesText => Pick("查看记录文件", "View record files");
@@ -182,7 +183,7 @@ public partial class HistoryPageViewModel : ObservableObject
     public bool NeedsSelection => !IsEmptyState && Entries.Count > 0 && SelectedEntry is null;
 
     /// <summary>True while no restore is running, so restore entry points can bind their enabled state.</summary>
-    public bool CanRestore => !IsRestoreInProgress && Snapshots.Count > 0;
+    public bool CanRestore => !IsRestoreInProgress && Snapshots.Count > 0 && SelectedEntry is { } entry && _instancesById.ContainsKey(entry.Record.GameInstanceId);
     public string EmptyStateTitle { get; }
     public string EmptyStateMessage { get; }
     public string EmptyStateHint { get; }
@@ -354,6 +355,8 @@ public partial class HistoryPageViewModel : ObservableObject
 
     public async Task<string?> RestoreSnapshotAsync(SnapshotRow snapshotRow, CancellationToken cancellationToken = default)
     {
+        if (SelectedEntry is null || !_instancesById.ContainsKey(SelectedEntry.Record.GameInstanceId))
+            return Pick("游戏已移除，无法在此恢复旧快照。", "The game was removed; its old snapshots cannot be restored here.");
         // Restore + the reload it triggers must run as a single, non-reentrant operation: a second
         // click while one is in flight could extract two snapshots over the same local files.
         if (IsRestoreInProgress)
@@ -381,7 +384,7 @@ public partial class HistoryPageViewModel : ObservableObject
 
     partial void OnIsRestoreInProgressChanged(bool value) => OnPropertyChanged(nameof(CanRestore));
     partial void OnSnapshotsChanged(IReadOnlyList<SnapshotRow> value) => OnPropertyChanged(nameof(CanRestore));
-    partial void OnSelectedEntryChanged(HistoryRow? value) { OnPropertyChanged(nameof(HasSelectedEntry)); OnPropertyChanged(nameof(NeedsSelection)); }
+    partial void OnSelectedEntryChanged(HistoryRow? value) { OnPropertyChanged(nameof(HasSelectedEntry)); OnPropertyChanged(nameof(NeedsSelection)); OnPropertyChanged(nameof(CanRestore)); OnPropertyChanged(nameof(SnapshotsSubtitle)); }
     partial void OnEntriesChanged(IReadOnlyList<HistoryRow> value) { OnPropertyChanged(nameof(NoMatchingRecords)); OnPropertyChanged(nameof(NeedsSelection)); }
     partial void OnIsEmptyStateChanged(bool value) { OnPropertyChanged(nameof(NoMatchingRecords)); OnPropertyChanged(nameof(NeedsSelection)); }
 
@@ -473,7 +476,7 @@ public partial class HistoryPageViewModel : ObservableObject
 
     private HistoryRow CreateRow(SyncRecord record, string targetName)
     {
-        var gameName = _instanceNames.GetValueOrDefault(record.GameInstanceId, Pick("未知游戏", "Unknown game"));
+        var gameName = _instanceNames.GetValueOrDefault(record.GameInstanceId, Pick("已移除或未知游戏", "Removed or unknown game"));
         var sourceName = ResolveSourceName(record.GameInstanceId);
         return new HistoryRow(
             UiFormat.TimeOfRecord(record.CompletedAtUtc ?? record.StartedAtUtc, _isChinese),

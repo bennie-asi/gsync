@@ -24,6 +24,9 @@ public sealed partial class SnapshotFeed : UserControl
         typeof(SnapshotFeed),
         new PropertyMetadata("Restore"));
 
+    public static readonly DependencyProperty ActionEnabledProperty = DependencyProperty.Register(
+        nameof(ActionEnabled), typeof(bool), typeof(SnapshotFeed), new PropertyMetadata(true));
+
     public SnapshotFeed()
     {
         InitializeComponent();
@@ -55,5 +58,11 @@ public sealed partial class SnapshotFeed : UserControl
     {
         get => (string)GetValue(ActionTextProperty);
         set => SetValue(ActionTextProperty, value);
+    }
+
+    public bool ActionEnabled
+    {
+        get => (bool)GetValue(ActionEnabledProperty);
+        set => SetValue(ActionEnabledProperty, value);
     }
 }

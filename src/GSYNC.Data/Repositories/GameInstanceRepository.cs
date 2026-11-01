@@ -87,11 +87,14 @@ public sealed class GameInstanceRepository : IGameInstanceRepository
     {
         await using var connection = _connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
-
+        using var transaction = connection.BeginTransaction();
         await using var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM GameInstances WHERE Id = $id;";
+        command.Transaction = transaction;
+        command.CommandText = "DELETE FROM StorageBindings WHERE GameInstanceId = $id; DELETE FROM GameInstances WHERE Id = $id;";
         command.Parameters.AddWithValue("$id", id.ToString("D"));
         await command.ExecuteNonQueryAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        transaction.Commit();
     }
 
     private static GameInstance Read(SqliteDataReader reader)

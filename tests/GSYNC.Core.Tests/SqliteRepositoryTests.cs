@@ -131,6 +131,21 @@ public sealed class SqliteRepositoryTests : IDisposable
         Assert.Equal("original", Assert.Single(await new StorageBindingRepository(_connectionFactory).ListByGameInstanceAsync(first.Id, CancellationToken.None)).RemoteNamespace);
     }
 
+    [Fact]
+    public async Task RemovingGame_RollsBackBindingRemovalIfGameDeleteFails()
+    {
+        await new DatabaseInitializer(_connectionFactory, _appPaths).InitializeAsync(CancellationToken.None);
+        var game = new GameInstance { GameId = "delete-test", DisplayName = "Delete test", SourceProviderId = "custom" };
+        var binding = new StorageBinding { GameInstanceId = game.Id, StorageProviderId = "local-folder", RemoteNamespace = "game" };
+        await new GameProfileRepository(_connectionFactory).CreateAsync(game, binding, CancellationToken.None);
+        await ExecuteSqlAsync("CREATE TRIGGER RejectGameDelete BEFORE DELETE ON GameInstances BEGIN SELECT RAISE(ABORT, 'game delete rejected'); END;");
+
+        var games = new GameInstanceRepository(_connectionFactory);
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => games.DeleteAsync(game.Id, CancellationToken.None));
+        Assert.NotNull(await games.GetAsync(game.Id, CancellationToken.None));
+        Assert.Single(await new StorageBindingRepository(_connectionFactory).ListByGameInstanceAsync(game.Id, CancellationToken.None));
+    }
+
     private async Task<object?> ScalarAsync(string sql)
     {
         await using var connection = _connectionFactory.CreateConnection();

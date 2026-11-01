@@ -257,6 +257,36 @@ public partial class GameDetailsViewModel : ObservableObject
 
     public Guid? InstanceId => _instance?.Id;
 
+    public string MoreActionsText => Pick("更多", "More");
+    public string RemoveGameText => Pick("从游戏库移除", "Remove from library");
+
+    public async Task<string?> RemoveGameAsync(CancellationToken cancellationToken = default)
+    {
+        if (IsBusy) return Pick("操作进行中，请稍候。", "An operation is in progress. Please wait.");
+        if (_instance is not { } instance) return Pick("游戏尚未加载。", "The game is not loaded.");
+        IsBusy = true;
+        try
+        {
+            await StopStatusCheckAsync();
+            await _bindingUpdater.RunGameRemovalAsync(instance.Id,
+                token => _gameInstanceRepository.DeleteAsync(instance.Id, token), cancellationToken);
+            _instance = null;
+            _binding = null;
+            return null;
+        }
+        catch (SyncBindingBusyException)
+        {
+            return Pick("该游戏仍有排队或运行中的同步任务，请结束后再移除。", "Wait for this game's queued or running sync tasks before removing it.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Failed to remove game {InstanceId} from the library.", instance.Id);
+            return Pick("无法移除游戏：", "Could not remove the game: ") + exception.Message;
+        }
+        finally { IsBusy = false; }
+    }
+
     public GameInstance? EditableInstance => _instance;
     public Guid? CurrentTargetId => _binding is not null && _binding.Settings.TryGetValue("targetId", out var id) && Guid.TryParse(id, out var parsed) ? parsed : null;
     public string CurrentRemoteNamespace => _binding?.RemoteNamespace ?? (_instance is null ? string.Empty : GameIdentity.StorageNamespace(_instance.GameId));

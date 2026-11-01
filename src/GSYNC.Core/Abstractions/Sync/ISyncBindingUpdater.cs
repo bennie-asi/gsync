@@ -9,6 +9,9 @@ public interface ISyncBindingUpdater
 
     /// <summary>Runs a related configuration change while sync operations for this game are excluded.</summary>
     Task RunConfigurationChangeAsync(Guid gameInstanceId, Func<CancellationToken, Task> change, CancellationToken cancellationToken);
+
+    /// <summary>Excludes new queue submissions while removing a game and its binding.</summary>
+    Task RunGameRemovalAsync(Guid gameInstanceId, Func<CancellationToken, Task> remove, CancellationToken cancellationToken);
 }
 
 public sealed class SyncBindingBusyException() : InvalidOperationException("Wait for this game's queued or running sync tasks before changing its destination.") { }

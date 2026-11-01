@@ -54,6 +54,13 @@
             <ScrollViewer x:Name="DetailsHeaderActions" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Click="EditGame_Click" Content="{Binding EditGameText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
+                    <DropDownButton Content="{Binding MoreActionsText}" MinHeight="40" CornerRadius="8"
+                                    Background="{StaticResource AppSurfaceAltBrush}" BorderBrush="{StaticResource AppDividerBrush}"
+                                    BorderThickness="1" Foreground="{StaticResource AppTextSecondaryBrush}">
+                        <DropDownButton.Flyout>
+                            <MenuFlyout><MenuFlyoutItem x:Name="RemoveGameMenuItem" Click="RemoveGame_Click" /></MenuFlyout>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
                     <Button Click="UploadButton_Click" Content="{Binding UploadText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                     <Button Click="DownloadButton_Click" Content="{Binding DownloadText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                     <Button Click="RestoreButton_Click" Content="{Binding RestoreText}" Style="{StaticResource SecondaryToolbarButtonStyle}" />

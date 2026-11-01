@@ -13,6 +13,7 @@ namespace GSYNC.Core.Services.Sync;
 public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
 {
     private readonly ISyncQueue _queue;
+    private readonly IGameInstanceRepository _games;
     private readonly IStorageBindingRepository _bindings;
     private readonly ISyncHistoryRepository _history;
     private readonly SyncContextFactory _contexts;
@@ -23,6 +24,7 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
     private readonly SyncActivityGate _activity;
     private readonly Func<StorageBinding, Guid, StorageBinding>? _targetBindingResolver;
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _gameLocks = new();
+    private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _configurationLocks = new();
 
     public SyncEngine(
         ISyncQueue syncQueue,
@@ -44,6 +46,7 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
         Func<StorageBinding, Guid, StorageBinding>? targetBindingResolver = null)
     {
         _queue = syncQueue;
+        _games = gameInstanceRepository;
         _bindings = storageBindingRepository;
         _history = syncHistoryRepository;
         _applicationTasks = applicationTasks;
@@ -62,6 +65,9 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
     {
         using var activity = _activity.Enter();
         if (_applicationTasks?.IsStopping == true) throw new InvalidOperationException("The application is stopping.");
+        using var configurationLease = await LockConfigurationAsync(syncJob.GameInstanceId, cancellationToken);
+        if (await _games.GetAsync(syncJob.GameInstanceId, cancellationToken) is null)
+            throw new InvalidOperationException("The game no longer exists.");
         var binding = (await _bindings.ListByGameInstanceAsync(syncJob.GameInstanceId, cancellationToken)).FirstOrDefault();
         if (_applicationTasks?.IsStopping == true) throw new InvalidOperationException("The application is stopping.");
         syncJob.BindingCaptured = true;
@@ -95,6 +101,12 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
             if (HasQueuedJob(gameInstanceId)) throw new SyncBindingBusyException();
             await change(token);
         }, cancellationToken);
+
+    public async Task RunGameRemovalAsync(Guid gameInstanceId, Func<CancellationToken, Task> remove, CancellationToken cancellationToken)
+    {
+        using var configurationLease = await LockConfigurationAsync(gameInstanceId, cancellationToken);
+        await RunConfigurationChangeAsync(gameInstanceId, remove, cancellationToken);
+    }
 
     private bool HasQueuedJob(Guid gameId) => _queue.ActiveJob?.GameInstanceId == gameId || _queue.PendingJobs.Any(job => job.GameInstanceId == gameId);
 
@@ -186,6 +198,12 @@ public sealed class SyncEngine : ISyncEngine, ISyncBindingUpdater
     private async Task<IDisposable> LockGameAsync(Guid gameId, CancellationToken cancellationToken)
     {
         var gate = _gameLocks.GetOrAdd(gameId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        return new GameLease(gate);
+    }
+    private async Task<IDisposable> LockConfigurationAsync(Guid gameId, CancellationToken cancellationToken)
+    {
+        var gate = _configurationLocks.GetOrAdd(gameId, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken);
         return new GameLease(gate);
     }

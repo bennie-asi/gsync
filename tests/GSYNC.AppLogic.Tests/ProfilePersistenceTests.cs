@@ -26,6 +26,82 @@ namespace GSYNC.AppLogic.Tests;
 public sealed class ProfilePersistenceTests
 {
     [Fact]
+    public async Task RemovingGamePreservesSavesAndHistoryAndAllowsAddingItAgain()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var saves = fixture.Folder("remove-game-saves");
+        var localFile = Path.Combine(saves, "slot.sav");
+        await File.WriteAllTextAsync(localFile, "local save");
+        var wizard = fixture.Wizard();
+        PrepareManual(wizard, "Removable Game", saves);
+        Assert.Null(await wizard.CreateProfileAsync());
+        var id = wizard.LastCreatedInstanceId!.Value;
+        var binding = Assert.Single(await fixture.Bindings.ListByGameInstanceAsync(id, CancellationToken.None));
+        await fixture.UploadAsync(id);
+        var snapshotPath = Path.Combine(fixture.Folder("retained-snapshots"), "backup.zip");
+        await File.WriteAllTextAsync(snapshotPath, "snapshot");
+        await fixture.History.AddSnapshotAsync(new Snapshot { GameInstanceId = id, ArchivePath = snapshotPath, FileCount = 1 }, CancellationToken.None);
+        var details = fixture.Details();
+        await details.LoadAsync(id);
+
+        Assert.Null(await details.RemoveGameAsync());
+        Assert.Null(await fixture.Games.GetAsync(id, CancellationToken.None));
+        Assert.Empty(await fixture.Bindings.ListByGameInstanceAsync(id, CancellationToken.None));
+        Assert.Equal("local save", await File.ReadAllTextAsync(localFile));
+        Assert.True(File.Exists(snapshotPath));
+        Assert.NotEmpty(await fixture.History.ListRecordsAsync(id, CancellationToken.None));
+        Assert.Single(await fixture.History.ListSnapshotsAsync(id, CancellationToken.None));
+        var remote = await fixture.OpenRemoteAsync(binding.RemoteNamespace);
+        using var file = await remote.DownloadAsync(binding.RemoteNamespace + "/saves/slot.sav", CancellationToken.None);
+        Assert.Equal("local save", await new StreamReader(file.Content).ReadToEndAsync());
+
+        var history = new HistoryPageViewModel(new Localization(), fixture.History, fixture.Games, fixture.Bindings, fixture.Engine);
+        await history.LoadAsync();
+        Assert.False(history.CanRestore);
+        Assert.Contains("removed", history.SnapshotsSubtitle, StringComparison.OrdinalIgnoreCase);
+
+        var readd = fixture.Wizard();
+        PrepareManual(readd, "Removable Game", saves);
+        Assert.Null(await readd.CreateProfileAsync());
+        Assert.NotEqual(id, readd.LastCreatedInstanceId);
+    }
+
+    [Fact]
+    public async Task RemovingGameWaitsForQueuedTasksAndRejectsConcurrentNewJobs()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var wizard = fixture.Wizard();
+        PrepareManual(wizard, "Queued Removal", fixture.Folder("queued-removal"));
+        Assert.Null(await wizard.CreateProfileAsync());
+        var id = wizard.LastCreatedInstanceId!.Value;
+        var details = fixture.Details();
+        await details.LoadAsync(id);
+        await details.StopStatusCheckAsync();
+        var queued = new SyncJob { GameInstanceId = id, Direction = SyncDirection.Upload };
+        await fixture.Engine.QueueAsync(queued, CancellationToken.None);
+        Assert.Contains("queued or running", await details.RemoveGameAsync());
+        Assert.NotNull(await fixture.Games.GetAsync(id, CancellationToken.None));
+        Assert.True(fixture.Queue.Remove(queued.Id));
+
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var removal = fixture.Engine.RunGameRemovalAsync(id, async token =>
+        {
+            started.SetResult();
+            await release.Task.WaitAsync(token);
+            await fixture.Games.DeleteAsync(id, token);
+        }, CancellationToken.None);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var newJob = fixture.Engine.QueueAsync(new SyncJob { GameInstanceId = id, Direction = SyncDirection.Upload }, CancellationToken.None);
+        try { Assert.False(newJob.IsCompleted); }
+        finally { release.TrySetResult(); }
+        await removal.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => newJob.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Empty(fixture.Queue.PendingJobs);
+        Assert.Null(await fixture.Games.GetAsync(id, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task FirstSync_ReviewsExistingRemoteBeforeAnyNewJobIsQueued()
     {
         using var fixture = await Fixture.CreateAsync();
