@@ -95,20 +95,38 @@ public static class RemoteLinkDialog
         active = false;
         if (browserResult != ContentDialogResult.Primary) return null;
 
-        var remoteRoots = await RemoteContentLayout.ListRootsAsync(configured, currentPath, cancellationToken);
-        if (remoteRoots.Count == 0)
+        return await MatchAsync(xamlRoot, targetId, currentPath, configured, localRoots, chinese, cancellationToken);
+    }
+
+    public static Task<RemoteLinkResult?> ShowCandidateAsync(XamlRoot xamlRoot, Guid targetId, string remoteNamespace,
+        IReadOnlyList<LocalContentRoot> localRoots, bool chinese, CancellationToken cancellationToken)
+    {
+        var targets = App.GetService<SyncTargetStore>();
+        var target = targets.Get(targetId) ?? throw new InvalidOperationException("The selected sync target no longer exists.");
+        var provider = App.GetService<IEnumerable<IStorageProvider>>().First(value => string.Equals(value.ProviderId, target.ProviderId, StringComparison.OrdinalIgnoreCase));
+        return MatchAsync(xamlRoot, targetId, remoteNamespace, provider.WithConfiguration(targets.ResolveSettings(target.Settings)), localRoots, chinese, cancellationToken);
+    }
+
+    private static async Task<RemoteLinkResult?> MatchAsync(XamlRoot xamlRoot, Guid targetId, string currentPath, IStorageProvider configured,
+        IReadOnlyList<LocalContentRoot> localRoots, bool chinese, CancellationToken cancellationToken)
+    {
+        var remoteFiles = await RemoteContentLayout.ListFilesAsync(configured, currentPath, cancellationToken);
+        var remoteRoots = remoteFiles.Keys.OrderBy(root => root, StringComparer.OrdinalIgnoreCase).ToArray();
+        if (remoteRoots.Length == 0)
             throw new InvalidOperationException(chinese ? "此目录中没有可关联的存档。请选择另一台电脑上传时使用的游戏目录。" : "No saves were found in this folder. Choose the game folder used for the other computer's upload.");
 
-        var choices = new List<(LocalContentRoot Root, ComboBox Box)>();
+        var descriptor = await RemoteGameCatalog.ReadAsync(configured, currentPath, cancellationToken);
+
+        var choices = new List<(LocalContentRoot Root, ComboBox Box, TextBox Subdirectory)>();
         var matching = new StackPanel { Spacing = 12, MinWidth = 340 };
         matching.Children.Add(new TextBlock
         {
-            Text = chinese ? "确认每个本机存档对应的远端内容。关联只修改配置，之后请先比较存档。" : "Match each local save to remote content. Linking only changes the configuration; compare saves before syncing.",
+            Text = chinese ? "确认每个本机存档对应的远端内容。若远端多一层目录，可填写远端子目录；关联后请先比较。" : "Match each local save to remote content. If the remote save has an extra folder level, enter that subdirectory. Compare before syncing.",
             TextWrapping = TextWrapping.Wrap,
         });
         foreach (var local in localRoots)
         {
-            var options = remoteRoots.Select(root => new RemoteRootOption(root, root)).ToList();
+            var options = remoteRoots.Select(root => new RemoteRootOption(root, root + "  ·  " + string.Join(", ", remoteFiles[root].Take(2)))).ToList();
             if (!remoteRoots.Contains(local.DefaultRemoteRoot, StringComparer.OrdinalIgnoreCase))
                 options.Add(new RemoteRootOption(local.DefaultRemoteRoot, (chinese ? "作为新内容：" : "New content: ") + local.DefaultRemoteRoot));
             var box = new ComboBox
@@ -116,11 +134,31 @@ public static class RemoteLinkDialog
                 Header = local.ContentId + "  ·  " + local.LocalPath,
                 ItemsSource = options, DisplayMemberPath = nameof(RemoteRootOption.Label), HorizontalAlignment = HorizontalAlignment.Stretch,
             };
-            box.SelectedItem = options.FirstOrDefault(option => string.Equals(option.Key, local.DefaultRemoteRoot, StringComparison.OrdinalIgnoreCase) &&
+            var subdirectory = new TextBox { Header = chinese ? "远端子目录（可选）" : "Remote subdirectory (optional)",
+                PlaceholderText = chinese ? "例如：win64_save；无额外层级时留空" : "For example: win64_save; leave empty if none" };
+            var hint = new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.8 };
+            var localFiles = await Task.Run(() => GetLocalFiles(local.LocalPath), cancellationToken);
+            box.SelectionChanged += (_, _) =>
+            {
+                if (box.SelectedItem is not RemoteRootOption option || !remoteFiles.TryGetValue(option.Key, out var files)) return;
+                var suggestion = RemoteContentLayout.SuggestRemoteSubdirectory(localFiles, files);
+                subdirectory.Text = suggestion ?? string.Empty;
+                hint.Text = suggestion is { Length: > 0 }
+                    ? (chinese ? "根据文件名建议使用此子目录，请确认层级。" : "Suggested from matching file names; confirm the folder level.")
+                    : (chinese ? "远端示例：" : "Remote examples: ") + string.Join("、", files.Take(3));
+            };
+            var exactTemplate = descriptor?.Roots.Where(root => root.TemplateFingerprint == RemoteContentLayout.TemplateFingerprint(local.Template) &&
+                remoteRoots.Contains(root.StorageRoot, StringComparer.OrdinalIgnoreCase)).ToArray() ?? [];
+            var exactContent = descriptor?.Roots.Where(root => string.Equals(root.ContentId, local.ContentId, StringComparison.OrdinalIgnoreCase) &&
+                remoteRoots.Contains(root.StorageRoot, StringComparer.OrdinalIgnoreCase)).ToArray() ?? [];
+            var recommended = exactTemplate.Length == 1 ? exactTemplate[0].StorageRoot : exactContent.Length == 1 ? exactContent[0].StorageRoot : local.DefaultRemoteRoot;
+            box.SelectedItem = options.FirstOrDefault(option => string.Equals(option.Key, recommended, StringComparison.OrdinalIgnoreCase) &&
                 remoteRoots.Contains(option.Key, StringComparer.OrdinalIgnoreCase))
-                ?? (localRoots.Count == 1 && remoteRoots.Count == 1 ? options[0] : null);
-            choices.Add((local, box));
+                ?? (localRoots.Count == 1 && remoteRoots.Length == 1 ? options[0] : null);
+            choices.Add((local, box, subdirectory));
             matching.Children.Add(box);
+            matching.Children.Add(subdirectory);
+            matching.Children.Add(hint);
         }
         var validation = new TextBlock { TextWrapping = TextWrapping.Wrap };
         matching.Children.Add(validation);
@@ -138,15 +176,27 @@ public static class RemoteLinkDialog
                 args.Cancel = true;
                 return;
             }
-            try { RemoteContentLayout.ValidateDistinctRoots(choices.Select(choice => ((RemoteRootOption)choice.Box.SelectedItem).Key)); }
-            catch (InvalidDataException)
+            try { RemoteContentLayout.ValidateDistinctStoragePaths(choices.Select(choice => RemoteContentLayout.MappedStoragePath(((RemoteRootOption)choice.Box.SelectedItem).Key, choice.Subdirectory.Text))); }
+            catch (Exception exception) when (exception is InvalidDataException or ArgumentException)
             {
-                validation.Text = chinese ? "不同内容项不能使用相同或重叠的远端位置。" : "Content items cannot use the same or overlapping remote locations.";
+                validation.Text = chinese ? "请检查子目录：不能包含 .. 或无效字符，不同内容项也不能使用相同或重叠的位置。" : "Check subdirectories: .. and invalid characters are not allowed; content locations cannot overlap.";
                 args.Cancel = true;
             }
         };
         if (await matchDialog.ShowAsync() != ContentDialogResult.Primary) return null;
         return new RemoteLinkResult(targetId, currentPath, choices.Select(choice =>
-            new ContentRootLink(choice.Root.ContentId, choice.Root.Template, ((RemoteRootOption)choice.Box.SelectedItem).Key)).ToArray());
+            new ContentRootLink(choice.Root.ContentId, choice.Root.Template, ((RemoteRootOption)choice.Box.SelectedItem).Key, choice.Subdirectory.Text)).ToArray());
+    }
+
+    private static IReadOnlyList<string> GetLocalFiles(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) return [Path.GetFileName(path)];
+            if (!Directory.Exists(path)) return [];
+            return GSYNC.Core.Utilities.SafePath.EnumerateTree(path).Where(File.Exists)
+                .Select(file => Path.GetRelativePath(path, file).Replace('\\', '/')).Take(513).ToArray();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException) { return []; }
     }
 }

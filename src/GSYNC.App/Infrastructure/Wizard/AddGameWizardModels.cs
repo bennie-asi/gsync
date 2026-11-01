@@ -27,6 +27,8 @@ public sealed record GameDefinitionMatch(
     string Reason,
     bool IsFallback);
 
+public sealed record RemoteGameCandidateRow(RemoteGameCandidate Candidate, string Label, string Detail);
+
 public enum PathValidationSeverity
 {
     Ok,

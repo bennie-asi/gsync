@@ -441,7 +441,7 @@ public partial class GameDetailsViewModel : ObservableObject
                 }
                 return new ContentSelection { ContentId = content.ContentId,
                     IsEnabled = previous.ContentSelections.Count == 0 ? content.DefaultEnabled : old?.IsEnabled ?? false,
-                    PathOverrides = paths, RemoteRootOverrides = old?.RemoteRootOverrides ?? new Dictionary<string, string>(), DisabledPathTemplates = old?.DisabledPathTemplates ?? Array.Empty<string>(),
+                    PathOverrides = paths, RemoteRootOverrides = old?.RemoteRootOverrides ?? new Dictionary<string, string>(), RemoteSubdirectoryOverrides = old?.RemoteSubdirectoryOverrides ?? new Dictionary<string, string>(), DisabledPathTemplates = old?.DisabledPathTemplates ?? Array.Empty<string>(),
                     RemovedPathTemplates = old?.RemovedPathTemplates ?? Array.Empty<string>() };
             }).ToArray();
             var updatedAt = DateTimeOffset.UtcNow;
@@ -497,7 +497,7 @@ public partial class GameDetailsViewModel : ObservableObject
                     }
                 }
                 return new ContentSelection { ContentId = content.ContentId, IsEnabled = groupEnabled,
-                    PathOverrides = old?.PathOverrides ?? new Dictionary<string, string>(), RemoteRootOverrides = old?.RemoteRootOverrides ?? new Dictionary<string, string>(), DisabledPathTemplates = disabled.ToArray(), RemovedPathTemplates = removed.ToArray() };
+                    PathOverrides = old?.PathOverrides ?? new Dictionary<string, string>(), RemoteRootOverrides = old?.RemoteRootOverrides ?? new Dictionary<string, string>(), RemoteSubdirectoryOverrides = old?.RemoteSubdirectoryOverrides ?? new Dictionary<string, string>(), DisabledPathTemplates = disabled.ToArray(), RemovedPathTemplates = removed.ToArray() };
             }).ToArray();
             var updatedAt = DateTimeOffset.UtcNow;
             if (updatedAt <= previous.UpdatedAtUtc) updatedAt = previous.UpdatedAtUtc.AddTicks(1);
@@ -770,6 +770,7 @@ public partial class GameDetailsViewModel : ObservableObject
                                 oldBinding.ContentSelections.Any(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase) && selection.IsEnabled)),
                             PathOverrides = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.PathOverrides ?? new Dictionary<string, string>(),
                             RemoteRootOverrides = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.RemoteRootOverrides ?? new Dictionary<string, string>(),
+                            RemoteSubdirectoryOverrides = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.RemoteSubdirectoryOverrides ?? new Dictionary<string, string>(),
                             DisabledPathTemplates = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.DisabledPathTemplates ?? Array.Empty<string>(),
                             RemovedPathTemplates = oldBinding.ContentSelections.FirstOrDefault(selection => string.Equals(selection.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))?.RemovedPathTemplates ?? Array.Empty<string>(),
                         }).ToArray(),

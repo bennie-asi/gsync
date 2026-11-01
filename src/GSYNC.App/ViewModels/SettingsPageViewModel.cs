@@ -51,6 +51,9 @@ public partial class SettingsPageViewModel : ObservableObject
     private bool _closeToTray;
 
     [ObservableProperty]
+    private bool _startupInBackground;
+
+    [ObservableProperty]
     private string _manifestSourceUrlText = string.Empty;
 
     [ObservableProperty]
@@ -255,6 +258,7 @@ public partial class SettingsPageViewModel : ObservableObject
             AutoCheckUpdates = AutoCheckUpdates,
             AutoInstallUpdates = AutoInstallUpdates,
             CloseToTray = CloseToTray,
+            StartupInBackground = StartupInBackground,
             ManifestSourceUrl = string.IsNullOrWhiteSpace(ManifestSourceUrlText) ? null : ManifestSourceUrlText.Trim(),
         };
     }
@@ -285,6 +289,7 @@ public partial class SettingsPageViewModel : ObservableObject
         AutoCheckUpdates = settings.AutoCheckUpdates;
         AutoInstallUpdates = settings.AutoInstallUpdates;
         CloseToTray = settings.CloseToTray;
+        StartupInBackground = settings.StartupInBackground;
         ManifestSourceUrlText = settings.ManifestSourceUrl ?? string.Empty;
 
         ThemeName = SelectedThemeMode?.Label ?? string.Empty;

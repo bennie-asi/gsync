@@ -61,20 +61,24 @@ internal sealed class SyncFileService(PathResolver pathResolver, SystemVariableP
                     }
 
                     var (rootPath, pattern) = File.Exists(resolved) || Directory.Exists(resolved) ? (resolved, (string?)null) : PathGlob.SplitRoot(resolved);
+                    var baseRoot = useRemoteOverrides && !string.IsNullOrWhiteSpace(selection?.RemoteRoot(template))
+                        ? RemoteContentLayout.ValidateRootKey(selection!.RemoteRoot(template)!)
+                        : RemoteContentLayout.DefaultRootKey(item.ContentId, template, templates.Length);
+                    var subdirectory = useRemoteOverrides ? selection?.RemoteSubdirectory(template) ?? string.Empty : string.Empty;
                     return new ResolvedContentRoot(item, rootPath,
                         pattern is not null || (Directory.Exists(resolved) ? true : File.Exists(resolved) ? false : ShouldTreatAsDirectory(item, effectiveTemplate)),
-                        useRemoteOverrides && !string.IsNullOrWhiteSpace(selection?.RemoteRoot(template))
-                            ? RemoteContentLayout.ValidateRootKey(selection!.RemoteRoot(template)!)
-                            : RemoteContentLayout.DefaultRootKey(item.ContentId, template, templates.Length))
+                        RemoteContentLayout.MappedStoragePath(baseRoot, subdirectory))
                     {
                         GlobPattern = pattern,
+                        BaseStorageRoot = baseRoot,
+                        TemplateFingerprint = GetRootId(template),
                     };
                 });
             })
             .Where(root => !string.IsNullOrWhiteSpace(root.LocalRootPath))
             .DistinctBy(root => (root.ContentItem.ContentId, root.LocalRootPath), EqualityComparer<(string, string)>.Default)
             .ToArray();
-        RemoteContentLayout.ValidateDistinctRoots(roots.Select(root => root.StorageKey));
+        RemoteContentLayout.ValidateDistinctStoragePaths(roots.Select(root => root.StorageKey));
         return roots;
     }
 

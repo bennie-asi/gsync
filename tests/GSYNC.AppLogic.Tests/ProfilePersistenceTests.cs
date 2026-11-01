@@ -1014,6 +1014,21 @@ public sealed class ProfilePersistenceTests
     }
 
     [Fact]
+    public async Task BackgroundStartupDefaultsOnAndCanBeDisabledIndependently()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var settings = fixture.Settings();
+        Assert.True(settings.StartupInBackground);
+        Assert.True(StartupLaunchPolicy.StartHidden([StartupLaunchPolicy.StartupArgument], settings.StartupInBackground, false));
+        Assert.False(StartupLaunchPolicy.StartHidden([], settings.StartupInBackground, false));
+        settings.StartupInBackground = false;
+        settings.SaveSettings();
+        Assert.False(fixture.Settings().StartupInBackground);
+        Assert.False(StartupLaunchPolicy.StartHidden([StartupLaunchPolicy.StartupArgument], false, false));
+        Assert.True(StartupLaunchPolicy.StartHidden([], false, true));
+    }
+
+    [Fact]
     public async Task TwoDeviceProfiles_ShareRemoteAndPullOnlyAfterLocalBaselineConfirmation()
     {
         using var fixture = await Fixture.CreateAsync();

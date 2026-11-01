@@ -86,6 +86,7 @@
                             <StackPanel Spacing="10">
                                 <TextBlock x:Name="StartupDescription" TextWrapping="Wrap" />
                                 <ToggleSwitch x:Name="StartupToggle" Toggled="Startup_Toggled" />
+                                <ToggleSwitch x:Name="BackgroundStartupToggle" IsOn="{Binding StartupInBackground, Mode=TwoWay}" />
                                 <TextBlock x:Name="StartupStatus" TextWrapping="Wrap" Foreground="{StaticResource AppTextSecondaryBrush}" />
                                 <Button x:Name="UpdateStartupPathButton" Click="UpdateStartupPath_Click" Visibility="Collapsed" HorizontalAlignment="Left" Style="{StaticResource SecondaryToolbarButtonStyle}" />
                                 <HyperlinkButton x:Name="WindowsStartupButton" Click="WindowsStartup_Click" HorizontalAlignment="Left" Padding="0" />

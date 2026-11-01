@@ -22,7 +22,20 @@ internal static class DesktopFeatures
         var path = Environment.ProcessPath ?? throw new InvalidOperationException("Cannot determine the application path.");
         if (string.Equals(Path.GetFileNameWithoutExtension(path), "dotnet", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Startup cannot be registered when running through dotnet.");
-        return $"\"{path}\"";
+        return $"\"{path}\" {StartupLaunchPolicy.StartupArgument}";
+    }
+
+    internal static bool IsCurrentStartupCommand(string command) =>
+        string.Equals(command, ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(command, LegacyStartupCommand(), StringComparison.OrdinalIgnoreCase);
+
+    internal static string LegacyStartupCommand() => ExpectedStartupCommand()[..^(StartupLaunchPolicy.StartupArgument.Length + 1)];
+
+    internal static void UpgradeLegacyStartup()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
+        if (key?.GetValue(EntryName) is string current && string.Equals(current, LegacyStartupCommand(), StringComparison.OrdinalIgnoreCase))
+            key.SetValue(EntryName, ExpectedStartupCommand(), RegistryValueKind.String);
     }
 
     internal static void SetStartup(bool enabled)

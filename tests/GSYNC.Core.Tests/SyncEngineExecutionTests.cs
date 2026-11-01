@@ -38,6 +38,29 @@ public sealed class SyncEngineExecutionTests
     }
 
     [Fact]
+    public async Task UploadWithoutGameIdentity_DoesNotWriteIntoAnIdentifiedRemoteGame()
+    {
+        var fixture = new SyncEngineFixture();
+        var localFile = Path.Combine(fixture.RootPath, "game-a", "save.sav");
+        Directory.CreateDirectory(Path.GetDirectoryName(localFile)!);
+        await File.WriteAllTextAsync(localFile, "local save");
+        var descriptorPath = "games/game-a/" + RemoteGameCatalog.MetadataName;
+        var descriptor = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+            new RemoteGameDescriptor(1, "Another game", ["steam:12345"], []));
+        fixture.StorageProvider.MetadataFiles[descriptorPath] = descriptor;
+        fixture.StorageProvider.RemoteFiles["games/game-a/default/save.sav"] = "remote save"u8.ToArray();
+
+        var job = new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Upload };
+        using var cts = new CancellationTokenSource();
+        await RunQueuedJobAsync(fixture, job, cts);
+
+        Assert.Equal(SyncJobStatus.Failed, job.Status);
+        Assert.Equal("remote save", System.Text.Encoding.UTF8.GetString(fixture.StorageProvider.RemoteFiles["games/game-a/default/save.sav"]));
+        Assert.Equal(descriptor, fixture.StorageProvider.MetadataFiles[descriptorPath]);
+        Assert.Empty(fixture.StorageProvider.UploadedPaths);
+    }
+
+    [Fact]
     public async Task SyncRecord_CapturesTheResolvedDestinationAtExecutionTime()
     {
         var targetId = Guid.NewGuid();
@@ -1016,7 +1039,7 @@ public sealed class SyncEngineExecutionTests
         await File.WriteAllTextAsync(local, "local");
         using var cts = new CancellationTokenSource();
         await RunQueuedJobAsync(fixture, new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Upload }, cts);
-        var metadata = fixture.StorageProvider.ImmutableFiles.Keys.Single(path => path.Contains("/__gsync_meta/", StringComparison.Ordinal));
+        var metadata = fixture.StorageProvider.ImmutableFiles.Keys.Single(path => path.Contains("/__gsync_meta/", StringComparison.Ordinal) && !path.EndsWith("/game.json", StringComparison.Ordinal));
         fixture.StorageProvider.ImmutableFiles[metadata] = oversized ? new byte[65537] : "{\"IsDirectory\":true,\"Version\":1}"u8.ToArray();
         var error = await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Engine.CompareAsync(
             new SyncJob { GameInstanceId = fixture.GameInstance.Id, Direction = SyncDirection.Compare }, CancellationToken.None));

@@ -99,5 +99,7 @@ public sealed class AppUiSettings
 
     public bool CloseToTray { get; set; } = true;
 
+    public bool StartupInBackground { get; set; } = true;
+
     public string? ManifestSourceUrl { get; set; }
 }

@@ -37,6 +37,7 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
             throw new InvalidDataException("Multiple local files map to the same remote path.");
         using var sources = await SyncUploadSourceSet.CaptureAsync(uploadFiles, null, cancellationToken);
         state.Snapshot = await _snapshots.BackupRemoteFilesAsync(context, uploadFiles, cancellationToken);
+        await RemoteGameCatalog.WriteAsync(context, uploadFiles, cancellationToken);
         await WriteRootDescriptorsAsync(context, uploadFiles, cancellationToken);
 
         var stagedUploads = 0;
@@ -200,6 +201,7 @@ internal sealed class SyncTransferService(ISyncQueue queue, ISyncHistoryReposito
             }
             using var sources = await SyncUploadSourceSet.CaptureAsync(localUploads, uploadHashes, cancellationToken);
             state.Snapshot = await _snapshots.BackupRemoteFilesAsync(context, localUploads.Concat(remoteRemovals).ToArray(), cancellationToken);
+            await RemoteGameCatalog.WriteAsync(context, localUploads, cancellationToken);
             await WriteRootDescriptorsAsync(context, localUploads, cancellationToken);
             var remoteOverwriteTargets = decisions
                 .Where(decision => decision.Action == ConflictResolutionAction.KeepRemote)

@@ -110,6 +110,9 @@ public sealed partial class SettingsPage : Page
         StartupToggle.Header = zh ? "登录时启动" : "Start at sign-in";
         StartupToggle.OnContent = zh ? "开" : "On";
         StartupToggle.OffContent = zh ? "关" : "Off";
+        BackgroundStartupToggle.Header = zh ? "登录启动时在后台运行" : "Start in the background at sign-in";
+        BackgroundStartupToggle.OnContent = zh ? "开" : "On";
+        BackgroundStartupToggle.OffContent = zh ? "关" : "Off";
         UpdateStartupPathButton.Content = zh ? "使用当前程序路径" : "Use current app location";
         WindowsStartupButton.Content = zh ? "打开 Windows 启动设置" : "Open Windows startup settings";
         CloseToTrayToggle.Header = zh ? "关闭窗口后在后台运行" : "Keep running when the window is closed";
@@ -143,7 +146,7 @@ public sealed partial class SettingsPage : Page
         try
         {
             var command = DesktopFeatures.StartupCommand();
-            var mismatch = command is not null && !string.Equals(command, DesktopFeatures.ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase);
+            var mismatch = command is not null && !DesktopFeatures.IsCurrentStartupCommand(command);
             StartupToggle.IsEnabled = true;
             StartupToggle.IsOn = command is not null;
             UpdateStartupPathButton.Visibility = mismatch ? Visibility.Visible : Visibility.Collapsed;
@@ -171,7 +174,7 @@ public sealed partial class SettingsPage : Page
         try
         {
             var existing = DesktopFeatures.StartupCommand();
-            if (existing is not null && !string.Equals(existing, DesktopFeatures.ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase))
+            if (existing is not null && !DesktopFeatures.IsCurrentStartupCommand(existing))
             {
                 var dialog = DialogStyler.Apply(new ContentDialog { XamlRoot = XamlRoot, Title = zh ? "更改启动项？" : "Change startup entry?",
                     Content = (zh ? "当前启动项指向：" : "The current startup entry points to: ") + existing,
@@ -191,7 +194,7 @@ public sealed partial class SettingsPage : Page
         try
         {
             var existing = DesktopFeatures.StartupCommand();
-            if (existing is not null && !string.Equals(existing, DesktopFeatures.ExpectedStartupCommand(), StringComparison.OrdinalIgnoreCase))
+            if (existing is not null && !DesktopFeatures.IsCurrentStartupCommand(existing))
             {
                 var dialog = DialogStyler.Apply(new ContentDialog { XamlRoot = XamlRoot, Title = zh ? "更新启动路径？" : "Update startup location?",
                     Content = (zh ? "当前启动项：" : "Current entry: ") + existing + Environment.NewLine + (zh ? "改为使用当前程序？" : "Use the current app instead?"),

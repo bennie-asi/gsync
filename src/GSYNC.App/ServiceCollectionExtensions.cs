@@ -75,6 +75,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<PathResolver>();
         services.AddSingleton<SystemVariableProvider>();
         services.AddSingleton<AddGameMatchService>();
+        services.AddSingleton<RemoteGameDiscoveryService>();
         services.AddSingleton(sp => new AddGamePathValidationService(
             sp.GetRequiredService<PathResolver>(), sp.GetRequiredService<SystemVariableProvider>(),
             () => sp.GetRequiredService<UserVariablesStore>().AsDictionary()));

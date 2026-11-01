@@ -1,5 +1,6 @@
 using GSYNC.App.ViewModels;
 using GSYNC.App.Infrastructure;
+using GSYNC.App.Infrastructure.Wizard;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -9,6 +10,7 @@ namespace GSYNC.App.Pages;
 public sealed partial class AddGameWizardPage : Page
 {
     private AddGameWizardViewModel _viewModel;
+    private bool _linkingRemote;
 
     public AddGameWizardPage()
     {
@@ -25,11 +27,13 @@ public sealed partial class AddGameWizardPage : Page
             _viewModel = context.Wizard;
             _viewModel.RefreshTargets(context.SelectedTargetId);
             DataContext = _viewModel;
+            if (_viewModel.CurrentStep == 5) _ = _viewModel.ScanRemoteAsync(App.Current.LifetimeToken);
         }
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
+        _viewModel.CancelRemoteScan();
         Frame?.Navigate(typeof(HomePage));
     }
 
@@ -40,6 +44,7 @@ public sealed partial class AddGameWizardPage : Page
 
     private async void NextButton_Click(object sender, RoutedEventArgs e)
     {
+        var previousStep = _viewModel.CurrentStep;
         if (_viewModel.CurrentStep == 4) _viewModel.ApplyPathChanges();
         var validation = _viewModel.ValidateCurrentStep();
         if (validation is not null)
@@ -120,6 +125,29 @@ public sealed partial class AddGameWizardPage : Page
                 _viewModel.GoNext();
                 break;
         }
+        if (previousStep == 4 && _viewModel.CurrentStep == 5) await _viewModel.ScanRemoteAsync(App.Current.LifetimeToken);
+    }
+
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        _viewModel.CancelRemoteScan();
+        base.OnNavigatedFrom(e);
+    }
+
+    private async void RescanRemote_Click(object sender, RoutedEventArgs e) => await _viewModel.ScanRemoteAsync(App.Current.LifetimeToken);
+
+    private async void LinkRemoteCandidate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_linkingRemote || sender is not FrameworkElement { DataContext: RemoteGameCandidateRow row } || _viewModel.SelectedTargetId is not { } targetId) return;
+        _linkingRemote = true;
+        try
+        {
+            var result = await RemoteLinkDialog.ShowCandidateAsync(XamlRoot, targetId, row.Candidate.Namespace, _viewModel.GetLinkableRoots(), _viewModel.IsChinese, App.Current.LifetimeToken);
+            if (result is not null) _viewModel.LinkExistingRemote(result.TargetId, result.RemoteNamespace, result.Links);
+        }
+        catch (OperationCanceledException) when (App.Current.LifetimeToken.IsCancellationRequested) { }
+        catch (Exception exception) { await ShowInfoAsync(_viewModel.IsChinese ? "无法关联存档" : "Cannot link saves", exception.Message); }
+        finally { _linkingRemote = false; }
     }
 
     private void RecheckPath_Click(object sender, RoutedEventArgs e)
@@ -130,11 +158,13 @@ public sealed partial class AddGameWizardPage : Page
 
     private async void LinkRemote_Click(object sender, RoutedEventArgs e)
     {
+        if (_linkingRemote) return;
         if (_viewModel.SelectedTargetId is not { } targetId)
         {
             await ShowInfoAsync(_viewModel.IsChinese ? "请选择同步目标" : "Choose a sync target", _viewModel.IsChinese ? "请先选择用于存档的同步目标。" : "Choose the target containing the saves first.");
             return;
         }
+        _linkingRemote = true;
         if (sender is Button button) button.IsEnabled = false;
         try
         {
@@ -143,7 +173,7 @@ public sealed partial class AddGameWizardPage : Page
         }
         catch (OperationCanceledException) when (App.Current.LifetimeToken.IsCancellationRequested) { }
         catch (Exception exception) { await ShowInfoAsync(_viewModel.IsChinese ? "无法关联存档" : "Cannot link saves", exception.Message); }
-        finally { if (sender is Button actionButton) actionButton.IsEnabled = true; }
+        finally { _linkingRemote = false; if (sender is Button actionButton) actionButton.IsEnabled = true; }
     }
 
     private void ResetPath_Click(object sender, RoutedEventArgs e)
@@ -243,7 +273,9 @@ public sealed partial class AddGameWizardPage : Page
     {
         if (sender is FrameworkElement { DataContext: WizardOption option })
         {
+            var oldTarget = _viewModel.SelectedTargetId;
             _viewModel.SelectOption(option);
+            if (_viewModel.CurrentStep == 5 && oldTarget != _viewModel.SelectedTargetId) _ = _viewModel.ScanRemoteAsync(App.Current.LifetimeToken);
         }
     }
 

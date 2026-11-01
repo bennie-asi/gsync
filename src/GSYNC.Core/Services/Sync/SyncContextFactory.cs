@@ -100,7 +100,7 @@ internal sealed class SyncContextFactory(
         var resolvedTargetId = effectiveConfiguration.TryGetValue("targetId", out var rawTargetId) && Guid.TryParse(rawTargetId, out var parsedTargetId)
             ? parsedTargetId : (Guid?)null;
         effectiveConfiguration.TryGetValue("__gsyncHistoryTargetName", out var targetName);
-        return new SyncExecutionContext(gameInstance, binding, sourceProvider, storageProvider, resolvedContentRoots, fingerprint, resolvedTargetId, targetName);
+        return new SyncExecutionContext(gameInstance, definition, binding, sourceProvider, storageProvider, resolvedContentRoots, fingerprint, resolvedTargetId, targetName);
     }
 
 }

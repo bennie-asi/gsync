@@ -61,6 +61,9 @@ public partial class App : Application
         var appPaths = new GSYNC.Data.Services.AppPathService();
         EnsureAppDirectories(appPaths);
         var startupSettings = UiSettingsStore.LoadStartupSettings(appPaths.GetUiSettingsPath());
+        var startupArguments = Environment.GetCommandLineArgs().Skip(1).ToArray();
+        var startHidden = StartupLaunchPolicy.StartHidden(startupArguments, startupSettings.StartupInBackground,
+            Environment.GetEnvironmentVariable("GSYNC_RESTART_HIDDEN") == "1");
         ApplyStartupDensity(startupSettings.DensityMode);
         Log.Logger = SerilogBootstrap.CreateLogger(appPaths.GetLogsDirectory(), startupSettings.LogLevel);
         Log.Information("GSYNC launch requested.");
@@ -70,7 +73,7 @@ public partial class App : Application
             try { _instanceLease = new FileStream(Path.Combine(appPaths.GetAppDataRoot(), "app.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
             catch (IOException exception) when ((exception.HResult & 0xffff) is 32 or 33)
             {
-                NotificationAreaIcon.ActivateExisting(appPaths.GetAppDataRoot());
+                if (!startHidden) NotificationAreaIcon.ActivateExisting(appPaths.GetAppDataRoot());
                 Exit();
                 return;
             }
@@ -90,6 +93,8 @@ public partial class App : Application
                 return;
             }
             Log.Information("Building application service provider.");
+            try { DesktopFeatures.UpgradeLegacyStartup(); }
+            catch (Exception exception) { Log.Warning(exception, "Could not update the existing startup command."); }
             var serviceCollection = new ServiceCollection();
             serviceCollection.AddSingleton(_tasks);
             serviceCollection.AddGsyncServices(Log.Logger);
@@ -122,12 +127,12 @@ public partial class App : Application
                 }
                 catch (Exception exception) { Log.Warning(exception, "Notification-area icon is unavailable; closing the window will exit."); }
             }
-            _window.Activate();
-            if (Environment.GetEnvironmentVariable("GSYNC_RESTART_HIDDEN") == "1" && _notificationIcon?.IsRegistered == true)
+            if (startHidden && _notificationIcon?.IsRegistered == true)
             {
-                _window.AppWindow.Hide();
                 Volatile.Write(ref _windowHidden, true);
+                _ = RunDeferredStartupAsync();
             }
+            else _window.Activate();
             Environment.SetEnvironmentVariable("GSYNC_RESTART_HIDDEN", null);
         }
         catch (Exception exception)

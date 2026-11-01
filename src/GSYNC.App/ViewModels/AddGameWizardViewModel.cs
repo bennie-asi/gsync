@@ -32,6 +32,9 @@ public partial class AddGameWizardViewModel : ObservableObject
     private readonly IUserDefinitionStore _userDefinitionStore;
     private readonly IGameProfileRepository _profiles;
     private readonly SteamCatalogSearchService? _steamCatalogSearch;
+    private readonly RemoteGameDiscoveryService? _remoteDiscovery;
+    private CancellationTokenSource? _remoteScanCancellation;
+    private long _remoteScanVersion;
 
     private IReadOnlyList<DiscoveredGame> _discoveredGames = [];
     private IReadOnlyList<GameContentDefinition> _definitions = [];
@@ -77,6 +80,12 @@ public partial class AddGameWizardViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<UiPropertyRow> _finishSummary = [];
 
+    [ObservableProperty]
+    private IReadOnlyList<RemoteGameCandidateRow> _remoteCandidates = [];
+
+    [ObservableProperty]
+    private string _remoteScanStatus = string.Empty;
+
     public AddGameWizardViewModel(
         ILocalizationService localizationService,
         IEnumerable<ISourceProvider> sourceProviders,
@@ -91,7 +100,8 @@ public partial class AddGameWizardViewModel : ObservableObject
         ISyncEngine syncEngine,
         IUserDefinitionStore userDefinitionStore,
         IGameProfileRepository profiles,
-        SteamCatalogSearchService? steamCatalogSearch = null)
+        SteamCatalogSearchService? steamCatalogSearch = null,
+        RemoteGameDiscoveryService? remoteDiscovery = null)
     {
         _isChinese = localizationService.CurrentLanguageTag == "zh-CN";
         _sourceProviders = sourceProviders;
@@ -107,6 +117,7 @@ public partial class AddGameWizardViewModel : ObservableObject
         _userDefinitionStore = userDefinitionStore;
         _profiles = profiles;
         _steamCatalogSearch = steamCatalogSearch;
+        _remoteDiscovery = remoteDiscovery;
 
         PageTitle = Pick("添加游戏", "Add Game");
         PageSubtitle = Pick("选择游戏和存档、设置同步目标，然后检查并完成。", "Choose a game and saves, set a sync target, then review and finish.");
@@ -196,6 +207,7 @@ public partial class AddGameWizardViewModel : ObservableObject
     public string RemoteNamespaceLabel => Pick("远端目录", "Remote directory");
     public string RemoteNamespaceHelp => Pick("在另一台电脑已有存档时，请选择已有远端存档并对应本机内容。", "To use saves from another computer, link an existing remote save and match its content.");
     public string LinkRemoteText => Pick("关联已有远端存档…", "Link existing remote saves…");
+    public string RescanRemoteText => Pick("重新扫描", "Scan again");
     public string LinkRemoteStatus => HasRemoteLinks() ? Pick("已关联远端存档，创建后请先比较。", "Remote saves linked. Compare them after creating the profile.") : string.Empty;
     public IReadOnlyList<LocalContentRoot> GetLinkableRoots() => _selectedMatch is null ? [] :
         RemoteContentLayout.LocalRoots(_selectedMatch.Definition, BuildBaseContentSelections()).Select(root =>
@@ -215,7 +227,71 @@ public partial class AddGameWizardViewModel : ObservableObject
         _linkedTargetId = targetId;
         _linkedNamespace = remoteNamespace;
         _remoteLinks = links.ToArray();
+        StartFirstSync = true;
         OnPropertyChanged(nameof(LinkRemoteStatus));
+    }
+
+    public async Task ScanRemoteAsync(CancellationToken cancellationToken = default)
+    {
+        CancelRemoteScan();
+        var version = Interlocked.Read(ref _remoteScanVersion);
+        RemoteCandidates = [];
+        if (_remoteDiscovery is null || _selectedGame is null || _selectedMatch is null || SelectedTargetId is not { } targetId)
+        {
+            RemoteScanStatus = Pick("选择同步目标后可扫描已有存档。", "Choose a sync target to scan for existing saves.");
+            return;
+        }
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(20));
+        _remoteScanCancellation = cts;
+        IsBusy = true;
+        RemoteScanStatus = Pick("正在扫描目标上的已有游戏…", "Scanning the target for existing games…");
+        try
+        {
+            var game = new GameInstance
+            {
+                GameId = _selectedMatch.Definition.GameId, DisplayName = _selectedGame.DisplayName,
+                SourceProviderId = _selectedGame.SourceProviderId, PlatformInstanceId = _selectedGame.PlatformGameId,
+            };
+            var result = await _remoteDiscovery.ScanAsync(targetId, game, _selectedMatch.Definition, cts.Token);
+            if (version != Interlocked.Read(ref _remoteScanVersion)) return;
+            RemoteCandidates = result.Candidates.Select(candidate => new RemoteGameCandidateRow(candidate,
+                candidate.Name + " · " + candidate.Namespace,
+                candidate.Match switch
+                {
+                    "identity" => Pick("游戏标识匹配，选择后确认存档目录", "Game identifier matches; review the save folders"),
+                    "legacy" => Pick("旧版目录标识匹配，请确认", "Legacy folder identifier matches; confirm"),
+                    _ => Pick("游戏名称相同，请确认是否为同一游戏", "The game name matches; confirm it is the same game"),
+                })).ToArray();
+            RemoteScanStatus = result.Incomplete
+                ? Pick("扫描未覆盖所有目录，可重试或手动选择已有存档。", "Not all folders were scanned. Retry or choose an existing save manually.")
+                : RemoteCandidates.Count == 0
+                    ? Pick("未找到匹配的远端游戏；可以新建或手动选择已有存档。", "No matching remote game was found. Create a new one or choose existing saves manually.")
+                    : Pick("找到可能匹配的远端游戏，请选择并确认。", "Possible remote matches found. Select one to review.");
+        }
+        catch (OperationCanceledException)
+        {
+            if (!cancellationToken.IsCancellationRequested && version == Interlocked.Read(ref _remoteScanVersion))
+                RemoteScanStatus = Pick("扫描超时，可重试或手动选择已有存档。", "Scanning timed out. Retry or choose existing saves manually.");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            if (version == Interlocked.Read(ref _remoteScanVersion))
+                RemoteScanStatus = Pick("无法扫描目标，可重试或手动选择：", "Could not scan the target. Retry or choose manually: ") + exception.Message;
+        }
+        finally
+        {
+            if (version == Interlocked.Read(ref _remoteScanVersion)) { _remoteScanCancellation = null; IsBusy = false; }
+        }
+    }
+
+    public void CancelRemoteScan()
+    {
+        Interlocked.Increment(ref _remoteScanVersion);
+        var previous = _remoteScanCancellation;
+        try { previous?.Cancel(); } catch (ObjectDisposedException) { }
+        _remoteScanCancellation = null;
+        if (previous is not null) IsBusy = false;
     }
 
     partial void OnRemoteNamespaceTextChanged(string value)
@@ -393,6 +469,7 @@ public partial class AddGameWizardViewModel : ObservableObject
 
     public void GoBack()
     {
+        if (CurrentStep == 5) CancelRemoteScan();
         if (CurrentStep == 3 && IsManualSourceSelected && _manualCandidates.Count == 0)
         {
             CurrentStep = 1;

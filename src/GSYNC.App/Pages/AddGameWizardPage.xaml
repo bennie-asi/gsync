@@ -175,6 +175,15 @@
                                 <Button Click="ManageTargetsButton_Click" Content="{Binding ManageTargetsText}" Style="{StaticResource SecondaryToolbarButtonStyle}" HorizontalAlignment="Left" />
                                 <TextBox Header="{Binding RemoteNamespaceLabel}" Text="{Binding RemoteNamespaceText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Stretch" />
                                 <TextBlock Text="{Binding RemoteNamespaceHelp}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding RemoteScanStatus}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
+                                <ItemsControl ItemsSource="{Binding RemoteCandidates}">
+                                    <ItemsControl.ItemTemplate><DataTemplate>
+                                        <Button Click="LinkRemoteCandidate_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,0,0,6" Style="{StaticResource SecondaryToolbarButtonStyle}">
+                                            <StackPanel Spacing="4"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" FontWeight="SemiBold" /><TextBlock Text="{Binding Detail}" TextWrapping="Wrap" /></StackPanel>
+                                        </Button>
+                                    </DataTemplate></ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Click="RescanRemote_Click" Content="{Binding RescanRemoteText}" IsEnabled="{Binding CanProceed}" Style="{StaticResource SecondaryToolbarButtonStyle}" HorizontalAlignment="Left" />
                                 <Button Click="LinkRemote_Click" Content="{Binding LinkRemoteText}" Style="{StaticResource SecondaryToolbarButtonStyle}" HorizontalAlignment="Left" />
                                 <TextBlock Text="{Binding LinkRemoteStatus}" Foreground="{StaticResource AppTextSecondaryBrush}" TextWrapping="Wrap" />
                             </StackPanel>

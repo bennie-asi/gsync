@@ -11,6 +11,7 @@ internal sealed record RootDescriptor(int Version, bool? IsDirectory);
 
 internal sealed record SyncExecutionContext(
     GameInstance GameInstance,
+    GameContentDefinition Definition,
     StorageBinding Binding,
     ISourceProvider SourceProvider,
     IStorageProvider StorageProvider,
@@ -24,6 +25,8 @@ internal sealed class ResolvedContentRoot(ContentItem contentItem, string localR
     public ContentItem ContentItem { get; } = contentItem;
     public string LocalRootPath { get; } = localRootPath;
     public string StorageKey { get; } = storageKey;
+    public string BaseStorageRoot { get; init; } = storageKey;
+    public string TemplateFingerprint { get; init; } = string.Empty;
     public bool TreatAsDirectory { get; private set; } = treatAsDirectory;
     public bool KindKnownLocally { get; } = File.Exists(localRootPath) || Directory.Exists(localRootPath);
     public bool KindDeclared { get; private set; }

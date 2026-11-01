@@ -12,6 +12,7 @@ public sealed class ContentSelection
 
     // Explicit links to content roots already stored on the selected target.
     public IReadOnlyDictionary<string, string> RemoteRootOverrides { get; init; } = new Dictionary<string, string>();
+    public IReadOnlyDictionary<string, string> RemoteSubdirectoryOverrides { get; init; } = new Dictionary<string, string>();
 
     // Path-level choices retain the original template identity and do not modify shared definitions.
     public IReadOnlyList<string> DisabledPathTemplates { get; init; } = Array.Empty<string>();
@@ -32,5 +33,8 @@ public sealed class ContentSelection
     }
 
     public string? RemoteRoot(string originalTemplate) => RemoteRootOverrides?.FirstOrDefault(pair =>
+        string.Equals(pair.Key.Replace('\\', '/'), originalTemplate.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)).Value;
+
+    public string? RemoteSubdirectory(string originalTemplate) => RemoteSubdirectoryOverrides?.FirstOrDefault(pair =>
         string.Equals(pair.Key.Replace('\\', '/'), originalTemplate.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)).Value;
 }

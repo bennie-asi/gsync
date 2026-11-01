@@ -42,7 +42,8 @@ public sealed class CrossDeviceWebDavTests
             var secondSaves = Path.Combine(root, "pc-b", "other-location");
             Directory.CreateDirectory(firstSaves);
             Directory.CreateDirectory(secondSaves);
-            await File.WriteAllTextAsync(Path.Combine(firstSaves, "slot.sav"), "first-device");
+            Directory.CreateDirectory(Path.Combine(firstSaves, "win64_save"));
+            await File.WriteAllTextAsync(Path.Combine(firstSaves, "win64_save", "slot.sav"), "first-device");
 
             var firstWizard = first.Wizard();
             Prepare(firstWizard, "Resident Evil Four", firstSaves);
@@ -55,6 +56,10 @@ public sealed class CrossDeviceWebDavTests
             await firstDetails.StopStatusCheckAsync();
             var originalBinding = Assert.Single(await first.Bindings.ListByGameInstanceAsync(firstId, default));
             Assert.Equal(SyncJobStatus.Completed, await first.RunAsync(firstId, SyncDirection.Upload));
+            var descriptor = await RemoteGameCatalog.ReadAsync(provider, originalBinding.RemoteNamespace, default);
+            Assert.NotNull(descriptor);
+            Assert.Equal("default", Assert.Single(descriptor!.Roots).StorageRoot);
+            Assert.DoesNotContain(firstSaves, System.Text.Json.JsonSerializer.Serialize(descriptor), StringComparison.OrdinalIgnoreCase);
 
             // A differently named, independently configured game would normally use a different namespace.
             var secondWizard = second.Wizard();
@@ -67,7 +72,7 @@ public sealed class CrossDeviceWebDavTests
             Assert.Equal("default", Assert.Single(remoteRoots));
             var localRoot = Assert.Single(secondWizard.GetLinkableRoots());
             secondWizard.LinkExistingRemote(second.TargetId, originalBinding.RemoteNamespace,
-                [new ContentRootLink(localRoot.ContentId, localRoot.Template, remoteRoots[0])]);
+                [new ContentRootLink(localRoot.ContentId, localRoot.Template, remoteRoots[0], "win64_save")]);
             Assert.Null(await secondWizard.CreateProfileAsync());
             var secondId = secondWizard.LastCreatedInstanceId!.Value;
             var secondDetails = second.Details();
@@ -79,6 +84,7 @@ public sealed class CrossDeviceWebDavTests
             await secondDetails.StopStatusCheckAsync();
             var persistedBinding = Assert.Single(await second.Bindings.ListByGameInstanceAsync(secondId, default));
             Assert.Equal("default", Assert.Single(persistedBinding.ContentSelections).RemoteRoot(localItem.PathTemplate));
+            Assert.Equal("win64_save", Assert.Single(persistedBinding.ContentSelections).RemoteSubdirectory(localItem.PathTemplate));
             var comparison = await second.CompareAsync(secondId);
             Assert.Equal(SyncChangeKind.AddedRemotely, Assert.Single(comparison.Entries).ChangeKind);
             Assert.Equal(SyncJobStatus.Completed, await second.RunAsync(secondId, SyncDirection.Download));
@@ -99,7 +105,8 @@ public sealed class CrossDeviceWebDavTests
             }, default);
             Assert.Equal(SyncChangeKind.Conflict, Assert.Single((await first.CompareAsync(firstId)).Entries).ChangeKind);
             Assert.Equal(SyncJobStatus.Completed, await first.RunAsync(firstId, SyncDirection.Download));
-            Assert.Equal("second-device", await File.ReadAllTextAsync(Path.Combine(firstSaves, "slot.sav")));
+            Assert.Equal("second-device", await File.ReadAllTextAsync(Path.Combine(firstSaves, "win64_save", "slot.sav")));
+            Assert.False(File.Exists(Path.Combine(firstSaves, "win64_save", "win64_save", "slot.sav")));
 
             // Relinking an already-added game persists the same mapping, without changing the remote save.
             var oldRoot = Assert.Single(firstDetails.GetLinkableRoots());
@@ -109,14 +116,90 @@ public sealed class CrossDeviceWebDavTests
             Assert.Equal(SyncChangeKind.Unchanged, Assert.Single((await first.CompareAsync(firstId)).Entries).ChangeKind);
 
             var unrelated = second.Wizard();
-            Prepare(unrelated, "Another game", Path.Combine(root, "another-game"));
+            var unrelatedSaves = Path.Combine(root, "another-game");
+            Directory.CreateDirectory(unrelatedSaves);
+            await File.WriteAllTextAsync(Path.Combine(unrelatedSaves, "slot.sav"), "another game");
+            Prepare(unrelated, "Another game", unrelatedSaves);
             Assert.NotEqual(originalBinding.RemoteNamespace, unrelated.RemoteNamespaceText);
+            unrelated.RemoteNamespaceText = originalBinding.RemoteNamespace;
+            Assert.Null(await unrelated.CreateProfileAsync());
+            Assert.Equal(SyncJobStatus.Failed, await second.RunAsync(unrelated.LastCreatedInstanceId!.Value, SyncDirection.Upload, protect: true));
+            Assert.Equal("second-device", await File.ReadAllTextAsync(Path.Combine(firstSaves, "win64_save", "slot.sav")));
             var otherTarget = second.AddTarget();
             Assert.Null(await secondDetails.UpdateDestinationAsync(otherTarget, originalBinding.RemoteNamespace));
             await secondDetails.StopStatusCheckAsync();
             Assert.Equal(SyncChangeKind.AddedLocally, Assert.Single((await second.CompareAsync(secondId)).Entries).ChangeKind);
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task ScanFindsStableIdentityInNestedDirectoryAndDoesNotMatchAnotherGame()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "gsync-discovery", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var server = new DavServer();
+            var provider = new WebDavStorageProvider(new HttpClient(server), Options.Create(new WebDavOptions { BaseUrl = "https://example.test/dav" }));
+            var device = await Device.CreateAsync(root, provider);
+            var definition = new GameContentDefinition { GameId = "ludusavi-stable-id", DisplayName = "Game title", SourceHints = new Dictionary<string, string> { ["steam.id"] = "12345" } };
+            var game = new GameInstance { GameId = definition.GameId, DisplayName = "其他语言名称", SourceProviderId = "steam", PlatformInstanceId = "12345" };
+            var descriptor = new RemoteGameDescriptor(1, "Game title", RemoteGameCatalog.Identities(game, definition),
+                [new RemoteGameRoot("saves", "saves", RemoteContentLayout.TemplateFingerprint("%APPDATA%/Game"), true)]);
+            var session = await RemoteSaveSession.OpenAsync(provider, "archive/old-game", default);
+            using (var metadata = new MemoryStream(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(descriptor)))
+                await session.UploadAsync("archive/old-game/" + RemoteGameCatalog.MetadataName, metadata, default);
+            using (var save = new MemoryStream("saved"u8.ToArray()))
+                await session.UploadAsync("archive/old-game/saves/slot.sav", save, default);
+            await session.CommitAsync(default);
+
+            var scan = await device.Discovery(provider).ScanAsync(device.TargetId, game, definition, default);
+            var candidate = Assert.Single(scan.Candidates);
+            Assert.Equal("archive/old-game", candidate.Namespace);
+            Assert.Equal("identity", candidate.Match);
+            var different = new GameInstance { GameId = "ludusavi-another", DisplayName = "Game title", SourceProviderId = "steam", PlatformInstanceId = "67890" };
+            var otherDefinition = new GameContentDefinition { GameId = different.GameId, DisplayName = different.DisplayName };
+            Assert.Empty((await device.Discovery(provider).ScanAsync(device.TargetId, different, otherDefinition, default)).Candidates);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task ScanOffersLegacyDirectoryAndReportsCorruptMetadata()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "gsync-discovery-legacy", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var server = new DavServer();
+            var provider = new WebDavStorageProvider(new HttpClient(server), Options.Create(new WebDavOptions { BaseUrl = "https://example.test/dav" }));
+            var device = await Device.CreateAsync(root, provider);
+            var definition = new GameContentDefinition { GameId = "ludusavi-legacy", DisplayName = "Old title" };
+            var game = new GameInstance { GameId = definition.GameId, DisplayName = definition.DisplayName, SourceProviderId = "custom" };
+            var legacy = GameIdentity.StorageNamespace(definition.GameId);
+            using (var save = new MemoryStream("old"u8.ToArray())) await provider.UploadAsync("archive/" + legacy + "/saves/slot.sav", save, default);
+            var broken = await RemoteSaveSession.OpenAsync(provider, "broken", default);
+            using (var invalid = new MemoryStream("not-json"u8.ToArray())) await broken.UploadAsync("broken/" + RemoteGameCatalog.MetadataName, invalid, default);
+            await broken.CommitAsync(default);
+            var scan = await device.Discovery(provider).ScanAsync(device.TargetId, game, definition, default);
+            Assert.True(scan.Incomplete);
+            var candidate = Assert.Single(scan.Candidates);
+            Assert.Equal("legacy", candidate.Match);
+            Assert.Equal("archive/" + legacy, candidate.Namespace);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void DirectoryLevelSuggestionRequiresOneUnambiguousMatch()
+    {
+        Assert.Equal("win64_save", RemoteContentLayout.SuggestRemoteSubdirectory(["slot.sav", "config/data.bin"], ["win64_save/slot.sav", "win64_save/config/data.bin"]));
+        Assert.Null(RemoteContentLayout.SuggestRemoteSubdirectory(["slot.sav"], ["a/slot.sav", "b/slot.sav"]));
+        Assert.Equal("", RemoteContentLayout.SuggestRemoteSubdirectory(["slot.sav"], ["slot.sav"]));
+        Assert.Throws<InvalidDataException>(() => RemoteContentLayout.MappedStoragePath("saves", "../outside"));
+        Assert.False(RemoteGameCatalog.IsStrongMatch(["catalog:a", "steam:1"], ["catalog:a", "steam:2"]));
+        Assert.False(RemoteGameCatalog.IsNameMatch(["name:same", "steam:1"], ["name:same", "steam:2"]));
     }
 
     private static void Prepare(AddGameWizardViewModel wizard, string name, string path)
@@ -167,6 +250,7 @@ public sealed class CrossDeviceWebDavTests
             new PathResolver(), new SystemVariableProvider(), Engine, _definitions, _profiles);
         public GameDetailsViewModel Details() => new(new Localization(), _games, Bindings, _history, _manifest, Engine, [_source], _definitions,
             new PathResolver(), new SystemVariableProvider(), _variables, _targets, Engine);
+        public RemoteGameDiscoveryService Discovery(IStorageProvider provider) => new(_targets, [provider]);
         public Guid AddTarget()
         {
             var target = new SyncTargetConfig { Name = "Other WebDAV", ProviderId = "webdav", Settings = new() { ["baseUrl"] = "https://example.test/dav" } };

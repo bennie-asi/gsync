@@ -5,7 +5,7 @@ using GSYNC.Core.Utilities;
 namespace GSYNC.Core.Services.Sync;
 
 public sealed record LocalContentRoot(string ContentId, string Template, string LocalPath, string DefaultRemoteRoot);
-public sealed record ContentRootLink(string ContentId, string Template, string RemoteRoot);
+public sealed record ContentRootLink(string ContentId, string Template, string RemoteRoot, string RemoteSubdirectory = "");
 
 /// <summary>Discovers logical content roots without exposing immutable storage generations.</summary>
 public static class RemoteContentLayout
@@ -28,7 +28,7 @@ public static class RemoteContentLayout
             string.Equals(link.ContentId, root.ContentId, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(link.Template.Replace('\\', '/'), root.Template, StringComparison.OrdinalIgnoreCase)) != 1))
             throw new InvalidDataException("Choose a remote content root for each enabled local content item.");
-        ValidateDistinctRoots(links.Select(link => link.RemoteRoot));
+        ValidateDistinctStoragePaths(links.Select(link => MappedStoragePath(link.RemoteRoot, link.RemoteSubdirectory)));
         return definition.ContentItems.Select(item =>
         {
             var previous = selections.FirstOrDefault(value => string.Equals(value.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase));
@@ -40,12 +40,16 @@ public static class RemoteContentLayout
                 RemovedPathTemplates = previous?.RemovedPathTemplates ?? Array.Empty<string>(),
                 RemoteRootOverrides = links.Where(link => string.Equals(link.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase))
                     .ToDictionary(link => link.Template, link => ValidateRootKey(link.RemoteRoot), StringComparer.OrdinalIgnoreCase),
+                RemoteSubdirectoryOverrides = links.Where(link => string.Equals(link.ContentId, item.ContentId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(link.RemoteSubdirectory))
+                    .ToDictionary(link => link.Template, link => ValidateSubdirectory(link.RemoteSubdirectory), StringComparer.OrdinalIgnoreCase),
             };
         }).ToArray();
     }
 
     public static string DefaultRootKey(string contentId, string template, int templateCount) =>
         ValidateRootKey(templateCount == 1 ? contentId : contentId + "/__roots/" + SyncFileService.GetRootId(template));
+
+    public static string TemplateFingerprint(string template) => SyncFileService.GetRootId(template);
 
     public static string ValidateRootKey(string key)
     {
@@ -60,7 +64,27 @@ public static class RemoteContentLayout
 
     public static void ValidateDistinctRoots(IEnumerable<string> roots)
     {
-        var keys = roots.Select(ValidateRootKey).ToArray();
+        ValidateDistinctStoragePaths(roots.Select(ValidateRootKey));
+    }
+
+    public static string ValidateSubdirectory(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+        var normalized = SafePath.ValidateRelative(path.Trim()).TrimEnd('/');
+        if (normalized.Split('/').Any(string.IsNullOrWhiteSpace)) throw new InvalidDataException("Invalid remote subdirectory.");
+        return normalized;
+    }
+
+    public static string MappedStoragePath(string root, string subdirectory)
+    {
+        var normalizedRoot = ValidateRootKey(root);
+        var normalizedSubdirectory = ValidateSubdirectory(subdirectory);
+        return normalizedSubdirectory.Length == 0 ? normalizedRoot : normalizedRoot + "/" + normalizedSubdirectory;
+    }
+
+    public static void ValidateDistinctStoragePaths(IEnumerable<string> roots)
+    {
+        var keys = roots.Select(value => SafePath.ValidateRelative(value)).ToArray();
         for (var i = 0; i < keys.Length; i++)
             for (var j = i + 1; j < keys.Length; j++)
                 if (keys[i].Equals(keys[j], StringComparison.OrdinalIgnoreCase) ||
@@ -70,20 +94,40 @@ public static class RemoteContentLayout
     }
 
     public static async Task<IReadOnlyList<string>> ListRootsAsync(IStorageProvider storage, string remoteNamespace, CancellationToken cancellationToken)
+        => (await ListFilesAsync(storage, remoteNamespace, cancellationToken)).Keys.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToArray();
+
+    public static async Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> ListFilesAsync(IStorageProvider storage, string remoteNamespace, CancellationToken cancellationToken)
     {
         var prefix = SafePath.ValidateRelative(remoteNamespace).TrimEnd('/') + "/";
         var session = await RemoteSaveSession.OpenAsync(storage, prefix.TrimEnd('/'), cancellationToken);
         var entries = await session.ListAsync(prefix.TrimEnd('/'), cancellationToken);
-        var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var roots = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in entries.Where(entry => !entry.IsDirectory && entry.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
         {
             var parts = entry.Path[prefix.Length..].Split('/');
             if (parts.Length < 2 || IsReserved(parts[0])) continue;
             var key = parts.Length >= 4 && parts[1].Equals("__roots", StringComparison.OrdinalIgnoreCase)
                 ? string.Join('/', parts.Take(3)) : parts[0];
-            roots.Add(ValidateRootKey(key));
+            key = ValidateRootKey(key);
+            if (!roots.TryGetValue(key, out var paths)) roots[key] = paths = [];
+            var relative = string.Join('/', parts.Skip(key.Contains('/') ? 3 : 1));
+            if (relative.Length > 0 && paths.Count < 513) paths.Add(relative);
         }
-        return roots.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToArray();
+        return roots.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public static string? SuggestRemoteSubdirectory(IEnumerable<string> localFiles, IEnumerable<string> remoteFiles)
+    {
+        var local = localFiles.Select(path => SafePath.ValidateRelative(path)).Distinct(StringComparer.OrdinalIgnoreCase).Take(513).ToArray();
+        var remote = remoteFiles.Select(path => SafePath.ValidateRelative(path)).Distinct(StringComparer.OrdinalIgnoreCase).Take(513).ToArray();
+        if (local.Length == 0 || local.Length > 512 || remote.Length > 512) return null;
+        var remoteSet = remote.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (local.All(remoteSet.Contains)) return string.Empty;
+        var candidates = remote.Where(path => path.EndsWith("/" + local[0], StringComparison.OrdinalIgnoreCase))
+            .Select(path => path[..^(local[0].Length + 1)])
+            .Where(prefix => local.All(path => remoteSet.Contains(prefix + "/" + path)))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        return candidates.Length == 1 ? ValidateSubdirectory(candidates[0]) : null;
     }
 
     private static bool IsReserved(string segment) => segment.Equals("__gsync_meta", StringComparison.OrdinalIgnoreCase) ||
